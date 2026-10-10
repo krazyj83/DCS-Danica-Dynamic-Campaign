@@ -1,0 +1,95 @@
+-- ============================================================================
+-- Danica Dynamic Campaign - persistence (save / load the war as JSON)
+-- ----------------------------------------------------------------------------
+-- All file access lives in this one module. DCS sandboxes mission scripts and
+-- removes `io` and `lfs` unless the server owner re-enables them in
+-- DCS World\Scripts\MissionScripting.lua. If they are missing the campaign
+-- still runs, it just cannot remember anything between restarts.
+--
+-- Files (under Saved Games\DCS\DCC\):
+--   <Theater>_war.json          the live save, written every tick
+--   <Theater>_war_bak<N>.json   rotating backups (N = tick mod saveSlots)
+--   <Theater>_war_final_<T>.json archive of a finished war
+-- ============================================================================
+
+DCC = DCC or {}
+local U = DCC.util
+local P = {}
+DCC.persist = P
+
+local warned = false
+
+function P.available()
+  local ok = (io ~= nil and io.open ~= nil and lfs ~= nil and lfs.writedir ~= nil)
+  if not ok and not warned then
+    warned = true
+    U.log("persistence OFF: io/lfs are sanitized in MissionScripting.lua - the war will not be saved")
+  end
+  return ok
+end
+
+local function folder()
+  local dir = lfs.writedir() .. DCC.config.saveFolder .. "\\"
+  pcall(lfs.mkdir, dir)
+  return dir
+end
+
+local function writeFile(path, text)
+  local f, err = io.open(path, "w")
+  if not f then U.log("save failed (%s): %s", path, tostring(err)); return false end
+  f:write(text)
+  f:close()
+  return true
+end
+
+local function readFile(path)
+  local f = io.open(path, "r")
+  if not f then return nil end
+  local text = f:read("*a")
+  f:close()
+  return text
+end
+
+local function decodeSafe(text)
+  if not text or text == "" then return nil end
+  local ok, v = pcall(DCC.json.decode, text)
+  if ok and type(v) == "table" and v.nodes then return v end
+  return nil
+end
+
+-- Write the live save plus one rotating backup.
+function P.save(theaterName, state)
+  if not P.available() then return false end
+  local ok, text = pcall(DCC.json.encode, state)
+  if not ok then U.log("save encode failed: %s", tostring(text)); return false end
+  local dir = folder()
+  local main = dir .. theaterName .. "_war.json"
+  local slot = (state.tick or 0) % DCC.config.saveSlots
+  local done = writeFile(main, text)
+  writeFile(dir .. theaterName .. "_war_bak" .. slot .. ".json", text)
+  return done
+end
+
+-- Load the newest readable save. A corrupt main file falls back to the
+-- backup with the highest tick, so a crash mid-write costs one tick at most.
+function P.load(theaterName)
+  if not P.available() then return nil end
+  local dir = folder()
+  local best = decodeSafe(readFile(dir .. theaterName .. "_war.json"))
+  if best then return best end
+  U.log("main save missing or unreadable, trying backups")
+  for slot = 0, DCC.config.saveSlots - 1 do
+    local s = decodeSafe(readFile(dir .. theaterName .. "_war_bak" .. slot .. ".json"))
+    if s and (not best or (s.tick or 0) > (best.tick or 0)) then best = s end
+  end
+  return best
+end
+
+-- Keep a finished war for the record before a new one overwrites the save.
+function P.archive(theaterName, state)
+  if not P.available() then return end
+  local ok, text = pcall(DCC.json.encode, state)
+  if ok then
+    writeFile(folder() .. theaterName .. "_war_final_" .. tostring(state.tick or 0) .. ".json", text)
+  end
+end
