@@ -231,7 +231,9 @@ def build(theater_name, era, out, bundle):
     m.triggerrules.triggers.append(trig)
 
     # Options.
-    m.forced_options.options_view = ForcedOptions.Views.Allies   # "Fog of war" on the F10 map
+    # "Allies only": the F10 map shows own units only; enemies appear only through the
+    # campaign's intel layer (dcc_dcs_intel.lua), which draws what each side has detected.
+    m.forced_options.options_view = ForcedOptions.Views.OnlyAllies
     m.forced_options.civil_traffic = ForcedOptions.CivilTraffic.Off
     m.set_description_text(
         "Danica Dynamic Campaign - persistent war on " + theater_name + ".\n"

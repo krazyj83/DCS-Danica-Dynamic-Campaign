@@ -72,6 +72,7 @@ end
 local function base(theater, catalog, cfg)
   return setmetatable({
     T = indexTheater(theater), cat = catalog, cfg = cfg,
+    fogOfWar = cfg.intel and cfg.intel.enabled,   -- phase 4: board and map use contacts only
     balance = theater.balance or {},   -- e.g. { red = 1.2 }: production multiplier per side
     liveFn = nil,          -- set by the bridge: function(nodeId) -> bool
     newEvents = {},
@@ -97,6 +98,7 @@ function War.new(theater, catalog, cfg, seed)
   end
   self:initAllSupply()
   if self.initOps then self:initOps() end
+  if self.initIntel then self:initIntel() end
   self:log("start", nil, "War begins on " .. theater.name)
   return self
 end
@@ -137,6 +139,7 @@ function War.restore(theater, catalog, cfg, state)
     self:initOps()        -- an older save gets SAM sites, structures and air pools added
     self:returnAllCarried() -- a restart lands every helicopter: troops go home
   end
+  if self.initIntel then self:initIntel() end
   return self
 end
 
@@ -753,6 +756,7 @@ function War:tick()
   self:upkeep()
   self:restockAircraft()
   if self.opsTick then self:opsTick() end
+  if self.intelTick then self:intelTick() end
   if self.missionsTick then self:missionsTick() end
   self:checkVictory()
   if not self.state.winner then

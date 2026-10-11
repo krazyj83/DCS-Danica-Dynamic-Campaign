@@ -23,11 +23,13 @@ ENGINE = [
     "src/dcc_ops.lua",
     "src/dcc_missions.lua",
     "src/dcc_pilots.lua",
+    "src/dcc_intel.lua",
     "src/dcc_front.lua",
     "src/dcc_persist.lua",
     "src/dcc_dcs.lua",
     "src/dcc_dcs_supply.lua",
     "src/dcc_dcs_ops.lua",
+    "src/dcc_dcs_intel.lua",
     "src/dcc_main.lua",
 ]
 

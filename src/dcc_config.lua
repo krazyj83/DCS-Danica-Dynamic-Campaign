@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.3.0-phase3",
+  version         = "0.4.0-phase4",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -106,6 +106,26 @@ DCC.config = {
   },
 
   pilotsFile = "pilots.json", -- persistent pilot records (kept across maps)
+
+  -- Intel and fog of war (phase 4)
+  intel = {
+    enabled        = true,   -- missions and map use only what each side has detected
+    staleTicks     = 6,      -- contacts older than 30 min are drawn faded and cannot be tasked
+    expireTicks    = 36,     -- contacts older than 3 h are forgotten
+    groundObsKm    = 8,      -- every base sees enemy columns on its roads this close (troops in contact)
+    visualKmAir    = 10,     -- players see aircraft this far (with line of sight)...
+    visualKmGround = 6,      -- ...and ground units this far
+    elintKm        = 110,    -- airborne aircraft hear an emitting radar this far
+    elintMinAglM   = 800,    -- ...when at least this high
+    elintBaseErrM  = 6000,   -- first ELINT fix is this rough...
+    elintMinErrM   = 300,    -- ...and narrows with every observation down to this
+    samWakeKm      = 60,     -- SAM radars switch on when enemy aircraft are this close
+    harmDarkSeconds = { 60, 120 }, -- a SAM goes dark this long when an anti-radiation missile is fired at it
+    drawEverySeconds = 60,   -- the intel map layer is redrawn this often
+    scanSeconds    = 10,     -- how often players, AI sensors and ELINT are checked
+    airContactSeconds = 120, -- enemy aircraft stay on the map this long after the last sighting
+    elintShrink    = 0.6,    -- each new ELINT observation multiplies the error by this
+  },
 
   -- Live bubble (what gets spawned as real DCS units) -----------------------
   liveRadiusKm     = 40,    -- nodes within this distance of a player are live

@@ -19,6 +19,7 @@ dofile(DCC_ROOT .. "/src/dcc_persist.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_supply.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ops.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_intel.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
 local errors = 0
@@ -30,6 +31,7 @@ end
 
 DCC.start()
 local B, war = DCC.dcs, DCC.warObj
+war.fogOfWar = false          -- phase-3 checks: god's-eye board (fog has its own test file)
 war:tick(); war:tick()          -- fill the boards (CAP needs a main effort)
 B.opsTick()
 

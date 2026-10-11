@@ -901,6 +901,8 @@ function B.onOpsEvent(e)
     end
   elseif e.id == ev.S_EVENT_KILL then
     B.onKill(e)
+  elseif e.id == ev.S_EVENT_SHOT then
+    if B.onShot then B.onShot(e) end
   elseif e.id == ev.S_EVENT_EJECTION then
     if u then B.onEjection(u) end
   elseif e.id == ev.S_EVENT_PILOT_DEAD then
@@ -947,7 +949,7 @@ function B.drawOps(newMark, toVec3)
         { 0, 0, 0, 0 }, 10, true, "SAM " .. ns.sam.status)
     end
   end
-  for _, side in ipairs({ "blue", "red" }) do
+  for _, side in ipairs(war.fogOfWar and {} or { "blue", "red" }) do   -- with fog: dcc_dcs_intel.lua
     for id, i in pairs(war.state.intel[side]) do
       local ns = war.state.nodes[id]
       if ns and ns.side ~= side then

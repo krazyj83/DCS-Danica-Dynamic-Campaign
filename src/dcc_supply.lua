@@ -55,7 +55,8 @@ function War:incomingSupply(id, side)
   for _, mv in pairs(self.state.moves) do
     if mv.to == id and mv.side == side and mv.cargo then n = n + mv.cargo * (mv.health or 1) end
   end
-  return n
+  -- rounded: the sum runs in hash order, which differs after a restore
+  return math.floor(n * 1e6 + 0.5) / 1e6
 end
 
 -- Owner's player aircraft types (from the catalog), as a flat list.

@@ -28,7 +28,26 @@ land = {
   getHeight = function() return 0 end,
   getSurfaceType = function() return 1 end,
   getClosestPointOnRoads = function(_, x, z) return x, z end,
+  -- line of sight: open unless a test puts a "ridge" in the way (MOCK.ridges = { {x, z, r} })
+  isVisible = function(a, b)
+    for _, r in ipairs(MOCK.ridges or {}) do
+      for i = 1, 19 do
+        local t = i / 20
+        local x, z = a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t
+        if (x - r[1]) ^ 2 + (z - r[2]) ^ 2 <= r[3] ^ 2 then return false end
+      end
+    end
+    return true
+  end,
 }
+
+-- AI options and weapons (phase 4)
+AI = { Option = { Ground = { id = { ROE = 0, ALARM_STATE = 9 },
+  val = { ROE = { OPEN_FIRE = 2, RETURN_FIRE = 3, WEAPON_HOLD = 4 }, ALARM_STATE = { AUTO = 0, GREEN = 1, RED = 2 } } } } }
+Weapon = { GuidanceType = { INS = 1, IR = 2, RADAR_ACTIVE = 3, RADAR_SEMI_ACTIVE = 4, RADAR_PASSIVE = 5 } }
+function MOCK.weapon(guidance, target)
+  return { getDesc = function() return { guidance = guidance } end, getTarget = function() return target end }
+end
 
 timer = {
   getTime = function() return MOCK.time end,
@@ -58,7 +77,7 @@ end
 world = {
   event = { S_EVENT_TAKEOFF = 3, S_EVENT_LAND = 4, S_EVENT_CRASH = 5, S_EVENT_EJECTION = 6, S_EVENT_DEAD = 8,
             S_EVENT_PILOT_DEAD = 9, S_EVENT_MISSION_END = 12, S_EVENT_BIRTH = 15, S_EVENT_PLAYER_LEAVE_UNIT = 21,
-            S_EVENT_KILL = 28 },
+            S_EVENT_KILL = 28, S_EVENT_SHOT = 1 },
   addEventHandler = function(h) MOCK.handlers[#MOCK.handlers + 1] = h end,
   getAirbases = function()
     local list = {}
@@ -172,7 +191,20 @@ function GroupMT:getUnits() return self.units end
 function GroupMT:getUnit(i) return self.units[i] end
 function GroupMT:getID() return self.id end
 function GroupMT:getName() return self.name end
-function GroupMT:getController() return { setOption = function() end, setTask = function() end } end
+-- One controller per group: records options, reports what a test says it detects (g.detected = { unit, ... }).
+function GroupMT:getController()
+  local g = self
+  g.ctl = g.ctl or {
+    setOption = function(_, id, v) g.options = g.options or {}; g.options[id] = v end,
+    setTask = function() end,
+    getDetectedTargets = function()
+      local out = {}
+      for _, u in ipairs(g.detected or {}) do out[#out + 1] = { object = u, visible = true } end
+      return out
+    end,
+  }
+  return g.ctl
+end
 function GroupMT:destroy() self.exists = false; MOCK.groups[self.name] = nil end
 
 Group = { Category = { AIRPLANE = 0, HELICOPTER = 1, GROUND = 2 } }

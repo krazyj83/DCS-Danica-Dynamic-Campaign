@@ -4,14 +4,15 @@ A perpetual, persistent dynamic campaign for DCS World. One Lua engine runs insi
 mission, the war keeps going whether anyone is online or not, and when one side loses its last
 base the server moves on to the next map in the rotation.
 
-**Status: phase 3 of 5 — player missions, on Caucasus.** Ground forces hold nodes, mass for
+**Status: phase 4 of 5 — fog of war and intel, on Caucasus.** Ground forces hold nodes, mass for
 assaults and capture bases. Every base runs on supply that trucks and transport aircraft carry
 forward. Each side has a **mission board** — CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy
 escort, recon, CSAR and helicopter logistics — and every mission writes its effect into the war.
 AI fighters and attack aircraft fly for both sides, and **pilot records** follow players across
 wars and maps. The front line is drawn on the F10 map and the whole war is saved across restarts.
-A ready-to-fly mission file is generated for you. Fog of war and map rotation automation come next
-(see [Roadmap](#roadmap)).
+**Fog of war:** each side's map shows only the enemy it has actually detected — by eye, by AI
+sensors, by ELINT on SAM radars or by recon — and contacts fade and expire. A ready-to-fly mission
+file is generated for you. Map rotation automation comes next (see [Roadmap](#roadmap)).
 
 ![Simulated war](docs/sim_war.png)
 
@@ -66,6 +67,38 @@ intercept an enemy airlift. Shot-down AI aircraft are gone from the pool.
 ground, convoy, SAM, buildings), missions by type, rescues flown and received, ejections, deaths
 and captures. Score sets rank, from Lieutenant to General.
 
+## Fog of war and intel
+
+You only see the enemy your side has found. Every side keeps a **contact table** in the save;
+the F10 map and the mission board read that table, never the true positions.
+
+| How a contact is made | What it gives |
+| --- | --- |
+| **Eyes** — a player aircraft within 6 km of enemy ground units or 10 km of aircraft, with terrain not in the way | Column positions, garrison vehicle counts, SAM sites with a precise fix |
+| **AI sensors** — your SAM radars, AI fighters and ground platoons report what they detect | Enemy aircraft and ground units near them |
+| **ELINT** — any of your aircraft above 800 m within 110 km of an enemy SAM radar that is switched on | The site's position with an error circle: ±6 km at first, narrowing with every observation down to 300 m. Keep listening to sharpen it |
+| **Recon mission** | The whole base: garrison size and SAM status, plus every column on its roads. Valid 6 h |
+| **Troops in contact** — every base sees enemy columns within 8 km on its roads and anything attacking it | BAI targets on columns about to hit you |
+| **Front estimate** — always on | Enemy bases on the front show *est. light / medium / heavy* |
+
+**Age.** A contact is *fresh* for 30 minutes (solid, can be tasked), then *stale* (faded, "last
+seen 1.5 h ago", not tasked), and forgotten after 3 hours. Enemy aircraft stay on the map for
+2 minutes after the last sighting. Columns are drawn **where they were seen**, not where they are.
+
+**Missions follow intel.** BAI is only offered on columns your side has seen in the last 30 minutes,
+and SEAD only on SAM sites you know — so recon and ELINT come first. With nobody flying, the board
+shows about 0.3 BAI and no SEAD (versus 3 and 2 with full knowledge); fly a recon or a SEAD
+patrol to find targets. STRIKE, CAS, CAP, RECON, CSAR and logistics are against fixed or own
+positions and stay offered.
+
+**SAM radars (EMCON).** A SAM site keeps its radar off until enemy aircraft come within 60 km,
+then switches to alarm state red — that is when ELINT can hear it. Fire an anti-radiation missile
+(HARM, Kh-58, Kh-25MP …) at it and it goes dark for 1–2 minutes: it survives, but it cannot shoot
+or be heard. Kill the radar while it is lit, or use the window to get close.
+
+**What is not fogged:** who owns each base (circles and names are public), the front line, and
+the AI commanders' own plans — the AI still plans with full knowledge, fog applies to players.
+
 ---
 
 ## How it works (the concepts)
@@ -88,6 +121,7 @@ and captures. Score sets rank, from Lieutenant to General.
 | **SAM site** | Airbases and depots have an air-defence site (BLUE Hawk, RED SA-11), spawned when a player is within 80 km. Up → suppressed (radar dead) → destroyed. Captured sites are destroyed; the new owner builds its own. |
 | **Structures** | Fuel, ammo and warehouse buildings at depots (6) and airbases (4) — strike targets that cut output and supply when destroyed. |
 | **Air pool** | Each side's AI fighters and attack aircraft as numbers; sorties draw from it, losses are permanent, depots buy replacements. |
+| **Contact** | Something one side has detected: key, kind, where, how (visual / sensor / ELINT / recon), how precise, when. Saved; ages from fresh to stale to forgotten. |
 | **Theater pack** | A data file per map (`theaters/*.lua`): nodes with lat/lon, roads, start owners. No map is named in engine code. |
 | **Era catalog** | A data file per era (`catalogs/*.lua`) mapping roles to DCS unit types per side, plus convoy trucks, transports and player aircraft. |
 
@@ -97,16 +131,16 @@ can be rebuilt from the save file, so a restart, a crash or a map change loses n
 ```
 theaters/  catalogs/             Saved Games\DCS\DCC\<Map>_war.json
      \        /                              ^
-  war model (dcc_war + dcc_supply + dcc_ops + dcc_missions) <-- save/load (dcc_persist.lua)
+  war model (dcc_war + dcc_supply + dcc_ops + dcc_missions + dcc_intel) <-- save/load
            ^      |
    read-back      | spawn / despawn, warehouses, F10 drawing
            |      v
-  DCS bridge (dcc_dcs + dcc_dcs_supply + dcc_dcs_ops)  <-->  DCS world + players
+  DCS bridge (dcc_dcs + dcc_dcs_supply + dcc_dcs_ops + dcc_dcs_intel)  <-->  DCS world + players
 ```
 
 **Does it matter if I kill a convoy?** Yes, measured: in 8 paired offline wars, destroying the
-convoys feeding BLUE's main effort cut the platoons BLUE could send into assaults by 26 % and its
-captures from 51 to 45 over one war day; 6 of 8 wars were hit (`tools/interdiction.lua`). Every
+convoys feeding BLUE's main effort cut the platoons BLUE could send into assaults by 31 % and its
+captures from 55 to 46 over one war day; 7 of 8 wars were hit (`tools/interdiction.lua`). Every
 mission type has a test that checks its effect lands in the save (`tests/test_ops.lua`).
 
 ---
@@ -145,7 +179,7 @@ Use the generated **`dist/DCC_Caucasus.miz`**. It contains:
 | **Fixed client slots** at the depots | One per aircraft type at Batumi, Tbilisi-Lochini (BLUE) and Sochi-Adler, Beslan, Krasnodar-Center (RED). These also work in single player. |
 | AI templates | Four late-activated 2-ships (`DCC_TPL_blue_fighter` F-16C, `_blue_attack` A-10C, `_red_fighter` MiG-29S, `_red_attack` Su-25) with loadouts. The engine copies them for AI sorties — change a template's loadout in the Mission Editor if you like. |
 | One trigger | MISSION START → DO SCRIPT FILE `dcc_bundle.lua` (the engine) |
-| Options | F10 map in fog-of-war mode, civil traffic off |
+| Options | F10 map view **Allies only** (enemies appear only through the campaign's intel layer), civil traffic off |
 
 **Player aircraft** (edit `catalogs/modern.lua` → `aircraft` to change):
 
@@ -217,7 +251,12 @@ The offline tests use a fake DCS API, so these need a real server to confirm:
 - [ ] AI pairs appear ("Command: … CAP sortie airborne") and actually orbit / attack.
 - [ ] Ejecting creates a downed pilot; a Huey landing next to them and then at a friendly base rescues them.
 - [ ] Huey *Load supply crate* / *Unload* changes the base's SU on your map.
-- [ ] `dcs.log` has no `DCC: ERROR` lines.
+- [ ] **Mission Editor → Options → F10 view** reads *Allies only* (the generator writes `optview_onlyallies`; if your DCS shows a different name, pick *Allies only* by hand). Enemy units must not appear on the F10 map by themselves.
+- [ ] Flying at 6000 m toward an enemy airbase: within 60 km a red SAM ring with an error circle appears on your map, and the circle shrinks over a few minutes.
+- [ ] Firing a HARM at a lit SAM makes it stop guiding (dark) for 1–2 minutes.
+- [ ] A low pass over an enemy base puts "N vehicles seen" there; a hill between you and it does not.
+- [ ] Spectators see only the front line and base owners (intel is per coalition).
+- [ ] `dcs.log` has no `DCC: ERROR` lines (errors now include a stack traceback).
 
 ---
 
@@ -225,6 +264,7 @@ The offline tests use a fake DCS API, so these need a real server to confirm:
 
 - **Front line** — yellow segments across every road whose two ends belong to different sides.
 - **Nodes** — circles in the owner's colour (depots larger, dashed outline) with the name for everyone. The owner also sees `platoons | SU`, and `NO SUPPLY` when a base has run dry.
+- **Enemy contacts** (fog of war) — SAM threat rings (with an ELINT error circle when the fix is rough), columns where they were seen, garrisons seen at bases, recon reports, *est. light/medium/heavy* on enemy front bases, enemy aircraft seen in the last 2 minutes. Faded = stale. Refreshed every minute. F10 → status also lists how many fresh contacts your side holds.
 - **Own assaults** — arrows from staging node to target; **own airlifts** — a line origin → destination. Only your side sees them.
 - **Messages** — captures, repulsed attacks and destroyed convoys/airlifts for everyone; your side's main effort, assaults, airlifts and out-of-supply warnings for your side.
 - **Airbases** — DCS auto-capture is off; the airbase coalition follows the war, and so do the aircraft you can spawn there. Spawning at a base your side does not own removes you with a message.
@@ -257,6 +297,11 @@ Phase 3 settings are in `ops` (SAM repair times and costs, structures, AI air po
 cover, ambush chance, CSAR timeout, crate size) and `missions` (board size per type, CAP time,
 recon and escort distances).
 
+Phase 4 settings are in `intel`: `enabled` (set false for a god's-eye board and map),
+contact aging (`staleTicks`, `expireTicks`), visual ranges, ELINT range, height and error
+(`elintKm`, `elintMinAglM`, `elintBaseErrM`, `elintMinErrM`, `elintShrink`), SAM wake distance,
+dark time after an anti-radiation missile, troops-in-contact distance and redraw interval.
+
 Player aircraft stock per base is `aircraftStock` in the catalog (4 per type, 8 at depots).
 Per-map balance lives in the theater pack: `balance = { blue = 1.0, red = 1.0 }` multiplies each
 side's production.
@@ -280,9 +325,10 @@ under Python via `lupa`:
 pip install lupa matplotlib
 
 python tools/run_lua.py tests/test_war.lua          # war model + supply: 29 checks
-python tools/run_lua.py tests/test_ops.lua          # every mission type writes its effect: 51 checks
+python tools/run_lua.py tests/test_ops.lua          # every mission type writes its effect + fog gating: 66 checks
 python tools/run_lua.py tests/test_dcs_bridge.lua   # bridge, convoys, airlifts, warehouses: 49 checks
 python tools/run_lua.py tests/test_dcs_ops.lua      # flying every mission type against a fake DCS: 60 checks
+python tools/run_lua.py tests/test_dcs_intel.lua    # fog of war: each map shows only what that side detected: 40 checks
 
 python tools/run_lua.py tools/sim.lua 4320 2026 docs/sim_history.json   # simulate 15 days
 python tools/plot_war.py docs/sim_history.json docs/sim_war.png         # plot it
@@ -290,7 +336,8 @@ python tools/run_lua.py tools/interdiction.lua 8                         # convo
 ```
 
 `tests/dcs_mock.lua` fakes the parts of the DCS scripting API the bridge uses (spawning, groups,
-aircraft, airbases and warehouses, F10 drawing, timers, files, player births). It catches wiring
+aircraft, airbases and warehouses, F10 drawing, timers, files, player births, line of sight,
+AI detections, alarm states, weapon shots). It catches wiring
 bugs; it does not replace a real test flight.
 
 ---
@@ -307,11 +354,13 @@ src/
   dcc_ops.lua         SAM sites, structures, AI air pools, intel, carried troops, downed pilots
   dcc_missions.lua    mission board: generate, take, judge, credit
   dcc_pilots.lua      persistent pilot records, score and rank
+  dcc_intel.lua       contacts per side: aging, troops in contact, front estimates, SAM knowledge
   dcc_front.lua       front-line geometry from ownership
   dcc_persist.lua     save / load / backups (the only file access)
   dcc_dcs.lua         DCS bridge: live bubble, spawning, read-back, F10 drawing, menus
   dcc_dcs_supply.lua  DCS bridge: convoys, airlifts, warehouses, slot guard
   dcc_dcs_ops.lua     DCS bridge: menus, briefings, detection, SAMs, statics, AI air, CSAR, cargo
+  dcc_dcs_intel.lua   DCS bridge: eyes, AI sensors, ELINT, SAM EMCON/HARM, the per-side intel map layer
   dcc_main.lua        start-up and the 30 s / 5 min loops
   dcc_loader.lua      development loader
 theaters/caucasus.lua   Caucasus nodes, roads, start owners
@@ -330,8 +379,8 @@ tools/                  Lua runner, simulator, plotter, interdiction test, bundl
 | --- | --- | --- |
 | 1 — Core loop ✓ | Theater pack, nodes and owners, AI assaults, capture, front line, save/load | The front moves on its own overnight and survives a restart |
 | 2 — Supply economy ✓ | Supply per node, real convoys and airlifts, warehouses with dynamic spawn, supply-gated commander, generated mission | Killing a convoy visibly delays the assault it was feeding |
-| **3 — Player missions ✓ (this)** | Mission boards for RED and BLUE: CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy escort, recon, CSAR, helicopter logistics and air assault; AI air; persistent pilots | Every mission type writes its effect to the save |
-| 4 — Fog of war and intel | Detection table, contact aging, recon, Hound ELINT, IADS | Each side's map shows only what it has detected |
+| 3 — Player missions ✓ | Mission boards for RED and BLUE: CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy escort, recon, CSAR, helicopter logistics and air assault; AI air; persistent pilots | Every mission type writes its effect to the save |
+| **4 — Fog of war and intel ✓ (this)** | Contact table with aging, eyes / AI sensors / ELINT / recon / troops in contact, SAM EMCON and HARM shutdown, intel-gated BAI and SEAD, per-side intel map layer (own ELINT instead of the Hound library — no extra dependency) | Each side's map shows only what it has detected |
 | 5 — Rotation and all maps | Victory detection → next map, theater-pack generator, more catalogs | A win on Caucasus loads the next map unattended |
 
 ## License

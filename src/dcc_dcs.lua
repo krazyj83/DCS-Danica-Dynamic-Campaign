@@ -416,6 +416,7 @@ function B.showStatus(side)
   if f then lines[#lines + 1] = "Main effort: " .. war:nodeName(f.target) end
   if B.supplyLines then for _, l in ipairs(B.supplyLines(side)) do lines[#lines + 1] = l end end
   if B.opsStatusLines then for _, l in ipairs(B.opsStatusLines(side)) do lines[#lines + 1] = l end end
+  if B.intelStatusLines then for _, l in ipairs(B.intelStatusLines(side)) do lines[#lines + 1] = l end end
   lines[#lines + 1] = "Recent:"
   local evs = war.state.events
   local shown = 0

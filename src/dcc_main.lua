@@ -14,7 +14,8 @@ local U = DCC.util
 
 local function safe(name, fn)
   return function(...)
-    local ok, err = pcall(fn, ...)
+    local args = { ... }
+    local ok, err = xpcall(function() return fn(unpack(args)) end, debug.traceback)
     if not ok then U.log("ERROR in %s: %s", name, tostring(err)) end
   end
 end
@@ -125,6 +126,17 @@ function DCC.start()
     safe("detect", DCC.dcs.detect)()
     return t + 10
   end, nil, timer.getTime() + 10)
+
+  if DCC.dcs.intelScan then
+    timer.scheduleFunction(function(_, t)
+      safe("intelScan", DCC.dcs.intelScan)()
+      return t + cfg.intel.scanSeconds
+    end, nil, timer.getTime() + 5)
+    timer.scheduleFunction(function(_, t)
+      safe("drawIntel", DCC.dcs.drawIntel)()
+      return t + cfg.intel.drawEverySeconds
+    end, nil, timer.getTime() + 6)
+  end
 
   timer.scheduleFunction(function(_, t)
     safe("tick", DCC.onTick)()

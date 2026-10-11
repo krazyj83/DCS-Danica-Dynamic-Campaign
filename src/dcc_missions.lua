@@ -65,7 +65,8 @@ function gen.BAI(self, side)
   local out = {}
   for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
     local mv = self.state.moves[mid]
-    if mv.side == enemy and mv.status == "moving" and mv.kind ~= "airlift"
+    local seen = (not self.fogOfWar) or self:isFresh(side, "m:" .. mid)    -- phase 4: only what we saw
+    if seen and mv.side == enemy and mv.status == "moving" and mv.kind ~= "airlift"
        and math.min(dist[mv.to] or 99, dist[mv.from] or 99) <= 2 then
       local what = mv.cargo and "convoy" or (mv.kind == "assault" and "assault column" or "reinforcements")
       out[#out + 1] = { type = "BAI", target = mid, node = mv.to,
@@ -98,9 +99,12 @@ function gen.SEAD(self, side)
   local out = {}
   for _, id in ipairs(self.T.order) do
     local ns = self.state.nodes[id]
-    if ns.side == enemy and ns.sam and ns.sam.status == "up" then
+    local known = (not self.fogOfWar) or self:samKnown(side, id) == "known"  -- phase 4
+    if known and ns.side == enemy and ns.sam and ns.sam.status == "up" then
+      local c = self.fogOfWar and self:contact(side, "sam:" .. id)
+      local how = (c and c.source == "elint") and string.format(" (ELINT +/-%.1f km)", (c.err or 0) / 1000) or ""
       out[#out + 1] = { type = "SEAD", target = id, node = id, prio = dist[id] or 9,
-        label = "air defence at " .. self:nodeName(id) }
+        label = "air defence at " .. self:nodeName(id) .. how }
     end
   end
   return out
@@ -292,6 +296,7 @@ end
 
 function War:openMissions(side)
   local list = {}
+  self.state.missions = self.state.missions or {}   -- a player may slot in before the first tick
   for _, id in ipairs(U.sortedKeys(self.state.missions)) do
     local m = self.state.missions[id]
     if m.side == side and m.status == "open" then list[#list + 1] = m end

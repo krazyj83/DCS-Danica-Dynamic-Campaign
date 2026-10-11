@@ -25,7 +25,10 @@ end
 
 -- Every mission completion is credited through this hook (the bridge points it at pilot records).
 local credited = {}
-local function wire(war)
+-- Phase-3 checks run with fog of war off (the god's-eye board); phase-4
+-- fog behaviour has its own section at the end.
+local function wire(war, fog)
+  war.fogOfWar = fog or false
   war.onMissionDone = function(m, outcome)
     if outcome == "done" then for key in pairs(m.taken) do credited[#credited + 1] = key .. ":" .. m.type end end
   end
@@ -252,6 +255,90 @@ local back = DCC.Pilots.new(J.decode(J.encode(P.data)))
 check("pilot records survive save/load", back:score("u1") == P:score("u1") and back.data.pilots.u1.byType.SEAD == 1)
 check("summary text", back:summary("u1"):find("Morten") ~= nil)
 check("leaderboard", #back:top(5) == 1)
+
+print("Fog of war")
+do
+  local wf = wire(DCC.War.new(T, C, cfg, 21), true)
+  wf:tick(); wf:tick()
+  local function count(side, t)
+    local n = 0
+    for _, m in ipairs(wf:openMissions(side)) do if m.type == t then n = n + 1 end end
+    return n
+  end
+  check("no SEAD without a known SAM", count("blue", "SEAD") == 0)
+  check("no BAI without a seen column", count("blue", "BAI") == 0)
+  check("STRIKE on fixed bases still offered", count("blue", "STRIKE") > 0)
+
+  -- an ELINT contact on an enemy SAM puts it on the board, with the error in the label
+  local samNode
+  for _, id in ipairs(wf.T.order) do
+    local ns = wf.state.nodes[id]
+    if ns.side == "red" and ns.sam and ns.sam.status == "up" then samNode = id; break end
+  end
+  wf:addContact("blue", "sam:" .. samNode, { kind = "sam", node = samNode, source = "elint", err = 6000 })
+  check("RED never sees BLUE's contacts", wf:contact("red", "sam:" .. samNode) == nil)
+  wf:tick()
+  local sm
+  for _, m in ipairs(wf:openMissions("blue")) do if m.type == "SEAD" and m.target == samNode then sm = m end end
+  check("ELINT contact opens SEAD", sm ~= nil)
+  check("SEAD label shows ELINT error", sm and sm.label:find("ELINT") ~= nil, sm and sm.label)
+
+  -- a better ELINT fix is kept while fresh, a worse one does not overwrite it
+  wf:addContact("blue", "sam:" .. samNode, { kind = "sam", node = samNode, source = "elint", err = 900, pos = { x = 1, z = 1 } })
+  wf:addContact("blue", "sam:" .. samNode, { kind = "sam", node = samNode, source = "elint", err = 4000, pos = { x = 9, z = 9 } })
+  local c = wf:contact("blue", "sam:" .. samNode)
+  check("better ELINT fix kept", c.err == 900 and c.pos.x == 1, c.err)
+
+  -- aging: fresh -> stale -> forgotten
+  local I = cfg.intel
+  for _ = 1, I.staleTicks do wf:tick() end
+  check("contact goes stale", not wf:isFresh("blue", "sam:" .. samNode) and wf:contact("blue", "sam:" .. samNode) ~= nil)
+  check("stale SAM reported as stale", wf:samKnown("blue", samNode) == "stale")
+  for _ = 1, I.expireTicks do wf:tick() end
+  check("old contact forgotten", wf:contact("blue", "sam:" .. samNode) == nil)
+
+  -- recon leaves node and SAM contacts and makes the SAM known
+  wf:recordIntel("blue", samNode)
+  check("recon leaves a node contact", wf:isFresh("blue", "n:" .. samNode))
+  check("recon makes the SAM known", wf:samKnown("blue", samNode) == "known")
+
+  -- BAI only on columns BLUE has seen
+  local seenMove
+  for _ = 1, 300 do
+    wf:tick()
+    for _, mid in ipairs(DCC.util.sortedKeys(wf.state.moves)) do
+      local mv = wf.state.moves[mid]
+      if mv.side == "red" and mv.status == "moving" and mv.kind ~= "airlift" then
+        local d = wf:frontDistance("red")
+        if math.min(d[mv.to] or 99, d[mv.from] or 99) <= 2 then seenMove = mid; break end
+      end
+    end
+    if seenMove then break end
+  end
+  if seenMove then
+    wf:addContact("blue", "m:" .. seenMove, { kind = "move", source = "visual" })
+    wf:tick()
+    local found = false
+    for _, m in ipairs(wf:openMissions("blue")) do if m.type == "BAI" and m.target == seenMove then found = true end end
+    check("seen column gets a BAI", found or wf.state.moves[seenMove] == nil)
+  else
+    check("found a red column to spot", false)
+  end
+
+  -- front estimate: only enemy nodes touching our territory
+  local est, rear = 0, 0
+  for _, id in ipairs(wf.T.order) do
+    if wf.state.nodes[id].side == "red" then
+      if wf:frontEstimate("blue", id) then est = est + 1 else rear = rear + 1 end
+    end
+  end
+  check("front estimates only for front nodes", est > 0 and rear > 0, est .. " front / " .. rear .. " rear")
+
+  -- contacts survive save/restore
+  local saved = J.decode(J.encode(wf:snapshot()))
+  local wr = DCC.War.restore(T, C, cfg, saved)
+  check("contacts in the save", wr:contact("blue", "n:" .. samNode) ~= nil)
+end
 
 print("Long run with ops")
 local wl = DCC.War.new(T, C, cfg, 18)
