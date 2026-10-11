@@ -339,7 +339,7 @@ end
 -- Convoy ambush (abstract) - escorted convoys are safe
 -- ---------------------------------------------------------------------------
 function War:ambushCheck(mv)
-  if mv.kind ~= "convoy" or not mv.front or mv.escorted or self:isMoveLive(mv) then return end
+  if mv.kind ~= "convoy" or not mv.front or mv.escorted or self:isMoveLive(mv) or self:onSea(mv) then return end
   if self.rng:next() < O(self).convoyAmbushChance then
     mv.health = (mv.health or 1) * (1 - O(self).convoyAmbushLoss)
     self:log("ambush", mv.side, string.format("%s convoy to %s ambushed, cargo damaged", mv.side:upper(),

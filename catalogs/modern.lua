@@ -130,11 +130,19 @@ DCC_CATALOGS.modern = {
     blue = {
       fighter = { type = "F-16C_50", loadout = { { "AIM-120C", 4 }, { "AIM-9X", 2 } } },
       attack  = { type = "A-10C",    loadout = { { "AGM-65D", 2 }, { "Mk-82 - 500lb", 6 }, { "LAU-105 - 2 x AIM-9M", 1 } } },
+      awacs   = { type = "E-3A",     loadout = {}, size = 1 },
     },
     red = {
       fighter = { type = "MiG-29S",  loadout = { { "R-77", 4 }, { "R-73", 2 } } },
       attack  = { type = "Su-25",    loadout = { { "S-8KOM", 4 }, { "OFAB-250", 4 }, { "R-60M", 2 } } },
+      awacs   = { type = "A-50",     loadout = {}, size = 1 },
     },
+  },
+
+  -- Early-warning radar sites (phase 5). The first type that exists in this DCS install is used.
+  ewr = {
+    blue = { "FPS-117", "55G6 EWR" },
+    red  = { "1L13 EWR", "55G6 EWR" },
   },
 
   -- Air-defence site at airbases and depots: radars, launchers, support.

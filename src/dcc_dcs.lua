@@ -79,6 +79,7 @@ end
 
 function B.init(war, theater, catalog)
   B.war, B.theater, B.catalog = war, theater, catalog
+  B.nodePos, B.airbases, B.liveNodes, B.spawned = {}, {}, {}, {}   -- a clean view for this war
   for _, id in ipairs(war.T.order) do
     local tn = war.T.nodes[id]
     local pos = toVec3(tn)
@@ -164,7 +165,7 @@ function B.desired()
     end
   end
   for mid, mv in pairs(war.state.moves) do
-    if B.liveNodes[mv.from] or B.liveNodes[mv.to] or (B.forced and B.forced[mid]) then
+    if (B.liveNodes[mv.from] or B.liveNodes[mv.to] or (B.forced and B.forced[mid])) and not war:onSea(mv) then
       for _, pid in ipairs(mv.platoons) do
         want[pid] = { key = "m:" .. mid, kind = "move", mv = mv }
       end
@@ -393,11 +394,12 @@ function B.announce(events)
     elseif ev.kind == "convoy_lost" or ev.kind == "airlift_lost" then
       trigger.action.outText(ev.text, 15)            -- both sides: the kill mattered
     elseif ev.kind == "sam_destroyed" or ev.kind == "sam_suppressed" or ev.kind == "infra_hit"
+           or ev.kind == "ewr_destroyed" or ev.kind == "awacs_lost"
            or ev.kind == "rescued" or ev.kind == "captured" or ev.kind == "airassault" then
       trigger.action.outText(ev.text, 15)
     elseif (ev.kind == "focus" or ev.kind == "assault" or ev.kind == "airlift" or ev.kind == "airlift_in"
             or ev.kind == "nosupply" or ev.kind == "cargo_lost" or ev.kind == "mission_done"
-            or ev.kind == "mission_failed" or ev.kind == "sam_up" or ev.kind == "airdrop"
+            or ev.kind == "mission_failed" or ev.kind == "sam_up" or ev.kind == "ewr_up" or ev.kind == "airdrop"
             or ev.kind == "airmobile" or ev.kind == "ambush" or ev.kind == "downed") and ev.side then
       trigger.action.outTextForCoalition(COAL[ev.side], "Command: " .. ev.text, 12)
     end

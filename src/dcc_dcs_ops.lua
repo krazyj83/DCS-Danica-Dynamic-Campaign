@@ -865,7 +865,7 @@ function B.onKill(e)
     if desc and (desc.category == Unit.Category.AIRPLANE or desc.category == Unit.Category.HELICOPTER) then
       field = "kills_air"
     elseif tname:find("^DCC_[ca]%d") then field = "kills_convoy"
-    elseif tname:find("^DCC_SAM") then field = "kills_sam" end
+    elseif tname:find("^DCC_SAM") or tname:find("^DCC_EWR") then field = "kills_sam" end
   end
   DCC.pilots:add(key, field, 1, name)
   -- an air kill completes a CAP on station

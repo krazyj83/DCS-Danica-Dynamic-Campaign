@@ -9,14 +9,15 @@ local ticks = tonumber(arg[1]) or 4000
 local seed  = tonumber(arg[2]) or 2026
 local out   = arg[3] or (DCC_ROOT .. "/docs/sim_history.json")
 
-local theater = DCC_THEATERS.Caucasus
+local tname = os.getenv("DCC_THEATER") or "Caucasus"     -- e.g. DCC_THEATER=Syria
+local theater = assert(DCC_THEATERS[tname], "unknown theater " .. tname)
 if arg[4] then theater.balance = { blue = 1.0, red = tonumber(arg[4]) } end -- balance sweep
 if arg[5] == "swap" then                                                        -- bias check
   for _, n in ipairs(theater.nodes) do n.side = (n.side == "blue") and "red" or "blue" end
 end
 local war = DCC.War.new(theater, DCC_CATALOGS.modern, DCC.config, seed)
 
-local history = { theater = "Caucasus", seed = seed, tickMinutes = DCC.config.tickSeconds / 60,
+local history = { theater = tname, seed = seed, tickMinutes = DCC.config.tickSeconds / 60,
                   nodes = {}, edges = {}, snapshots = {}, events = {} }
 for _, id in ipairs(war.T.order) do
   local tn = war.T.nodes[id]

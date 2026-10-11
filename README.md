@@ -4,15 +4,17 @@ A perpetual, persistent dynamic campaign for DCS World. One Lua engine runs insi
 mission, the war keeps going whether anyone is online or not, and when one side loses its last
 base the server moves on to the next map in the rotation.
 
-**Status: phase 4 of 5 — fog of war and intel, on Caucasus.** Ground forces hold nodes, mass for
+**Status: phase 5 of 5 — all four maps, unattended rotation.** Ground forces hold nodes, mass for
 assaults and capture bases. Every base runs on supply that trucks and transport aircraft carry
 forward. Each side has a **mission board** — CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy
 escort, recon, CSAR and helicopter logistics — and every mission writes its effect into the war.
 AI fighters and attack aircraft fly for both sides, and **pilot records** follow players across
 wars and maps. The front line is drawn on the F10 map and the whole war is saved across restarts.
 **Fog of war:** each side's map shows only the enemy it has actually detected — by eye, by AI
-sensors, by ELINT on SAM radars or by recon — and contacts fade and expire. A ready-to-fly mission
-file is generated for you. Map rotation automation comes next (see [Roadmap](#roadmap)).
+sensors, by radar, by ELINT or by recon — and contacts fade and expire. **Early-warning radars and
+AWACS** give each side an air picture (and are targets), and **recon brings back photos** of every
+enemy platoon. The war runs on **Caucasus → Syria → Persian Gulf → Cold War Germany**: when one side
+wins, a server hook loads the next map by itself. Ready-to-fly missions are generated for all four.
 
 ![Simulated war](docs/sim_war.png)
 
@@ -23,9 +25,11 @@ file is generated for you. Map rotation automation comes next (see [Roadmap](#ro
 ## Quick start
 
 1. **Server: allow saving** — see [step 1](#1-allow-the-campaign-to-save) below.
-2. **Take the mission** `dist/DCC_Caucasus.miz` and put it in the server's mission list (or
-   `Saved Games\DCS\Missions` to try it yourself).
-3. **Start it as a multiplayer server** (also locally for testing: *Multiplayer → New server*).
+2. **Copy the four missions** `dist/DCC_*.miz` to `Saved Games\DCS\Missions\DCC\` and put
+   `DCC_Caucasus.miz` in the server's mission list.
+3. **Install the rotation hook**: copy `hooks/DCC_rotation_hook.lua` to
+   `Saved Games\DCS\Scripts\Hooks\`, and untick *Pause without clients* in the server settings.
+4. **Start it as a multiplayer server** (also locally for testing: *Multiplayer → New server*).
    Pick a side and an aircraft at any airbase your side owns.
 
 That's it — the mission already contains the engine, every airbase, the player aircraft and
@@ -67,6 +71,78 @@ intercept an enemy airlift. Shot-down AI aircraft are gone from the pool.
 ground, convoy, SAM, buildings), missions by type, rescues flown and received, ejections, deaths
 and captures. Score sets rank, from Lieutenant to General.
 
+## Radars, AWACS and recon photos
+
+| What | How it works | How to hurt it |
+| --- | --- | --- |
+| **Early-warning radar (EWR)** | One at every depot (theater packs can add more). Sees enemy aircraft within 180 km — but only above the radar horizon: at 100 km you must be above ~370 m to show up, at 150 km above ~1 km. Terrain blocks it too. Your own coverage is a faint ring on your map. | It always transmits, so enemy aircraft hear it (ELINT, 200 km) and an **EWR** strike mission appears. Destroyed = 6 h and 40 supply to rebuild. Captured = destroyed. |
+| **AWACS** (E-3A / A-50) | While anyone is online each side keeps one orbiting 120 km behind its front at 9 km altitude. It sees aircraft out to 350 km. Relieved every 4 h, lands when the server empties. Two per side; a lost one is replaced after 6 h for 40 supply. | Once someone has seen it, the enemy gets an **HVAA** mission (high-value airborne asset). Shoot it down and that side is half blind until a replacement is bought. |
+| **Recon photos** | A completed recon mission photographs the base: each platoon with its vehicle types (`[photo] 4x T-72B3`) on your side's map, plus a photo report message to the pilot listing every platoon, the SAM and the radar status. | — |
+
+DCS cannot add pictures to the kneeboard while a mission runs, so the photos are F10 map labels and a
+message rather than images.
+
+**Low flying now matters:** below the radar horizon, away from AWACS, nobody on the other side sees you
+on their map unless they have eyes on you.
+
+## Map rotation
+
+```
+ war won on Caucasus ──► mission writes DCC\rotation.json  { state = "ended", next = "Syria" }
+                         sets user flag 9900, announces the winner
+        server hook  ──► "[DCC] The war on Caucasus is over. The campaign moves to Syria in 120 seconds."
+                     ──► loads Missions\DCC\DCC_Syria.miz
+     Syria mission   ──► new war on Syria, rotation.json { current = "Syria", state = "running" }
+```
+
+- The rotation is fixed: Caucasus → Syria → Persian Gulf → Cold War Germany → Caucasus.
+- **Pilots carry over** (`pilots.json`); each map keeps its own war save, and a finished war is archived.
+- **Restarts are safe:** if the server comes back on the wrong DCC mission (the mission list still starts
+  on Caucasus), that mission does not start a war; the hook loads the right map within 10 seconds.
+- Missions that are not `DCC_*.miz` are never touched. To pick a map by hand, stop the server and
+  delete `Saved Games\DCS\DCC\rotation.json`.
+- The hook only needs the `DCC_<map>.miz` files in `Missions\DCC\`; if one is missing it says so in
+  chat and in `dcs.log` (`DCC-ROTATION`) and waits.
+- Prefer DCSServerBot? Leave the hook out and let it watch user flag 9900 instead.
+
+## The four maps
+
+All four theater packs are generated by `tools/make_theater.py` from short scenario files in
+`tools/scenarios/` (Caucasus is hand-made). Square = depot, triangle = airbase, yellow = front at the
+start, dashed = sea crossing.
+
+| Map | Scenario | Size |
+| --- | --- | --- |
+| **Caucasus** | BLUE Georgia vs RED north, Abkhazia, South Ossetia | 39 nodes |
+| **Syria** | BLUE Israel, Jordan, south Lebanon vs RED Syria and the Bekaa. Fronts: Golan, Daraa–Irbid, Beirut–Bekaa | 45 nodes |
+| **Persian Gulf** | RED has landed on Musandam and the northern Emirates and holds the islands; BLUE holds the rest of the UAE. Islands and the Strait are linked by **sea crossings** | 32 nodes, 11 sea crossings |
+| **Cold War Germany** | Modern forces on the old inner-German border, Baltic to the Fulda Gap; BLUE west, RED east | 55 nodes |
+
+| Syria | Persian Gulf | Germany |
+| --- | --- | --- |
+| ![Syria](docs/theater_syria.png) | ![Persian Gulf](docs/theater_persiangulf.png) | ![Germany](docs/theater_germanycw.png) |
+
+**Sea crossings** are ferries and landing craft: columns and convoys on them run on dice only (they
+never spawn and cannot be BAI or ambush targets). Fight them at the ports and islands, and in the air.
+
+**Balance**, measured offline with nobody online (3 wars × 15 days per map, BLUE's average share of
+the map): Syria 42 %, Persian Gulf 46 %, Germany 56 % (with RED production × 1.15; even production
+gave BLUE 57 % and depots moved forward). Depot placement matters far more than the production
+multiplier: with RED's Gulf depot at Ras Al Khaimah, RED won every test war.
+
+**Adding a map or changing a scenario:**
+
+```bash
+# edit or copy tools/scenarios/syria.py (airbases by DCS name, towns by lat/lon, who owns what)
+PYTHONPATH=<pydcs clone> python tools/make_theater.py Syria     # -> theaters/syria.lua + docs/theater_syria.png
+python tools/run_lua.py tests/test_theaters.lua                  # connected, depots, war runs
+python tools/build_bundle.py && python tools/make_mission.py --theater Syria --out dist/DCC_Syria.miz
+```
+
+The generator takes airbase positions from pydcs (the same coordinates DCS uses), builds roads as a
+Gabriel graph (two bases are linked when no third base lies inside the circle drawn on the line between
+them: short links, no crossings), joins separate pieces with their shortest link and checks the result.
+
 ## Fog of war and intel
 
 You only see the enemy your side has found. Every side keeps a **contact table** in the save;
@@ -74,6 +150,7 @@ the F10 map and the mission board read that table, never the true positions.
 
 | How a contact is made | What it gives |
 | --- | --- |
+| **Radar** — your early-warning sites and AWACS | Enemy aircraft above the radar horizon (see above) |
 | **Eyes** — a player aircraft within 6 km of enemy ground units or 10 km of aircraft, with terrain not in the way | Column positions, garrison vehicle counts, SAM sites with a precise fix |
 | **AI sensors** — your SAM radars, AI fighters and ground platoons report what they detect | Enemy aircraft and ground units near them |
 | **ELINT** — any of your aircraft above 800 m within 110 km of an enemy SAM radar that is switched on | The site's position with an error circle: ±6 km at first, narrowing with every observation down to 300 m. Keep listening to sharpen it |
@@ -98,6 +175,7 @@ or be heard. Kill the radar while it is lit, or use the window to get close.
 
 **What is not fogged:** who owns each base (circles and names are public), the front line, and
 the AI commanders' own plans — the AI still plans with full knowledge, fog applies to players.
+Spectators see only the front line and who owns each base.
 
 ---
 
@@ -122,6 +200,9 @@ the AI commanders' own plans — the AI still plans with full knowledge, fog app
 | **Structures** | Fuel, ammo and warehouse buildings at depots (6) and airbases (4) — strike targets that cut output and supply when destroyed. |
 | **Air pool** | Each side's AI fighters and attack aircraft as numbers; sorties draw from it, losses are permanent, depots buy replacements. |
 | **Contact** | Something one side has detected: key, kind, where, how (visual / sensor / ELINT / recon), how precise, when. Saved; ages from fresh to stale to forgotten. |
+| **EWR / AWACS** | Each side's radars as model state: EWR sites per node (up / destroyed), the AWACS pool and whether one is on station. |
+| **Sea crossing** | A link between landmasses (ferries, landing craft). Moves on it run on dice only. |
+| **Rotation file** | `DCC\rotation.json`: which map the campaign is on, and the next one after a win. Read by the server hook. |
 | **Theater pack** | A data file per map (`theaters/*.lua`): nodes with lat/lon, roads, start owners. No map is named in engine code. |
 | **Era catalog** | A data file per era (`catalogs/*.lua`) mapping roles to DCS unit types per side, plus convoy trucks, transports and player aircraft. |
 
@@ -131,11 +212,13 @@ can be rebuilt from the save file, so a restart, a crash or a map change loses n
 ```
 theaters/  catalogs/             Saved Games\DCS\DCC\<Map>_war.json
      \        /                              ^
-  war model (dcc_war + dcc_supply + dcc_ops + dcc_missions + dcc_intel) <-- save/load
+  war model (dcc_war + supply + ops + missions + intel + radar) <-- save/load
            ^      |
    read-back      | spawn / despawn, warehouses, F10 drawing
            |      v
-  DCS bridge (dcc_dcs + dcc_dcs_supply + dcc_dcs_ops + dcc_dcs_intel)  <-->  DCS world + players
+  DCS bridge (dcc_dcs + _supply + _ops + _intel + _radar)  <-->  DCS world + players
+           ^
+  hooks/DCC_rotation_hook.lua  <-- DCC\rotation.json -->  loads the next map
 ```
 
 **Does it matter if I kill a convoy?** Yes, measured: in 8 paired offline wars, destroying the
@@ -169,7 +252,7 @@ Without it the campaign still runs but forgets everything on restart; `dcs.log` 
 
 ### 2. The mission
 
-Use the generated **`dist/DCC_Caucasus.miz`**. It contains:
+Use the generated **`dist/DCC_<map>.miz`** (Caucasus, Syria, PersianGulf, GermanyCW). Each contains:
 
 | What | Details |
 | --- | --- |
@@ -177,7 +260,7 @@ Use the generated **`dist/DCC_Caucasus.miz`**. It contains:
 | Airbase ownership | As in the theater pack (BLUE Georgia, RED north / Abkhazia / South Ossetia) |
 | **Dynamic spawn** on all 23 campaign airbases | In multiplayer, players pick any aircraft their side's base holds. The engine removes the enemy's types and stocks the owner's at mission start and after every capture. |
 | **Fixed client slots** at the depots | One per aircraft type at Batumi, Tbilisi-Lochini (BLUE) and Sochi-Adler, Beslan, Krasnodar-Center (RED). These also work in single player. |
-| AI templates | Four late-activated 2-ships (`DCC_TPL_blue_fighter` F-16C, `_blue_attack` A-10C, `_red_fighter` MiG-29S, `_red_attack` Su-25) with loadouts. The engine copies them for AI sorties — change a template's loadout in the Mission Editor if you like. |
+| AI templates | Late-activated groups: 2-ships `DCC_TPL_blue_fighter` F-16C, `_blue_attack` A-10C, `_red_fighter` MiG-29S, `_red_attack` Su-25 with loadouts, and single `DCC_TPL_blue_awacs` E-3A / `_red_awacs` A-50. The engine copies them for AI sorties — change a template's loadout in the Mission Editor if you like. |
 | One trigger | MISSION START → DO SCRIPT FILE `dcc_bundle.lua` (the engine) |
 | Options | F10 map view **Allies only** (enemies appear only through the campaign's intel layer), civil traffic off |
 
@@ -196,6 +279,7 @@ Su-25T is on both sides so everyone has a free aircraft to fly. You can only fly
 pip install lupa git+https://github.com/pydcs/dcs.git
 python tools/build_bundle.py      # -> dist/dcc_bundle.lua
 python tools/make_mission.py      # -> dist/DCC_Caucasus.miz
+for m in Syria PersianGulf GermanyCW; do python tools/make_mission.py --theater $m --out dist/DCC_$m.miz; done
 ```
 
 The generator reads the same theater pack and catalog as the engine, so they never disagree.
@@ -227,14 +311,15 @@ Save files live in `Saved Games\DCS\DCC\`:
 | `Caucasus_war_bak0..23.json` | Rotating backups; a corrupt main save falls back to the newest one |
 | `Caucasus_war_final_<tick>.json` | A finished war, archived before a new one starts |
 | `pilots.json` | Pilot records for every theater — never reset by a new war |
+| `rotation.json` | Which map the campaign is on (written by the mission, read by the rotation hook) |
 
 To **reset a war**, stop the server and delete `Caucasus_war.json` and the backups.
 
 ### 5. When a war ends
 
-The engine announces the winner and the next map, and sets **user flag 9900** to 1. In phase 5,
-DCSServerBot will watch that flag and load the next mission in the rotation
-(Caucasus → Syria → Persian Gulf → Cold War Germany). Until then, switch the mission by hand.
+The engine announces the winner and the next map, sets **user flag 9900** to 1 and writes
+`DCC\rotation.json`. The rotation hook loads the next map two minutes later — see
+[Map rotation](#map-rotation).
 
 ### 6. First flight test — what to check
 
@@ -251,6 +336,12 @@ The offline tests use a fake DCS API, so these need a real server to confirm:
 - [ ] AI pairs appear ("Command: … CAP sortie airborne") and actually orbit / attack.
 - [ ] Ejecting creates a downed pilot; a Huey landing next to them and then at a friendly base rescues them.
 - [ ] Huey *Load supply crate* / *Unload* changes the base's SU on your map.
+- [ ] **Rotation:** on a test server, delete all but one RED node from the save (or set `garrisonStart` tiny), let BLUE win, and watch the hook load `DCC_Syria.miz` after the chat warning. Check `dcs.log` for `DCC-ROTATION` lines.
+- [ ] The E-3A / A-50 appear ("Command: … AWACS on station") and fly a race-track behind the front.
+- [ ] An EWR unit (FPS-117 / 1L13) stands near each depot when you fly within 80 km; destroying it reports "early-warning radar … destroyed".
+- [ ] Flying high toward an enemy depot puts you on *their* map (ask someone on the other side); flying low at 100 km does not.
+- [ ] A recon pass gives the photo report message and `[photo]` labels per platoon.
+- [ ] Syria, Persian Gulf and Germany missions start a war, set airbase owners and spawn units (each map once).
 - [ ] **Mission Editor → Options → F10 view** reads *Allies only* (the generator writes `optview_onlyallies`; if your DCS shows a different name, pick *Allies only* by hand). Enemy units must not appear on the F10 map by themselves.
 - [ ] Flying at 6000 m toward an enemy airbase: within 60 km a red SAM ring with an error circle appears on your map, and the circle shrinks over a few minutes.
 - [ ] Firing a HARM at a lit SAM makes it stop guiding (dark) for 1–2 minutes.
@@ -325,12 +416,16 @@ under Python via `lupa`:
 pip install lupa matplotlib
 
 python tools/run_lua.py tests/test_war.lua          # war model + supply: 29 checks
-python tools/run_lua.py tests/test_ops.lua          # every mission type writes its effect + fog gating: 66 checks
+python tools/run_lua.py tests/test_ops.lua          # every mission type, fog gating, radars and AWACS: 83 checks
 python tools/run_lua.py tests/test_dcs_bridge.lua   # bridge, convoys, airlifts, warehouses: 49 checks
 python tools/run_lua.py tests/test_dcs_ops.lua      # flying every mission type against a fake DCS: 60 checks
 python tools/run_lua.py tests/test_dcs_intel.lua    # fog of war: each map shows only what that side detected: 40 checks
+python tools/run_lua.py tests/test_dcs_radar.lua    # EWR, AWACS, HVAA, recon photos: 34 checks
+python tools/run_lua.py tests/test_theaters.lua     # all four maps: connected, depots, war runs: 28 checks
+python tools/run_lua.py tests/test_rotation.lua     # a win loads the next map unattended (mission + hook): 24 checks
 
 python tools/run_lua.py tools/sim.lua 4320 2026 docs/sim_history.json   # simulate 15 days
+DCC_THEATER=Syria python tools/run_lua.py tools/sim.lua 4320               # ...on another map
 python tools/plot_war.py docs/sim_history.json docs/sim_war.png         # plot it
 python tools/run_lua.py tools/interdiction.lua 8                         # convoy-kill experiment
 ```
@@ -355,20 +450,24 @@ src/
   dcc_missions.lua    mission board: generate, take, judge, credit
   dcc_pilots.lua      persistent pilot records, score and rank
   dcc_intel.lua       contacts per side: aging, troops in contact, front estimates, SAM knowledge
+  dcc_radar.lua       EWR sites, AWACS pool, EWR and HVAA missions, recon photos
   dcc_front.lua       front-line geometry from ownership
   dcc_persist.lua     save / load / backups (the only file access)
   dcc_dcs.lua         DCS bridge: live bubble, spawning, read-back, F10 drawing, menus
   dcc_dcs_supply.lua  DCS bridge: convoys, airlifts, warehouses, slot guard
   dcc_dcs_ops.lua     DCS bridge: menus, briefings, detection, SAMs, statics, AI air, CSAR, cargo
   dcc_dcs_intel.lua   DCS bridge: eyes, AI sensors, ELINT, SAM EMCON/HARM, the per-side intel map layer
+  dcc_dcs_radar.lua   DCS bridge: EWR units, AWACS orbits, radar-horizon air picture, photo reports
   dcc_main.lua        start-up and the 30 s / 5 min loops
   dcc_loader.lua      development loader
-theaters/caucasus.lua   Caucasus nodes, roads, start owners
+theaters/*.lua          Caucasus (hand-made), Syria, Persian Gulf, Cold War Germany (generated)
+hooks/DCC_rotation_hook.lua   server hook: loads the next map after a win
 catalogs/modern.lua     Modern era: ground roles, convoys, transports, player aircraft, capabilities,
                         AI air loadouts, SAM sites, strike buildings, ambush teams
 dist/                   dcc_bundle.lua (the engine) and DCC_Caucasus.miz (the mission)
 tests/                  model tests, bridge tests, DCS API mock
-tools/                  Lua runner, simulator, plotter, interdiction test, bundle + mission builders
+tools/                  Lua runner, simulator, plotter, interdiction test, bundle + mission builders,
+                        theater generator (make_theater.py) and its scenarios (tools/scenarios/)
 ```
 
 ---
@@ -380,8 +479,11 @@ tools/                  Lua runner, simulator, plotter, interdiction test, bundl
 | 1 — Core loop ✓ | Theater pack, nodes and owners, AI assaults, capture, front line, save/load | The front moves on its own overnight and survives a restart |
 | 2 — Supply economy ✓ | Supply per node, real convoys and airlifts, warehouses with dynamic spawn, supply-gated commander, generated mission | Killing a convoy visibly delays the assault it was feeding |
 | 3 — Player missions ✓ | Mission boards for RED and BLUE: CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy escort, recon, CSAR, helicopter logistics and air assault; AI air; persistent pilots | Every mission type writes its effect to the save |
-| **4 — Fog of war and intel ✓ (this)** | Contact table with aging, eyes / AI sensors / ELINT / recon / troops in contact, SAM EMCON and HARM shutdown, intel-gated BAI and SEAD, per-side intel map layer (own ELINT instead of the Hound library — no extra dependency) | Each side's map shows only what it has detected |
-| 5 — Rotation and all maps | Victory detection → next map, theater-pack generator, more catalogs | A win on Caucasus loads the next map unattended |
+| 4 — Fog of war and intel ✓ | Contact table with aging, eyes / AI sensors / ELINT / recon / troops in contact, SAM EMCON and HARM shutdown, intel-gated BAI and SEAD, per-side intel map layer (own ELINT instead of the Hound library — no extra dependency) | Each side's map shows only what it has detected |
+| **5 — Rotation and all maps ✓ (this)** | Rotation hook and rotation file, Syria / Persian Gulf / Cold War Germany packs from a generator, sea crossings, EWR sites, AWACS, HVAA and EWR missions, recon photos | A win on Caucasus loads the next map unattended |
+
+**After phase 5** (ideas, not started): fog for the AI commanders too, a Cold War era catalog for
+Germany, carrier operations on the Gulf, a web page with the live front from the save files.
 
 ## License
 

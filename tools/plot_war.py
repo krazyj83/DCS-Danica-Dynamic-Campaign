@@ -85,7 +85,7 @@ def main() -> None:
     ax.tick_params(colors=MUTED)
     ax.set_xlim(0, days[-1] * 1.07)
 
-    fig.suptitle(f"Simulated Caucasus war (seed {hist['seed']}), nobody online: the front keeps moving both ways",
+    fig.suptitle(f"Simulated {hist.get('theater', 'Caucasus')} war (seed {hist['seed']}), nobody online: the front keeps moving both ways",
                  x=0.02, ha="left", fontsize=13, color=INK, fontweight="bold")
     fig.text(0.02, 0.925, "Circles = towns and airbases, squares = depots, size = garrison. "
              "Yellow roads = the front line.", fontsize=9.5, color=MUTED)

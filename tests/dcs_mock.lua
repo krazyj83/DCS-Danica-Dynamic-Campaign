@@ -140,19 +140,21 @@ end
 
 -- AI templates as the generated mission has them (late-activated groups).
 function MOCK.addTemplates()
-  local function tpl(name, t)
-    return { name = name, lateActivation = true, groupId = 999, task = "CAP",
-             units = { { name = name .. " Pilot #1", type = t, unitId = 1, x = 0, y = 0, alt = 6000,
-                         payload = { fuel = 3000, pylons = { [1] = { CLSID = "{X}" } } } },
-                       { name = name .. " Pilot #2", type = t, unitId = 2, x = 0, y = 0, alt = 6000,
-                         payload = { fuel = 3000, pylons = { [1] = { CLSID = "{X}" } } } } },
-             route = { points = {} } }
+  local function tpl(name, t, n)
+    local units = {}
+    for i = 1, n or 2 do
+      units[i] = { name = name .. " Pilot #" .. i, type = t, unitId = i, x = 0, y = 0, alt = 6000,
+                   payload = { fuel = 3000, pylons = { [1] = { CLSID = "{X}" } } } }
+    end
+    return { name = name, lateActivation = true, groupId = 999, task = "CAP", units = units, route = { points = {} } }
   end
   env.mission.coalition = {
     blue = { country = { { id = 80, plane = { group = { tpl("DCC_TPL_blue_fighter", "F-16C_50"),
-                                                        tpl("DCC_TPL_blue_attack", "A-10C") } } } } },
+                                                        tpl("DCC_TPL_blue_attack", "A-10C"),
+                                                        tpl("DCC_TPL_blue_awacs", "E-3A", 1) } } } } },
     red  = { country = { { id = 81, plane = { group = { tpl("DCC_TPL_red_fighter", "MiG-29S"),
-                                                        tpl("DCC_TPL_red_attack", "Su-25") } } } } },
+                                                        tpl("DCC_TPL_red_attack", "Su-25"),
+                                                        tpl("DCC_TPL_red_awacs", "A-50", 1) } } } } },
   }
 end
 

@@ -10,6 +10,8 @@
 --   <Theater>_war.json          the live save, written every tick
 --   <Theater>_war_bak<N>.json   rotating backups (N = tick mod saveSlots)
 --   <Theater>_war_final_<T>.json archive of a finished war
+--   pilots.json                 pilot records (all maps)
+--   rotation.json               which map the server is on / goes to next
 -- ============================================================================
 
 DCC = DCC or {}
@@ -109,4 +111,24 @@ function P.loadPilots()
   local ok, v = pcall(DCC.json.decode, text)
   if ok and type(v) == "table" then return v end
   return nil
+end
+
+-- Map rotation (phase 5): one small file shared with the server hook
+-- (hooks/DCC_rotation_hook.lua), which does the actual mission change.
+--   { current = "<map the server should be on>", state = "running" | "ended" | "loading",
+--     finished = "<map whose war just ended>", winner = "blue" | "red", next = "<map>" }
+function P.readRotation()
+  if not P.available() then return nil end
+  local text = readFile(folder() .. "rotation.json")
+  if not text or text == "" then return nil end
+  local ok, v = pcall(DCC.json.decode, text)
+  if ok and type(v) == "table" then return v end
+  return nil
+end
+
+function P.writeRotation(rot)
+  if not P.available() then return false end
+  local ok, text = pcall(DCC.json.encode, rot)
+  if not ok then return false end
+  return writeFile(folder() .. "rotation.json", text)
 end

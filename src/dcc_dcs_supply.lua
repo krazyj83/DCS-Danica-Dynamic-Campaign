@@ -49,7 +49,9 @@ function B.desiredCargo()
   for mid, mv in pairs(B.war.state.moves) do
     if mv.cargo then
       if mv.kind == "airlift" then want[mid] = mv
-      elseif B.liveNodes[mv.from] or B.liveNodes[mv.to] or (B.forced and B.forced[mid]) then want[mid] = mv end
+      elseif (B.liveNodes[mv.from] or B.liveNodes[mv.to] or (B.forced and B.forced[mid])) and not B.war:onSea(mv) then
+        want[mid] = mv
+      end
     end
   end
   return want

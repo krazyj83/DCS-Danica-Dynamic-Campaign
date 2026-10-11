@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.4.0-phase4",
+  version         = "0.5.0-phase5",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -95,7 +95,7 @@ DCC.config = {
   -- Mission board (phase 3)
   missions = {
     perType = { CAS = 2, BAI = 3, STRIKE = 2, SEAD = 2, CAP = 1, ESCORT = 2,
-                CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2 },
+                CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1 },
     capMinutes      = 20,     -- CAP: time on station that completes the mission
     capRadiusKm     = 40,
     reconRadiusKm   = 8,      -- recon: overfly within this distance...
@@ -127,6 +127,21 @@ DCC.config = {
     elintShrink    = 0.6,    -- each new ELINT observation multiplies the error by this
   },
 
+  -- Radar stations and AWACS (phase 5)
+  radar = {
+    ewrAt            = { depot = true }, -- node classes with an early-warning radar (packs can add ewr = true)
+    ewrRebuildTicks  = 72,  ewrRebuildCost = 40,  -- destroyed: back after 6 h for 40 SU
+    ewrKm            = 180,   -- EWR range...
+    ewrAntennaM      = 25,    -- ...and antenna height (sets the radar horizon: low flyers hide)
+    ewrElintKm       = 200,   -- an EWR always transmits: enemy aircraft hear it this far
+    awacsKm          = 350,   -- AWACS range (radar horizon from awacsAltM)
+    awacsAltM        = 9000,
+    awacsStandoffKm  = 120,   -- orbit this far behind the own front
+    awacsLifeSeconds = 14400, -- on station 4 h, then a relief takes over
+    awacsPoolStart   = 2,  awacsPoolMax = 2,
+    awacsRestockTicks = 72, awacsRestockCost = 40,  -- one AWACS bought every 6 h at most
+  },
+
   -- Live bubble (what gets spawned as real DCS units) -----------------------
   liveRadiusKm     = 40,    -- nodes within this distance of a player are live
   maxLivePlatoons  = 120,   -- hard cap on spawned platoons (~500 vehicles)
@@ -140,6 +155,8 @@ DCC.config = {
   saveSlots        = 24,    -- rotating backups kept
   campaignOverFlag = 9900,  -- user flag set to 1 when a war ends (DCSServerBot watches it)
   rotation         = { "Caucasus", "Syria", "PersianGulf", "GermanyCW" }, -- fixed map order
+  rotationEnforce  = true,  -- a mission for the wrong map waits for the hook instead of starting a war
+                            -- (delete Saved Games\DCS\DCC\rotation.json to pick a map by hand)
 
   -- Drawing (F10 map) -----------------------------------------------------------
   markIdBase       = 7000000,  -- F10 mark ids used by the engine start here

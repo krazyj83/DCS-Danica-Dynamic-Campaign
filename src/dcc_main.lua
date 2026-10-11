@@ -61,8 +61,10 @@ function DCC.onTick()
   if war.state.winner and not DCC.ended then
     DCC.ended = true
     trigger.action.setUserFlag(DCC.config.campaignOverFlag, 1)
-    local rot, nextMap = DCC.config.rotation, nil
-    for i, m in ipairs(rot) do if m == DCC.theaterName then nextMap = rot[i % #rot + 1] end end
+    local nextMap = DCC.nextMap(DCC.theaterName)
+    -- the server hook sees this and loads the next map's mission
+    DCC.persist.writeRotation({ current = nextMap, state = "ended", finished = DCC.theaterName,
+                                winner = war.state.winner, next = nextMap, tick = war.state.tick })
     trigger.action.outText(string.format("The war on %s is over. %s wins.%s",
       DCC.theaterName, war.state.winner:upper(),
       nextMap and (" Next theater: " .. nextMap .. ".") or ""), 120)
@@ -70,10 +72,29 @@ function DCC.onTick()
   end
 end
 
+-- The map after this one in the fixed rotation.
+function DCC.nextMap(current)
+  local rot = DCC.config.rotation
+  for i, m in ipairs(rot) do if m == current then return rot[i % #rot + 1] end end
+  return rot[1]
+end
+
 function DCC.start()
   if DCC.started then return end
   local theater, name = pickTheater()
   if not theater then return end
+
+  -- Map rotation: if the server should be on another map (a restart loaded
+  -- the wrong mission), do not touch this map's war - the hook switches over.
+  local rot = DCC.persist.readRotation()
+  if DCC.config.rotationEnforce and rot and rot.current and rot.current ~= (theater.name or name) then
+    DCC.waitingForRotation = rot.current
+    local msg = string.format("DCC: the campaign has moved on to %s. Loading it...", rot.current)
+    U.log(msg)
+    trigger.action.outText(msg, 120)
+    return
+  end
+  DCC.persist.writeRotation({ current = theater.name or name, state = "running" })
   local catalog = DCC_CATALOGS and DCC_CATALOGS[DCC.config.era]
   if not catalog then U.log("no catalog for era %s", tostring(DCC.config.era)); return end
   DCC.theaterName = theater.name or name

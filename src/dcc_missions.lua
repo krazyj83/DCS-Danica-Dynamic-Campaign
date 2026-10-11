@@ -40,6 +40,7 @@ local function M(self) return self.cfg.missions end
 -- Candidates per type: { key, type, target, node, label, prio, base }
 -- ---------------------------------------------------------------------------
 local gen = {}
+War.missionGenerators = gen   -- later modules add mission types here
 
 function gen.CAS(self, side)
   local out, seen = {}, {}
@@ -66,7 +67,7 @@ function gen.BAI(self, side)
   for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
     local mv = self.state.moves[mid]
     local seen = (not self.fogOfWar) or self:isFresh(side, "m:" .. mid)    -- phase 4: only what we saw
-    if seen and mv.side == enemy and mv.status == "moving" and mv.kind ~= "airlift"
+    if seen and mv.side == enemy and mv.status == "moving" and mv.kind ~= "airlift" and not self:onSea(mv)
        and math.min(dist[mv.to] or 99, dist[mv.from] or 99) <= 2 then
       local what = mv.cargo and "convoy" or (mv.kind == "assault" and "assault column" or "reinforcements")
       out[#out + 1] = { type = "BAI", target = mid, node = mv.to,
@@ -141,7 +142,8 @@ function gen.CONVOY(self, side)
   local out = {}
   for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
     local mv = self.state.moves[mid]
-    if mv.side == side and mv.kind == "convoy" and mv.front and mv.status == "moving" and mv.progress < 0.6 then
+    if mv.side == side and mv.kind == "convoy" and mv.front and mv.status == "moving" and mv.progress < 0.6
+       and not self:onSea(mv) then
       out[#out + 1] = { type = "CONVOY", target = mid, node = mv.to, prio = 0,
         label = string.format("convoy %s > %s", self:nodeName(mv.from), self:nodeName(mv.to)) }
     end

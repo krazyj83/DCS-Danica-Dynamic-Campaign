@@ -23,15 +23,20 @@ local files = {
   [[src\dcc_missions.lua]],
   [[src\dcc_pilots.lua]],
   [[src\dcc_intel.lua]],
+  [[src\dcc_radar.lua]],
   [[src\dcc_front.lua]],
   [[src\dcc_persist.lua]],
   [[src\dcc_dcs.lua]],
   [[src\dcc_dcs_supply.lua]],
   [[src\dcc_dcs_ops.lua]],
   [[src\dcc_dcs_intel.lua]],
+  [[src\dcc_dcs_radar.lua]],
   [[src\dcc_main.lua]],
   [[catalogs\modern.lua]],
   [[theaters\caucasus.lua]],
+  [[theaters\syria.lua]],
+  [[theaters\persiangulf.lua]],
+  [[theaters\germanycw.lua]],
 }
 
 for _, f in ipairs(files) do

@@ -20,6 +20,7 @@ dofile(DCC_ROOT .. "/src/dcc_dcs.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_supply.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ops.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_intel.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_radar.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
 local errors = 0

@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.4.0-phase4 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.5.0-phase5 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.4.0-phase4",
+  version         = "0.5.0-phase5",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -99,7 +99,7 @@ DCC.config = {
   -- Mission board (phase 3)
   missions = {
     perType = { CAS = 2, BAI = 3, STRIKE = 2, SEAD = 2, CAP = 1, ESCORT = 2,
-                CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2 },
+                CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1 },
     capMinutes      = 20,     -- CAP: time on station that completes the mission
     capRadiusKm     = 40,
     reconRadiusKm   = 8,      -- recon: overfly within this distance...
@@ -131,6 +131,21 @@ DCC.config = {
     elintShrink    = 0.6,    -- each new ELINT observation multiplies the error by this
   },
 
+  -- Radar stations and AWACS (phase 5)
+  radar = {
+    ewrAt            = { depot = true }, -- node classes with an early-warning radar (packs can add ewr = true)
+    ewrRebuildTicks  = 72,  ewrRebuildCost = 40,  -- destroyed: back after 6 h for 40 SU
+    ewrKm            = 180,   -- EWR range...
+    ewrAntennaM      = 25,    -- ...and antenna height (sets the radar horizon: low flyers hide)
+    ewrElintKm       = 200,   -- an EWR always transmits: enemy aircraft hear it this far
+    awacsKm          = 350,   -- AWACS range (radar horizon from awacsAltM)
+    awacsAltM        = 9000,
+    awacsStandoffKm  = 120,   -- orbit this far behind the own front
+    awacsLifeSeconds = 14400, -- on station 4 h, then a relief takes over
+    awacsPoolStart   = 2,  awacsPoolMax = 2,
+    awacsRestockTicks = 72, awacsRestockCost = 40,  -- one AWACS bought every 6 h at most
+  },
+
   -- Live bubble (what gets spawned as real DCS units) -----------------------
   liveRadiusKm     = 40,    -- nodes within this distance of a player are live
   maxLivePlatoons  = 120,   -- hard cap on spawned platoons (~500 vehicles)
@@ -144,6 +159,8 @@ DCC.config = {
   saveSlots        = 24,    -- rotating backups kept
   campaignOverFlag = 9900,  -- user flag set to 1 when a war ends (DCSServerBot watches it)
   rotation         = { "Caucasus", "Syria", "PersianGulf", "GermanyCW" }, -- fixed map order
+  rotationEnforce  = true,  -- a mission for the wrong map waits for the hook instead of starting a war
+                            -- (delete Saved Games\DCS\DCC\rotation.json to pick a map by hand)
 
   -- Drawing (F10 map) -----------------------------------------------------------
   markIdBase       = 7000000,  -- F10 mark ids used by the engine start here
@@ -497,13 +514,13 @@ local ROLE_ORDER = { ARMOR_PLT = 1, MECH_PLT = 2, SHORAD = 3 } -- assault prefer
 -- Theater index: static data the model looks up (positions, road lengths).
 -- ---------------------------------------------------------------------------
 local function indexTheater(theater)
-  local T = { name = theater.name, nodes = {}, order = {}, edges = {} }
+  local T = { name = theater.name, nodes = {}, order = {}, edges = {}, sea = {} }
   for _, n in ipairs(theater.nodes) do
     assert(n.id and n.lat and n.lon and n.side, "theater node needs id, lat, lon, side")
     T.nodes[n.id] = {
       id = n.id, name = n.name or n.id, kind = n.kind or "town",
       depot = n.depot and true or false,
-      lat = n.lat, lon = n.lon, airbase = n.airbase,
+      lat = n.lat, lon = n.lon, airbase = n.airbase, ewr = n.ewr,
       startSide = n.side, nb = {},
     }
     T.order[#T.order + 1] = n.id
@@ -514,7 +531,9 @@ local function indexTheater(theater)
     if a and b then
       local km = U.distKm(a, b)
       a.nb[b.id], b.nb[a.id] = km, km
-      T.edges[#T.edges + 1] = { a = a.id, b = b.id, km = km }
+      T.edges[#T.edges + 1] = { a = a.id, b = b.id, km = km, sea = e.sea }
+      -- sea crossings (ferries, landing craft): abstract only, never spawned
+      if e.sea then T.sea[a.id .. "|" .. b.id], T.sea[b.id .. "|" .. a.id] = true, true end
     else
       U.log("theater %s: edge %s-%s skipped (unknown node)", theater.name, tostring(e[1]), tostring(e[2]))
     end
@@ -678,8 +697,14 @@ function War:depotsOpen(attacker)
 end
 
 function War:isNodeLive(id) return self.liveFn ~= nil and self.liveFn(id) == true end
+-- A ground move across a sea edge (ships / landing craft): runs on dice only.
+function War:onSea(mv)
+  return mv.kind ~= "airlift" and self.T.sea[mv.from .. "|" .. mv.to] == true
+end
+
 function War:isMoveLive(mv)
   if mv.kind == "airlift" then return self.airLive == true end
+  if self:onSea(mv) then return false end
   if self.forcedMoveFn and self.forcedMoveFn(mv.id) then return true end   -- a mission target
   return self:isNodeLive(mv.from) or self:isNodeLive(mv.to)
 end
@@ -1970,7 +1995,7 @@ end
 -- Convoy ambush (abstract) - escorted convoys are safe
 -- ---------------------------------------------------------------------------
 function War:ambushCheck(mv)
-  if mv.kind ~= "convoy" or not mv.front or mv.escorted or self:isMoveLive(mv) then return end
+  if mv.kind ~= "convoy" or not mv.front or mv.escorted or self:isMoveLive(mv) or self:onSea(mv) then return end
   if self.rng:next() < O(self).convoyAmbushChance then
     mv.health = (mv.health or 1) * (1 - O(self).convoyAmbushLoss)
     self:log("ambush", mv.side, string.format("%s convoy to %s ambushed, cargo damaged", mv.side:upper(),
@@ -2043,6 +2068,7 @@ local function M(self) return self.cfg.missions end
 -- Candidates per type: { key, type, target, node, label, prio, base }
 -- ---------------------------------------------------------------------------
 local gen = {}
+War.missionGenerators = gen   -- later modules add mission types here
 
 function gen.CAS(self, side)
   local out, seen = {}, {}
@@ -2069,7 +2095,7 @@ function gen.BAI(self, side)
   for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
     local mv = self.state.moves[mid]
     local seen = (not self.fogOfWar) or self:isFresh(side, "m:" .. mid)    -- phase 4: only what we saw
-    if seen and mv.side == enemy and mv.status == "moving" and mv.kind ~= "airlift"
+    if seen and mv.side == enemy and mv.status == "moving" and mv.kind ~= "airlift" and not self:onSea(mv)
        and math.min(dist[mv.to] or 99, dist[mv.from] or 99) <= 2 then
       local what = mv.cargo and "convoy" or (mv.kind == "assault" and "assault column" or "reinforcements")
       out[#out + 1] = { type = "BAI", target = mid, node = mv.to,
@@ -2144,7 +2170,8 @@ function gen.CONVOY(self, side)
   local out = {}
   for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
     local mv = self.state.moves[mid]
-    if mv.side == side and mv.kind == "convoy" and mv.front and mv.status == "moving" and mv.progress < 0.6 then
+    if mv.side == side and mv.kind == "convoy" and mv.front and mv.status == "moving" and mv.progress < 0.6
+       and not self:onSea(mv) then
       out[#out + 1] = { type = "CONVOY", target = mid, node = mv.to, prio = 0,
         label = string.format("convoy %s > %s", self:nodeName(mv.from), self:nodeName(mv.to)) }
     end
@@ -2655,6 +2682,248 @@ end
 
 end
 
+-- >>> src/dcc_radar.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - radar stations, AWACS and recon photos (phase 5,
+-- pure Lua 5.1). Load after dcc_intel.lua.
+-- ----------------------------------------------------------------------------
+--   EWR site   : an early-warning radar at depots (and nodes a theater pack
+--                marks with `ewr = true`). While up, it gives its side an air
+--                picture: enemy aircraft above the radar horizon within
+--                radar.ewrKm show on that side's map. It always emits, so the
+--                enemy can find it with ELINT. Destroyed -> rebuilt after
+--                ewrRebuildTicks for ewrRebuildCost supply. Captured = destroyed.
+--   AWACS      : each side has a small pool of AWACS aircraft. While players
+--                are online one orbits behind the front and sees enemy aircraft
+--                out to radar.awacsKm. Shoot it down and the side is half blind
+--                until a replacement is bought.
+--   Missions   : EWR (strike a known radar site) and HVAA (shoot down the enemy
+--                AWACS once it has been detected).
+--   Recon photo: a recon pass stores what was photographed - every platoon
+--                with its vehicle types - so the map can show it unit by unit.
+-- ============================================================================
+
+DCC = DCC or {}
+local U = DCC.util
+local War = DCC.War
+local SIDES = { "blue", "red" }
+
+local function R(self) return self.cfg.radar end
+
+-- ---------------------------------------------------------------------------
+-- Initialisation (new wars and older saves)
+-- ---------------------------------------------------------------------------
+function War:initRadar()
+  local st, cfg = self.state, R(self)
+  st.awacs = st.awacs or { blue = {}, red = {} }
+  for _, side in ipairs(SIDES) do
+    local p = st.airPool[side]
+    if p.awacs == nil then p.awacs = cfg.awacsPoolStart end
+  end
+  for _, id in ipairs(self.T.order) do
+    local ns, tn = st.nodes[id], self.T.nodes[id]
+    if ns.ewr == nil and (tn.ewr or cfg.ewrAt[self:classOf(id)]) then ns.ewr = { status = "up" } end
+  end
+end
+
+local baseInitOps = War.initOps
+function War:initOps()
+  baseInitOps(self)
+  self:initRadar()
+end
+
+-- ---------------------------------------------------------------------------
+-- EWR sites
+-- ---------------------------------------------------------------------------
+function War:ewrUp(id)
+  local e = self.state.nodes[id].ewr
+  return e ~= nil and e.status == "up"
+end
+
+function War:ewrHit(id)
+  local ns = self.state.nodes[id]
+  if not ns or not ns.ewr or ns.ewr.status ~= "up" then return end
+  ns.ewr = { status = "destroyed", since = self.state.tick }
+  self:log("ewr_destroyed", ns.side, string.format("%s early-warning radar at %s destroyed",
+    ns.side:upper(), self:nodeName(id)), { node = id })
+end
+
+function War:repairEwrs()
+  local cfg = R(self)
+  for _, id in ipairs(self.T.order) do
+    local ns = self.state.nodes[id]
+    local e = ns.ewr
+    if e and e.status == "destroyed" and self.state.tick - (e.since or 0) >= cfg.ewrRebuildTicks
+       and (ns.supply or 0) >= cfg.ewrRebuildCost then
+      ns.supply = ns.supply - cfg.ewrRebuildCost
+      ns.ewr = { status = "up" }
+      self:log("ewr_up", ns.side, string.format("%s early-warning radar at %s back on the air",
+        ns.side:upper(), self:nodeName(id)), { node = id })
+    end
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- AWACS
+-- ---------------------------------------------------------------------------
+-- The bridge reports whether a side has an AWACS on station.
+function War:setAwacs(side, up)
+  self.state.awacs[side].up = up and true or nil
+end
+
+function War:awacsUp(side) return self.state.awacs[side].up == true end
+
+function War:awacsLost(side)
+  self.state.awacs[side].up = nil
+  self:airLoss(side, "awacs", 1)
+  self:log("awacs_lost", side, string.format("%s AWACS shot down", side:upper()), {})
+end
+
+function War:restockAwacs()
+  local cfg = R(self)
+  if self.state.tick % cfg.awacsRestockTicks ~= 0 then return end
+  for _, side in ipairs(SIDES) do
+    local p = self.state.airPool[side]
+    if (p.awacs or 0) < cfg.awacsPoolMax then
+      for _, id in ipairs(self.T.order) do
+        local ns = self.state.nodes[id]
+        if self.T.nodes[id].depot and ns.side == side and ns.supply >= cfg.awacsRestockCost then
+          ns.supply = ns.supply - cfg.awacsRestockCost
+          p.awacs = (p.awacs or 0) + 1
+          break
+        end
+      end
+    end
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- Radar horizon: how high an aircraft must fly to be seen by a radar at
+-- antenna height hRadar (m) from dKm away. Standard 4/3-earth rule:
+--   d [km] = 4.12 * (sqrt(hRadar) + sqrt(hTarget))
+-- ---------------------------------------------------------------------------
+function War.radarHorizonM(dKm, hRadar)
+  local need = dKm / 4.12 - math.sqrt(math.max(hRadar, 0))
+  if need <= 0 then return 0 end
+  return need * need
+end
+
+-- ---------------------------------------------------------------------------
+-- Recon photos: platoon by platoon, with vehicle types from the catalog.
+-- ---------------------------------------------------------------------------
+function War:photoOf(id)
+  local ns, out = self.state.nodes[id], {}
+  for _, pid in ipairs(ns.platoons) do
+    local pl = self.state.platoons[pid]
+    local entry = self.cat.roles[pl.role] and self.cat.roles[pl.role][pl.side]
+    local types = entry and entry.units or {}
+    local alive = math.max(1, math.ceil(#types * pl.health - 1e-6))
+    local count = {}
+    for i = 1, math.min(alive, #types) do count[types[i]] = (count[types[i]] or 0) + 1 end
+    local parts = {}
+    for _, t in ipairs(U.sortedKeys(count)) do parts[#parts + 1] = count[t] .. "x " .. t end
+    out[#out + 1] = { pid = pid, role = pl.role, text = table.concat(parts, ", ") }
+  end
+  return out
+end
+
+local baseRecordIntel = War.recordIntel
+function War:recordIntel(side, id)
+  baseRecordIntel(self, side, id)
+  local ns = self.state.nodes[id]
+  local c = self:contact(side, "n:" .. id)
+  if c then
+    c.photo = self:photoOf(id)
+    c.ewr = ns.ewr and ns.ewr.status or "none"
+  end
+  if ns.ewr and ns.ewr.status == "up" then
+    self:addContact(side, "ewr:" .. id, { kind = "ewr", node = id, source = "recon", err = 300,
+      label = "Early-warning radar" })
+  end
+end
+
+-- What a side knows about an enemy radar site.
+function War:ewrKnown(side, id)
+  if self:isFresh(side, "ewr:" .. id) then return "known" end
+  if self:contact(side, "ewr:" .. id) then return "stale" end
+  return nil
+end
+
+-- ---------------------------------------------------------------------------
+-- Missions: EWR strike and HVAA (high-value airborne asset)
+-- ---------------------------------------------------------------------------
+War.MISSION_NEEDS.EWR = "A2G"
+War.MISSION_NEEDS.HVAA = "A2A"
+do
+  local order = {}
+  for _, t in ipairs(War.MISSION_ORDER) do
+    if t ~= "EWR" and t ~= "HVAA" then order[#order + 1] = t end
+    if t == "SEAD" then order[#order + 1] = "EWR" end
+    if t == "CAP" then order[#order + 1] = "HVAA" end
+  end
+  War.MISSION_ORDER = order
+end
+
+local gen = War.missionGenerators
+gen.EWR = function(self, side)
+  local enemy = U.otherSide(side)
+  local dist = self:frontDistance(enemy)
+  local out = {}
+  for _, id in ipairs(self.T.order) do
+    local ns = self.state.nodes[id]
+    local known = (not self.fogOfWar) or self:ewrKnown(side, id) == "known"
+    if known and ns.side == enemy and ns.ewr and ns.ewr.status == "up" then
+      out[#out + 1] = { type = "EWR", target = id, node = id, prio = dist[id] or 9,
+        label = "early-warning radar at " .. self:nodeName(id) }
+    end
+  end
+  return out
+end
+
+gen.HVAA = function(self, side)
+  local enemy = U.otherSide(side)
+  local seen = (not self.fogOfWar) or self:isFresh(side, "awacs:" .. enemy)
+  if self:awacsUp(enemy) and seen then
+    return { { type = "HVAA", target = enemy, prio = 0, label = enemy:upper() .. " AWACS" } }
+  end
+  return {}
+end
+
+local baseOutcome = War.missionOutcome
+function War:missionOutcome(m, events)
+  if m.type == "EWR" then
+    local ns = self.state.nodes[m.target]
+    if ns.side == m.side then return "expired" end
+    return (ns.ewr and ns.ewr.status ~= "up") and "done" or "open"
+  elseif m.type == "HVAA" then
+    for _, ev in ipairs(events) do
+      if ev.kind == "awacs_lost" and ev.side == m.target then return "done" end
+    end
+    return self:awacsUp(m.target) and "open" or "expired"
+  end
+  return baseOutcome(self, m, events)
+end
+
+-- ---------------------------------------------------------------------------
+-- Hooks into the tick and captures
+-- ---------------------------------------------------------------------------
+local baseCapture = War.onCaptureOps
+function War:onCaptureOps(id)
+  baseCapture(self, id)
+  local ns = self.state.nodes[id]
+  if ns.ewr then ns.ewr = { status = "destroyed", since = self.state.tick } end
+end
+
+local baseOpsTick = War.opsTick
+function War:opsTick()
+  baseOpsTick(self)
+  self:repairEwrs()
+  self:restockAwacs()
+end
+
+end
+
 -- >>> src/dcc_front.lua
 do
 -- ============================================================================
@@ -2707,6 +2976,8 @@ do
 --   <Theater>_war.json          the live save, written every tick
 --   <Theater>_war_bak<N>.json   rotating backups (N = tick mod saveSlots)
 --   <Theater>_war_final_<T>.json archive of a finished war
+--   pilots.json                 pilot records (all maps)
+--   rotation.json               which map the server is on / goes to next
 -- ============================================================================
 
 DCC = DCC or {}
@@ -2808,6 +3079,26 @@ function P.loadPilots()
   return nil
 end
 
+-- Map rotation (phase 5): one small file shared with the server hook
+-- (hooks/DCC_rotation_hook.lua), which does the actual mission change.
+--   { current = "<map the server should be on>", state = "running" | "ended" | "loading",
+--     finished = "<map whose war just ended>", winner = "blue" | "red", next = "<map>" }
+function P.readRotation()
+  if not P.available() then return nil end
+  local text = readFile(folder() .. "rotation.json")
+  if not text or text == "" then return nil end
+  local ok, v = pcall(DCC.json.decode, text)
+  if ok and type(v) == "table" then return v end
+  return nil
+end
+
+function P.writeRotation(rot)
+  if not P.available() then return false end
+  local ok, text = pcall(DCC.json.encode, rot)
+  if not ok then return false end
+  return writeFile(folder() .. "rotation.json", text)
+end
+
 end
 
 -- >>> src/dcc_dcs.lua
@@ -2893,6 +3184,7 @@ end
 
 function B.init(war, theater, catalog)
   B.war, B.theater, B.catalog = war, theater, catalog
+  B.nodePos, B.airbases, B.liveNodes, B.spawned = {}, {}, {}, {}   -- a clean view for this war
   for _, id in ipairs(war.T.order) do
     local tn = war.T.nodes[id]
     local pos = toVec3(tn)
@@ -2978,7 +3270,7 @@ function B.desired()
     end
   end
   for mid, mv in pairs(war.state.moves) do
-    if B.liveNodes[mv.from] or B.liveNodes[mv.to] or (B.forced and B.forced[mid]) then
+    if (B.liveNodes[mv.from] or B.liveNodes[mv.to] or (B.forced and B.forced[mid])) and not war:onSea(mv) then
       for _, pid in ipairs(mv.platoons) do
         want[pid] = { key = "m:" .. mid, kind = "move", mv = mv }
       end
@@ -3207,11 +3499,12 @@ function B.announce(events)
     elseif ev.kind == "convoy_lost" or ev.kind == "airlift_lost" then
       trigger.action.outText(ev.text, 15)            -- both sides: the kill mattered
     elseif ev.kind == "sam_destroyed" or ev.kind == "sam_suppressed" or ev.kind == "infra_hit"
+           or ev.kind == "ewr_destroyed" or ev.kind == "awacs_lost"
            or ev.kind == "rescued" or ev.kind == "captured" or ev.kind == "airassault" then
       trigger.action.outText(ev.text, 15)
     elseif (ev.kind == "focus" or ev.kind == "assault" or ev.kind == "airlift" or ev.kind == "airlift_in"
             or ev.kind == "nosupply" or ev.kind == "cargo_lost" or ev.kind == "mission_done"
-            or ev.kind == "mission_failed" or ev.kind == "sam_up" or ev.kind == "airdrop"
+            or ev.kind == "mission_failed" or ev.kind == "sam_up" or ev.kind == "ewr_up" or ev.kind == "airdrop"
             or ev.kind == "airmobile" or ev.kind == "ambush" or ev.kind == "downed") and ev.side then
       trigger.action.outTextForCoalition(COAL[ev.side], "Command: " .. ev.text, 12)
     end
@@ -3308,7 +3601,9 @@ function B.desiredCargo()
   for mid, mv in pairs(B.war.state.moves) do
     if mv.cargo then
       if mv.kind == "airlift" then want[mid] = mv
-      elseif B.liveNodes[mv.from] or B.liveNodes[mv.to] or (B.forced and B.forced[mid]) then want[mid] = mv end
+      elseif (B.liveNodes[mv.from] or B.liveNodes[mv.to] or (B.forced and B.forced[mid])) and not B.war:onSea(mv) then
+        want[mid] = mv
+      end
     end
   end
   return want
@@ -4406,7 +4701,7 @@ function B.onKill(e)
     if desc and (desc.category == Unit.Category.AIRPLANE or desc.category == Unit.Category.HELICOPTER) then
       field = "kills_air"
     elseif tname:find("^DCC_[ca]%d") then field = "kills_convoy"
-    elseif tname:find("^DCC_SAM") then field = "kills_sam" end
+    elseif tname:find("^DCC_SAM") or tname:find("^DCC_EWR") then field = "kills_sam" end
   end
   DCC.pilots:add(key, field, 1, name)
   -- an air kill completes a CAP on station
@@ -4976,6 +5271,458 @@ end
 
 end
 
+-- >>> src/dcc_dcs_radar.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - DCS bridge, part 5: radar stations, AWACS and
+-- recon photos. Load after dcc_dcs_intel.lua.
+-- ----------------------------------------------------------------------------
+--   EWR sites   - spawned as real radar units when a player is within
+--                 ops.samLiveRadiusKm (kill it -> War:ewrHit). Whether spawned
+--                 or not, every EWR that is up in the model gives its side an
+--                 air picture: enemy aircraft within radar.ewrKm, above the
+--                 radar horizon, with terrain not in the way.
+--   AWACS       - one per side orbits radar.awacsStandoffKm behind its own
+--                 front while anyone is online (drawn from the AWACS pool).
+--                 It sees enemy aircraft out to radar.awacsKm. Shot down ->
+--                 War:awacsLost (HVAA mission done). Relieved after 4 h.
+--   ELINT       - EWRs always transmit: enemy aircraft above elintMinAglM
+--                 within radar.ewrElintKm hear them (EWR strike missions).
+--   Recon photo - a completed recon shows every photographed platoon with its
+--                 vehicle types on the side's map, and the pilot gets the
+--                 photo report as a message.
+-- ============================================================================
+
+DCC = DCC or {}
+local B = DCC.dcs
+local U = DCC.util
+
+B.ewrs  = {}   -- node id -> { group, side }
+B.awacs = {}   -- side -> { group, born }
+
+local SIDES = { "blue", "red" }
+local function RC() return DCC.config.radar end
+local function IC() return DCC.config.intel end
+local function ok(fn, ...) local s, r = pcall(fn, ...); if s then return r end end
+local function alive(u) return u ~= nil and ok(u.isExist, u) == true end
+local function dist2D(a, b)
+  local dx, dz = a.x - b.x, a.z - b.z
+  return math.sqrt(dx * dx + dz * dz)
+end
+local function ground(p) return ok(land.getHeight, { x = p.x, y = p.z }) or 0 end
+local function otherSide(s) return s == "blue" and "red" or "blue" end
+
+local function unitsOf(gname)
+  local g = ok(Group.getByName, gname)
+  local out = {}
+  if g and ok(g.isExist, g) then
+    for _, u in ipairs(g:getUnits() or {}) do if alive(u) and u:getLife() >= 1 then out[#out + 1] = u end end
+  end
+  return out
+end
+
+local function playersNear(pos, km)
+  for _, pp in ipairs(B.playerPositions()) do
+    if dist2D(pp, pos) <= km * 1000 then return true end
+  end
+  return false
+end
+
+-- ===========================================================================
+-- 1. EWR sites
+-- ===========================================================================
+function B.spawnEwr(id)
+  local ns = B.war.state.nodes[id]
+  local list = B.catalog.ewr and B.catalog.ewr[ns.side] or {}
+  local t
+  for _, cand in ipairs(list) do if B.validType(cand) then t = cand; break end end
+  if not t then return end
+  local c = B.nodePos[id]
+  -- a little away from the airfield, on the side away from the SAM site
+  local x, z = c.x - 2200, c.z - 1600
+  local gname = "DCC_EWR_" .. id
+  local data = { name = gname, task = "Ground Nothing",
+    units = { { name = gname .. "_1", type = t, skill = "High", x = x, y = z, heading = 0, playerCanDrive = false } },
+    route = { points = { { x = x, y = z, type = "Turning Point", action = "Off Road", speed = 0,
+                           ETA = 0, ETA_locked = false, speed_locked = true } } } }
+  if pcall(coalition.addGroup, B.countryId(ns.side), Group.Category.GROUND, data) then
+    B.ewrs[id] = { group = gname, side = ns.side }
+  end
+end
+
+function B.despawnEwr(id)
+  local rec = B.ewrs[id]
+  if not rec then return end
+  local g = ok(Group.getByName, rec.group)
+  if g and ok(g.isExist, g) then g:destroy() end
+  B.ewrs[id] = nil
+end
+
+function B.reconcileEwrs()
+  local war, R = B.war, DCC.config.ops.samLiveRadiusKm
+  for id, rec in pairs(B.ewrs) do
+    if #unitsOf(rec.group) == 0 then war:ewrHit(id) end
+    local ns = war.state.nodes[id]
+    if not war:ewrUp(id) or ns.side ~= rec.side or not playersNear(B.nodePos[id], R + 10) then B.despawnEwr(id) end
+  end
+  for _, id in ipairs(war.T.order) do
+    if not B.ewrs[id] and war:ewrUp(id) and playersNear(B.nodePos[id], R) then B.spawnEwr(id) end
+  end
+end
+
+-- ===========================================================================
+-- 2. AWACS
+-- ===========================================================================
+-- Orbit point: from the middle of the own front, back toward the own rear.
+function B.awacsOrbit(side)
+  local war = B.war
+  local dist = war:frontDistance(side)
+  local fx, fz, fn, rx, rz, rn = 0, 0, 0, 0, 0, 0
+  for _, id in ipairs(war.T.order) do
+    if war.state.nodes[id].side == side then
+      local p = B.nodePos[id]
+      rx, rz, rn = rx + p.x, rz + p.z, rn + 1
+      if dist[id] == 1 then fx, fz, fn = fx + p.x, fz + p.z, fn + 1 end
+    end
+  end
+  if rn == 0 then return nil end
+  rx, rz = rx / rn, rz / rn
+  if fn == 0 then return { x = rx, z = rz }, 0 end
+  fx, fz = fx / fn, fz / fn
+  local dx, dz = rx - fx, rz - fz
+  local len = math.sqrt(dx * dx + dz * dz)
+  if len < 1 then dx, dz, len = 1, 0, 1 end
+  local s = RC().awacsStandoffKm * 1000
+  local hdg = math.atan2(dz, dx)
+  return { x = fx + dx / len * s, z = fz + dz / len * s }, hdg
+end
+
+function B.spawnAwacs(side)
+  local war = B.war
+  local tpl = B.findTemplate("DCC_TPL_" .. side .. "_awacs")
+  if not tpl or (war.state.airPool[side].awacs or 0) < 1 then return nil end
+  local p, hdg = B.awacsOrbit(side)
+  if not p then return nil end
+  local alt = RC().awacsAltM
+  -- race-track at right angles to the front
+  local ax, az = math.cos(hdg + math.pi / 2), math.sin(hdg + math.pi / 2)
+  local p1 = { x = p.x - ax * 30000, z = p.z - az * 30000 }
+  local p2 = { x = p.x + ax * 30000, z = p.z + az * 30000 }
+  B.awacsCount = (B.awacsCount or 0) + 1
+  local gname = string.format("DCC_AWACS_%s_%d", side, B.awacsCount)
+  local data = U.copy(tpl)
+  data.name, data.lateActivation, data.groupId, data.task = gname, nil, nil, "AWACS"
+  data.units = { data.units[1] }
+  local u = data.units[1]
+  u.unitId, u.name = nil, gname .. "_1"
+  u.x, u.y, u.alt, u.alt_type, u.speed, u.heading, u.skill = p1.x, p1.z, alt, "BARO", 200, hdg, "High"
+  local tasks = { { id = "AWACS", params = {} },
+                  { id = "Orbit", params = { pattern = "Race-Track", point = { x = p1.x, y = p1.z },
+                    point2 = { x = p2.x, y = p2.z }, altitude = alt, speed = 200 } } }
+  for i, t in ipairs(tasks) do t.number, t.auto, t.enabled = i, false, true end
+  data.route = { points = {
+    { x = p1.x, y = p1.z, alt = alt, alt_type = "BARO", type = "Turning Point", action = "Turning Point",
+      speed = 200, speed_locked = true, ETA = 0, ETA_locked = false,
+      task = { id = "ComboTask", params = { tasks = tasks } } },
+    { x = p2.x, y = p2.z, alt = alt, alt_type = "BARO", type = "Turning Point", action = "Turning Point",
+      speed = 200, speed_locked = true, ETA = 0, ETA_locked = false,
+      task = { id = "ComboTask", params = { tasks = {} } } } } }
+  local s, err = pcall(coalition.addGroup, B.countryId(side), Group.Category.AIRPLANE, data)
+  if not s then U.log("AWACS spawn failed: %s", tostring(err)); return nil end
+  war:airTake(side, "awacs", 1)
+  war:setAwacs(side, true)
+  B.awacs[side] = { group = gname, born = timer.getTime() }
+  trigger.action.outTextForCoalition(B.COAL[side], string.format("Command: %s AWACS on station.", side:upper()), 10)
+  return gname
+end
+
+local function returnAwacs(side)
+  local p = B.war.state.airPool[side]
+  p.awacs = math.min(RC().awacsPoolMax, (p.awacs or 0) + 1)
+end
+
+function B.pollAwacs()
+  local war = B.war
+  local online = #B.playerPositions() > 0
+  for _, side in ipairs(SIDES) do
+    local rec = B.awacs[side]
+    if rec then
+      local us = unitsOf(rec.group)
+      if #us == 0 then
+        war:awacsLost(side)
+        B.awacs[side] = nil
+      elseif not online or timer.getTime() - rec.born > RC().awacsLifeSeconds then
+        local g = ok(Group.getByName, rec.group)
+        if g then g:destroy() end
+        returnAwacs(side)
+        war:setAwacs(side, false)
+        B.awacs[side] = nil
+      end
+    end
+  end
+end
+
+function B.planAwacs()
+  if #B.playerPositions() == 0 then return end
+  for _, side in ipairs(SIDES) do
+    if not B.awacs[side] then B.spawnAwacs(side) end
+  end
+end
+
+-- ===========================================================================
+-- 3. Air picture: EWRs and AWACS see enemy aircraft above the radar horizon
+-- ===========================================================================
+-- Every radar a side has right now: { pos (vec3 antenna), aglM, km }
+function B.radarsOf(side)
+  local war, out = B.war, {}
+  for _, id in ipairs(war.T.order) do
+    if war.state.nodes[id].side == side and war:ewrUp(id) then
+      local p = B.nodePos[id]
+      local h = RC().ewrAntennaM
+      out[#out + 1] = { pos = { x = p.x, y = ground(p) + h, z = p.z }, agl = h, km = RC().ewrKm }
+    end
+  end
+  local rec = B.awacs[side]
+  local u = rec and unitsOf(rec.group)[1]
+  if u then
+    local p = u:getPoint()
+    out[#out + 1] = { pos = p, agl = p.y - ground(p), km = RC().awacsKm, awacs = true }
+  end
+  return out
+end
+
+-- Can this radar see this unit?
+function B.radarSees(r, u)
+  local p = u:getPoint()
+  local d = dist2D(r.pos, p)
+  if d > r.km * 1000 then return false end
+  local agl = p.y - ground(p)
+  if agl < DCC.War.radarHorizonM(d / 1000, r.agl) then return false end
+  return ok(land.isVisible, r.pos, p) == true
+end
+
+function B.scanRadars(idx)
+  -- enemy aircraft per side: players in the air, AI sorties, AWACS, airlifts
+  local airOf = { blue = {}, red = {} }
+  for _, side in ipairs(SIDES) do
+    for _, u in ipairs(coalition.getPlayers(B.COAL[side]) or {}) do
+      if alive(u) and ok(u.inAir, u) then airOf[side][#airOf[side] + 1] = { u = u } end
+    end
+  end
+  for _, e in pairs(idx) do
+    if e.air then
+      for _, u in ipairs(unitsOf(e.group)) do airOf[e.side][#airOf[e.side] + 1] = { u = u, e = e } end
+    end
+  end
+  for _, side in ipairs(SIDES) do
+    local radars = B.radarsOf(side)
+    if #radars > 0 then
+      for _, t in ipairs(airOf[otherSide(side)]) do
+        for _, r in ipairs(radars) do
+          if B.radarSees(r, t.u) then B.report(side, t.e, t.u, "radar"); break end
+        end
+      end
+    end
+  end
+end
+
+-- ELINT on early-warning radars (they always transmit).
+function B.scanEwrElint()
+  local war, cfg = B.war, IC()
+  for _, side in ipairs(SIDES) do
+    local ears = {}
+    for _, u in ipairs(coalition.getPlayers(B.COAL[side]) or {}) do
+      if alive(u) and ok(u.inAir, u) then ears[#ears + 1] = u end
+    end
+    for gname, s in pairs(B.sorties) do
+      if s.side == side then for _, u in ipairs(unitsOf(gname)) do ears[#ears + 1] = u end end
+    end
+    for _, id in ipairs(war.T.order) do
+      local ns = war.state.nodes[id]
+      if ns.side ~= side and war:ewrUp(id) then
+        local pos = B.nodePos[id]
+        for _, u in ipairs(ears) do
+          local p = u:getPoint()
+          if dist2D(p, pos) <= RC().ewrElintKm * 1000 and p.y - ground(p) >= cfg.elintMinAglM then
+            local key = "ewr:" .. id
+            local c = war:contact(side, key)
+            local err = cfg.elintBaseErrM
+            if c and c.err and war:isFresh(side, key) then err = math.max(cfg.elintMinErrM, c.err * cfg.elintShrink) end
+            local a, r = math.random() * 2 * math.pi, math.random() * err
+            war:addContact(side, key, { kind = "ewr", node = id, source = "elint", err = err,
+              pos = { x = pos.x + r * math.cos(a), z = pos.z + r * math.sin(a) }, label = "Early-warning radar" })
+            break
+          end
+        end
+      end
+    end
+  end
+end
+
+-- Index: AWACS aircraft are air contacts like sorties, and a sighting of one
+-- also records the "awacs:<side>" contact the HVAA mission needs.
+local baseIndex = B.intelIndex
+function B.intelIndex()
+  local idx = baseIndex()
+  for side, rec in pairs(B.awacs) do
+    idx[rec.group] = { side = side, kind = "air", air = true, group = rec.group, awacs = true }
+  end
+  for id, rec in pairs(B.ewrs) do
+    idx[rec.group] = { side = rec.side, key = "ewr:" .. id, kind = "ewr", node = id, group = rec.group }
+  end
+  return idx
+end
+
+local baseReport = B.report
+function B.report(side, e, u, source)
+  if e and e.side == side then return end
+  baseReport(side, e, u, source)
+  if e and e.awacs then
+    local p = u:getPoint()
+    B.war:addContact(side, "awacs:" .. e.side, { kind = "awacs", source = source,
+      pos = { x = p.x, z = p.z }, label = e.side:upper() .. " AWACS" })
+  elseif e and e.kind == "ewr" then
+    local p = u:getPoint()
+    B.war:addContact(side, "ewr:" .. e.node, { kind = "ewr", node = e.node, source = source,
+      pos = { x = p.x, z = p.z }, err = 200, label = "Early-warning radar" })
+  end
+end
+
+local baseScan = B.intelScan
+function B.intelScan()
+  baseScan()
+  if not B.war.fogOfWar then return end
+  local idx = B.intelIndex()
+  B.scanRadars(idx)
+  B.scanEwrElint()
+end
+
+-- ===========================================================================
+-- 4. Map: enemy radars, photos; own radar coverage
+-- ===========================================================================
+local function mark()
+  B.nextMark = (B.nextMark or DCC.config.markIdBase) + 1
+  B.intelMarks[#B.intelMarks + 1] = B.nextMark
+  return B.nextMark
+end
+
+local baseDrawIntel = B.drawIntel
+function B.drawIntel()
+  baseDrawIntel()
+  local war = B.war
+  if not war.fogOfWar then return end
+  for _, side in ipairs(SIDES) do
+    local coal, enemy = B.COAL[side], otherSide(side)
+    local ec = DCC.config.colours[enemy]
+    for _, key in ipairs(U.sortedKeys(war.state.contacts[side])) do
+      local c = war.state.contacts[side][key]
+      local fresh = war:isFresh(side, key)
+      local col = { ec[1], ec[2], ec[3], fresh and 1 or 0.45 }
+      if c.kind == "ewr" and war.state.nodes[c.node].side == enemy then
+        local P = c.pos or B.nodePos[c.node]
+        local v = { x = P.x, y = ground(P), z = P.z }
+        if (c.err or 0) > 1000 then
+          trigger.action.circleToAll(coal, mark(), v, c.err, col, { ec[1], ec[2], ec[3], 0.12 }, 3, true, "")
+        end
+        trigger.action.textToAll(coal, mark(), { x = v.x + 1500, y = v.y, z = v.z - 4000 }, col,
+          { 0, 0, 0, 0.35 }, 10, true, string.format("EWR (%s%s)", c.source,
+            (c.err or 0) > 1000 and string.format(" +/-%.1f km", c.err / 1000) or ""))
+      elseif c.kind == "awacs" and fresh then
+        local v = { x = c.pos.x, y = 0, z = c.pos.z }
+        trigger.action.circleToAll(coal, mark(), v, 3000, col, { 0, 0, 0, 0 }, 1, true, "")
+        trigger.action.textToAll(coal, mark(), { x = v.x + 3500, y = 0, z = v.z }, col, { 0, 0, 0, 0.35 }, 11, true,
+          enemy:upper() .. " AWACS")
+      elseif c.kind == "node" and c.photo and war.state.nodes[c.node].side == enemy then
+        for _, ph in ipairs(c.photo) do
+          local s = B.scatter(c.node, ph.pid)
+          trigger.action.textToAll(coal, mark(), { x = s.x, y = ground(s), z = s.z }, col, { 0, 0, 0, 0.25 }, 9, true,
+            "[photo] " .. ph.text)
+        end
+      end
+    end
+  end
+end
+
+local baseDrawOps = B.drawOps
+function B.drawOps(newMark, toVec3)
+  baseDrawOps(newMark, toVec3)
+  local war = B.war
+  for _, id in ipairs(war.T.order) do
+    local ns = war.state.nodes[id]
+    if ns.ewr then
+      local col, P = DCC.config.colours[ns.side], B.nodePos[id]
+      if ns.ewr.status == "up" then
+        trigger.action.circleToAll(B.COAL[ns.side], newMark(), P, RC().ewrKm * 1000,
+          { col[1], col[2], col[3], 0.25 }, { 0, 0, 0, 0 }, 4, true, "")
+      end
+      trigger.action.textToAll(B.COAL[ns.side], newMark(), { x = P.x + 1500, y = P.y, z = P.z - 4000 }, col,
+        { 0, 0, 0, 0 }, 10, true, "EWR " .. ns.ewr.status)
+    end
+  end
+end
+
+-- ===========================================================================
+-- 5. Recon photo report to the pilot
+-- ===========================================================================
+function B.photoReport(side, id)
+  local war = B.war
+  local c = war:contact(side, "n:" .. id)
+  if not c then return nil end
+  local lines = { "RECON PHOTOS - " .. war:nodeName(id) }
+  local ns = war.state.nodes[id]
+  for i, ph in ipairs(c.photo or {}) do lines[#lines + 1] = string.format("%d. %s (%s)", i, ph.text, ph.role) end
+  if #(c.photo or {}) == 0 then lines[#lines + 1] = "No vehicles in the photos." end
+  lines[#lines + 1] = "Air defence: " .. (ns.sam and ns.sam.status or "none") ..
+                      ".  Early-warning radar: " .. (c.ewr or "none") .. "."
+  lines[#lines + 1] = "Photos are on your F10 map ([photo] labels)."
+  return table.concat(lines, "\n")
+end
+
+local baseDone = B.onMissionDone
+function B.onMissionDone(m, outcome)
+  if m.type == "RECON" and outcome == "done" then
+    local text = B.photoReport(m.side, m.target)
+    if text then
+      for key in pairs(m.taken) do
+        for _, p in pairs(B.players) do
+          if p.key == key then trigger.action.outTextForGroup(p.gid, text, 45) end
+        end
+      end
+    end
+  end
+  baseDone(m, outcome)
+end
+
+-- ===========================================================================
+-- 6. Status and loop hooks
+-- ===========================================================================
+local baseStatus = B.opsStatusLines
+function B.opsStatusLines(side)
+  local lines = baseStatus(side)
+  local war, up = B.war, 0
+  for _, id in ipairs(war.T.order) do
+    if war.state.nodes[id].side == side and war:ewrUp(id) then up = up + 1 end
+  end
+  lines[#lines + 1] = string.format("Radar: %d early-warning sites up. AWACS: %s, %d in reserve.", up,
+    B.awacs[side] and "on station" or "none airborne", war.state.airPool[side].awacs or 0)
+  return lines
+end
+
+local basePoll = B.opsPoll
+function B.opsPoll()
+  basePoll()
+  B.reconcileEwrs()
+  B.pollAwacs()
+end
+
+local baseTick = B.opsTick
+function B.opsTick()
+  baseTick()
+  B.planAwacs()
+end
+
+end
+
 -- >>> src/dcc_main.lua
 do
 -- ============================================================================
@@ -5041,8 +5788,10 @@ function DCC.onTick()
   if war.state.winner and not DCC.ended then
     DCC.ended = true
     trigger.action.setUserFlag(DCC.config.campaignOverFlag, 1)
-    local rot, nextMap = DCC.config.rotation, nil
-    for i, m in ipairs(rot) do if m == DCC.theaterName then nextMap = rot[i % #rot + 1] end end
+    local nextMap = DCC.nextMap(DCC.theaterName)
+    -- the server hook sees this and loads the next map's mission
+    DCC.persist.writeRotation({ current = nextMap, state = "ended", finished = DCC.theaterName,
+                                winner = war.state.winner, next = nextMap, tick = war.state.tick })
     trigger.action.outText(string.format("The war on %s is over. %s wins.%s",
       DCC.theaterName, war.state.winner:upper(),
       nextMap and (" Next theater: " .. nextMap .. ".") or ""), 120)
@@ -5050,10 +5799,29 @@ function DCC.onTick()
   end
 end
 
+-- The map after this one in the fixed rotation.
+function DCC.nextMap(current)
+  local rot = DCC.config.rotation
+  for i, m in ipairs(rot) do if m == current then return rot[i % #rot + 1] end end
+  return rot[1]
+end
+
 function DCC.start()
   if DCC.started then return end
   local theater, name = pickTheater()
   if not theater then return end
+
+  -- Map rotation: if the server should be on another map (a restart loaded
+  -- the wrong mission), do not touch this map's war - the hook switches over.
+  local rot = DCC.persist.readRotation()
+  if DCC.config.rotationEnforce and rot and rot.current and rot.current ~= (theater.name or name) then
+    DCC.waitingForRotation = rot.current
+    local msg = string.format("DCC: the campaign has moved on to %s. Loading it...", rot.current)
+    U.log(msg)
+    trigger.action.outText(msg, 120)
+    return
+  end
+  DCC.persist.writeRotation({ current = theater.name or name, state = "running" })
   local catalog = DCC_CATALOGS and DCC_CATALOGS[DCC.config.era]
   if not catalog then U.log("no catalog for era %s", tostring(DCC.config.era)); return end
   DCC.theaterName = theater.name or name
@@ -5264,11 +6032,19 @@ DCC_CATALOGS.modern = {
     blue = {
       fighter = { type = "F-16C_50", loadout = { { "AIM-120C", 4 }, { "AIM-9X", 2 } } },
       attack  = { type = "A-10C",    loadout = { { "AGM-65D", 2 }, { "Mk-82 - 500lb", 6 }, { "LAU-105 - 2 x AIM-9M", 1 } } },
+      awacs   = { type = "E-3A",     loadout = {}, size = 1 },
     },
     red = {
       fighter = { type = "MiG-29S",  loadout = { { "R-77", 4 }, { "R-73", 2 } } },
       attack  = { type = "Su-25",    loadout = { { "S-8KOM", 4 }, { "OFAB-250", 4 }, { "R-60M", 2 } } },
+      awacs   = { type = "A-50",     loadout = {}, size = 1 },
     },
+  },
+
+  -- Early-warning radar sites (phase 5). The first type that exists in this DCS install is used.
+  ewr = {
+    blue = { "FPS-117", "55G6 EWR" },
+    red  = { "1L13 EWR", "55G6 EWR" },
   },
 
   -- Air-defence site at airbases and depots: radars, launchers, support.
@@ -5403,6 +6179,463 @@ DCC_THEATERS.Caucasus = {
     { "pyatigorsk", "nalchik" }, { "minvody", "mozdok" }, { "nalchik", "beslan" },
     { "beslan", "vladikavkaz" }, { "beslan", "mozdok" }, { "vladikavkaz", "alagir" },
     { "vladikavkaz", "kazbegi" }, { "alagir", "tskhinvali" }, { "oni", "alagir" },
+  },
+}
+
+end
+
+-- >>> theaters/germanycw.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - theater pack: GermanyCW
+-- ----------------------------------------------------------------------------
+-- GENERATED by tools/make_theater.py from tools/scenarios/germanycw.py.
+-- Edit the scenario and regenerate rather than editing this file.
+--
+-- Scenario (Modern forces on the Cold War Germany map): BLUE holds the west,
+-- RED the east, with the front on the old inner-German border from the Baltic
+-- coast to the Fulda Gap. Berlin is not in play.
+--
+-- 55 nodes, 103 roads, 0 sea crossings, 15 front links.
+-- ============================================================================
+
+DCC_THEATERS = DCC_THEATERS or {}
+
+DCC_THEATERS.GermanyCW = {
+  name    = "GermanyCW",
+  era     = "modern",
+  country = { blue = "CJTF_BLUE", red = "CJTF_RED" },
+  balance = { blue = 1.0, red = 1.15 },
+
+  nodes = {
+    -- ---------------- BLUE ----------------
+    { id = "kiel", name = "Kiel", kind = "airbase", side = "blue", lat = 54.3795, lon = 10.1447, airbase = "Kiel" },
+    { id = "lubeck", name = "Lubeck", kind = "airbase", side = "blue", lat = 53.8049, lon = 10.7169, airbase = "Lubeck" },
+    { id = "nordholz", name = "Nordholz", kind = "airbase", side = "blue", lat = 53.7676, lon = 8.6585, airbase = "Nordholz", ewr = true },
+    { id = "hamburg", name = "Hamburg", kind = "airbase", side = "blue", lat = 53.6268, lon = 9.9813, airbase = "Hamburg" },
+    { id = "luneburg", name = "Luneburg", kind = "airbase", side = "blue", lat = 53.2485, lon = 10.4595, airbase = "Luneburg" },
+    { id = "bremen", name = "Bremen", kind = "airbase", side = "blue", lat = 53.0469, lon = 8.7883, airbase = "Bremen" },
+    { id = "uelzen", name = "Uelzen", kind = "airbase", side = "blue", lat = 52.9836, lon = 10.4645, airbase = "Uelzen" },
+    { id = "fassberg", name = "Fassberg", kind = "airbase", side = "blue", lat = 52.9194, lon = 10.1848, airbase = "Fassberg" },
+    { id = "celle", name = "Celle", kind = "airbase", side = "blue", lat = 52.5914, lon = 10.0243, airbase = "Celle" },
+    { id = "wunstorf", name = "Wunstorf", kind = "airbase", side = "blue", lat = 52.4573, lon = 9.4271, airbase = "Wunstorf" },
+    { id = "hannover", name = "Hannover", kind = "airbase", side = "blue", lat = 52.4545, lon = 9.6938, airbase = "Hannover", depot = true },
+    { id = "wolfsburg", name = "Wolfsburg", kind = "town", side = "blue", lat = 52.4230, lon = 10.7870 },
+    { id = "braunschweig", name = "Braunschweig", kind = "airbase", side = "blue", lat = 52.3191, lon = 10.5539, airbase = "Braunschweig" },
+    { id = "buckeburg", name = "Buckeburg", kind = "airbase", side = "blue", lat = 52.2786, lon = 9.0833, airbase = "Buckeburg" },
+    { id = "helmstedt", name = "Helmstedt", kind = "town", side = "blue", lat = 52.2270, lon = 11.0100 },
+    { id = "hildesheim", name = "Hildesheim", kind = "airbase", side = "blue", lat = 52.1798, lon = 9.9458, airbase = "Hildesheim" },
+    { id = "gutersloh", name = "Gutersloh", kind = "airbase", side = "blue", lat = 51.9228, lon = 8.3041, airbase = "Gutersloh" },
+    { id = "gottingen", name = "Gottingen", kind = "town", side = "blue", lat = 51.5410, lon = 9.9160 },
+    { id = "kassel", name = "Kassel", kind = "town", side = "blue", lat = 51.3130, lon = 9.4790 },
+    { id = "fritzlar", name = "Fritzlar", kind = "airbase", side = "blue", lat = 51.1146, lon = 9.2858, airbase = "Fritzlar" },
+    { id = "fulda", name = "Fulda", kind = "airbase", side = "blue", lat = 50.5399, lon = 9.6430, airbase = "Fulda" },
+    { id = "wiesbaden", name = "Wiesbaden", kind = "airbase", side = "blue", lat = 50.0498, lon = 8.3256, airbase = "Wiesbaden" },
+    { id = "schweinfurt", name = "Schweinfurt", kind = "airbase", side = "blue", lat = 50.0489, lon = 10.1697, airbase = "Schweinfurt" },
+    { id = "frankfurt", name = "Frankfurt", kind = "airbase", side = "blue", lat = 50.0404, lon = 8.5673, airbase = "Frankfurt", depot = true },
+    { id = "hahn", name = "Hahn", kind = "airbase", side = "blue", lat = 49.9485, lon = 7.2639, airbase = "Hahn" },
+    { id = "giebelstadt", name = "Giebelstadt", kind = "airbase", side = "blue", lat = 49.6479, lon = 9.9647, airbase = "Giebelstadt" },
+    { id = "ramstein", name = "Ramstein", kind = "airbase", side = "blue", lat = 49.4369, lon = 7.6001, airbase = "Ramstein" },
+    -- ---------------- RED ----------------
+    { id = "laage", name = "Laage", kind = "airbase", side = "red", lat = 53.9181, lon = 12.2794, airbase = "Laage" },
+    { id = "wismar", name = "Wismar", kind = "airbase", side = "red", lat = 53.9144, lon = 11.5024, airbase = "Wismar" },
+    { id = "pinnow", name = "Schwerin-Pinnow", kind = "airbase", side = "red", lat = 53.6165, lon = 11.5631, airbase = "Pinnow" },
+    { id = "parchim", name = "Parchim", kind = "airbase", side = "red", lat = 53.4279, lon = 11.7866, airbase = "Parchim" },
+    { id = "wittstock", name = "Wittstock", kind = "airbase", side = "red", lat = 53.2024, lon = 12.5230, airbase = "Wittstock" },
+    { id = "neuruppin", name = "Neuruppin", kind = "airbase", side = "red", lat = 52.9411, lon = 12.7869, airbase = "Neuruppin" },
+    { id = "salzwedel", name = "Salzwedel", kind = "town", side = "red", lat = 52.8500, lon = 11.1500 },
+    { id = "stendal", name = "Stendal", kind = "airbase", side = "red", lat = 52.6291, lon = 11.8199, airbase = "Stendal" },
+    { id = "gardelegen", name = "Gardelegen", kind = "airbase", side = "red", lat = 52.5295, lon = 11.3501, airbase = "Gardelegen" },
+    { id = "briest", name = "Briest", kind = "airbase", side = "red", lat = 52.4376, lon = 12.4539, airbase = "Briest" },
+    { id = "mahlwinkel", name = "Mahlwinkel", kind = "airbase", side = "red", lat = 52.3883, lon = 11.8264, airbase = "Mahlwinkel" },
+    { id = "schonefeld", name = "Berlin-Schonefeld", kind = "airbase", side = "red", lat = 52.3842, lon = 13.5344, airbase = "Schonefeld", depot = true },
+    { id = "magdeburg", name = "Magdeburg", kind = "town", side = "red", lat = 52.1310, lon = 11.6400 },
+    { id = "zerbst", name = "Zerbst", kind = "airbase", side = "red", lat = 51.9996, lon = 12.1443, airbase = "Zerbst" },
+    { id = "altes_lager", name = "Altes Lager", kind = "airbase", side = "red", lat = 51.9955, lon = 12.9838, airbase = "Altes Lager" },
+    { id = "cochstedt", name = "Cochstedt", kind = "airbase", side = "red", lat = 51.8559, lon = 11.4179, airbase = "Cochstedt" },
+    { id = "dessau", name = "Dessau", kind = "airbase", side = "red", lat = 51.8317, lon = 12.1931, airbase = "Dessau" },
+    { id = "holzdorf", name = "Holzdorf", kind = "airbase", side = "red", lat = 51.7678, lon = 13.1697, airbase = "Holzdorf" },
+    { id = "kothen", name = "Kothen", kind = "airbase", side = "red", lat = 51.7214, lon = 11.9615, airbase = "Kothen" },
+    { id = "nordhausen", name = "Nordhausen", kind = "town", side = "red", lat = 51.5050, lon = 10.7910 },
+    { id = "schkeuditz", name = "Leipzig-Schkeuditz", kind = "airbase", side = "red", lat = 51.4150, lon = 12.2272, airbase = "Schkeuditz" },
+    { id = "allstedt", name = "Allstedt", kind = "airbase", side = "red", lat = 51.3806, lon = 11.4465, airbase = "Allstedt" },
+    { id = "merseburg", name = "Merseburg", kind = "airbase", side = "red", lat = 51.3640, lon = 11.9500, airbase = "Merseburg" },
+    { id = "brandis", name = "Brandis", kind = "airbase", side = "red", lat = 51.3283, lon = 12.6564, airbase = "Brandis", depot = true },
+    { id = "obermehler_schlotheim", name = "Obermehler Schlotheim", kind = "airbase", side = "red", lat = 51.2677, lon = 10.6348, airbase = "Obermehler Schlotheim" },
+    { id = "haina", name = "Haina", kind = "airbase", side = "red", lat = 50.9917, lon = 10.4796, airbase = "Haina" },
+    { id = "bindersleben", name = "Erfurt-Bindersleben", kind = "airbase", side = "red", lat = 50.9795, lon = 10.9623, airbase = "Bindersleben" },
+    { id = "eisenach", name = "Eisenach", kind = "town", side = "red", lat = 50.9740, lon = 10.3200 },
+  },
+
+  edges = {
+    { "allstedt", "bindersleben" },   -- 56 km
+    { "allstedt", "cochstedt" },   -- 53 km
+    { "allstedt", "kothen" },   -- 52 km
+    { "allstedt", "merseburg" },   -- 35 km
+    { "allstedt", "nordhausen" },   -- 48 km
+    { "altes_lager", "briest" },   -- 61 km
+    { "altes_lager", "dessau" },   -- 57 km
+    { "altes_lager", "holzdorf" },   -- 28 km
+    { "altes_lager", "schonefeld" },   -- 57 km
+    { "altes_lager", "zerbst" },   -- 58 km
+    { "bindersleben", "haina" },   -- 34 km
+    { "bindersleben", "obermehler_schlotheim" },   -- 39 km
+    { "brandis", "holzdorf" },   -- 60 km
+    { "brandis", "schkeuditz" },   -- 31 km
+    { "braunschweig", "celle" },   -- 47 km
+    { "braunschweig", "helmstedt" },   -- 33 km
+    { "braunschweig", "hildesheim" },   -- 44 km
+    { "braunschweig", "wolfsburg" },   -- 20 km
+    { "bremen", "fassberg" },   -- 95 km
+    { "bremen", "hamburg" },   -- 102 km
+    { "bremen", "nordholz" },   -- 80 km
+    { "bremen", "wunstorf" },   -- 78 km
+    { "briest", "mahlwinkel" },   -- 43 km
+    { "briest", "neuruppin" },   -- 60 km
+    { "briest", "schonefeld" },   -- 74 km
+    { "briest", "stendal" },   -- 48 km
+    { "briest", "zerbst" },   -- 53 km
+    { "buckeburg", "gutersloh" },   -- 66 km
+    { "buckeburg", "wunstorf" },   -- 31 km
+    { "celle", "fassberg" },   -- 38 km
+    { "celle", "hannover" },   -- 27 km
+    { "cochstedt", "helmstedt" },   -- 50 km
+    { "cochstedt", "kothen" },   -- 40 km
+    { "cochstedt", "magdeburg" },   -- 34 km
+    { "cochstedt", "nordhausen" },   -- 58 km
+    { "dessau", "kothen" },   -- 20 km
+    { "dessau", "zerbst" },   -- 19 km
+    { "eisenach", "fritzlar" },   -- 74 km
+    { "eisenach", "fulda" },   -- 68 km
+    { "eisenach", "gottingen" },   -- 69 km
+    { "eisenach", "haina" },   -- 11 km
+    { "eisenach", "kassel" },   -- 70 km
+    { "fassberg", "uelzen" },   -- 20 km
+    { "frankfurt", "fulda" },   -- 94 km
+    { "frankfurt", "giebelstadt" },   -- 109 km
+    { "frankfurt", "schweinfurt" },   -- 115 km
+    { "frankfurt", "wiesbaden" },   -- 17 km
+    { "fritzlar", "fulda" },   -- 68 km
+    { "fritzlar", "kassel" },   -- 26 km
+    { "fulda", "schweinfurt" },   -- 66 km
+    { "gardelegen", "helmstedt" },   -- 41 km
+    { "gardelegen", "mahlwinkel" },   -- 36 km
+    { "gardelegen", "salzwedel" },   -- 38 km
+    { "gardelegen", "stendal" },   -- 34 km
+    { "gardelegen", "wolfsburg" },   -- 40 km
+    { "giebelstadt", "schweinfurt" },   -- 47 km
+    { "gottingen", "hildesheim" },   -- 71 km
+    { "gottingen", "kassel" },   -- 39 km
+    { "gottingen", "nordhausen" },   -- 61 km
+    { "gottingen", "obermehler_schlotheim" },   -- 58 km
+    { "gutersloh", "kassel" },   -- 106 km
+    { "hahn", "ramstein" },   -- 62 km
+    { "hahn", "wiesbaden" },   -- 77 km
+    { "haina", "obermehler_schlotheim" },   -- 32 km
+    { "hamburg", "kiel" },   -- 84 km
+    { "hamburg", "lubeck" },   -- 52 km
+    { "hamburg", "luneburg" },   -- 52 km
+    { "hamburg", "nordholz" },   -- 89 km
+    { "hannover", "hildesheim" },   -- 35 km
+    { "hannover", "wunstorf" },   -- 18 km
+    { "helmstedt", "magdeburg" },   -- 44 km
+    { "helmstedt", "wolfsburg" },   -- 26 km
+    { "kiel", "lubeck" },   -- 74 km
+    { "kiel", "nordholz" },   -- 118 km
+    { "kothen", "merseburg" },   -- 40 km
+    { "kothen", "schkeuditz" },   -- 39 km
+    { "laage", "pinnow" },   -- 58 km
+    { "laage", "wismar" },   -- 51 km
+    { "laage", "wittstock" },   -- 81 km
+    { "lubeck", "luneburg" },   -- 64 km
+    { "lubeck", "pinnow" },   -- 60 km
+    { "lubeck", "wismar" },   -- 53 km
+    { "luneburg", "pinnow" },   -- 84 km
+    { "luneburg", "uelzen" },   -- 29 km
+    { "magdeburg", "mahlwinkel" },   -- 31 km
+    { "magdeburg", "zerbst" },   -- 37 km
+    { "mahlwinkel", "stendal" },   -- 27 km
+    { "mahlwinkel", "zerbst" },   -- 48 km
+    { "merseburg", "schkeuditz" },   -- 20 km
+    { "neuruppin", "schonefeld" },   -- 80 km
+    { "neuruppin", "stendal" },   -- 74 km
+    { "neuruppin", "wittstock" },   -- 34 km
+    { "nordhausen", "obermehler_schlotheim" },   -- 28 km
+    { "parchim", "pinnow" },   -- 26 km
+    { "parchim", "salzwedel" },   -- 77 km
+    { "parchim", "stendal" },   -- 88 km
+    { "parchim", "wittstock" },   -- 55 km
+    { "pinnow", "wismar" },   -- 33 km
+    { "ramstein", "wiesbaden" },   -- 86 km
+    { "salzwedel", "uelzen" },   -- 48 km
+    { "salzwedel", "wolfsburg" },   -- 53 km
+    { "stendal", "wittstock" },   -- 79 km
+    { "uelzen", "wolfsburg" },   -- 66 km
+  },
+}
+
+end
+
+-- >>> theaters/persiangulf.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - theater pack: PersianGulf
+-- ----------------------------------------------------------------------------
+-- GENERATED by tools/make_theater.py from tools/scenarios/persiangulf.py.
+-- Edit the scenario and regenerate rather than editing this file.
+--
+-- Scenario (Modern): RED (Iran) has landed on the Musandam peninsula and the
+-- northern Emirates and holds the Gulf islands. BLUE holds the rest of the UAE.
+-- The ground fronts are Umm Al Quwain - Ras Al Khaimah and Al Dhaid / Hatta -
+-- Masafi / Fujairah. Everything else is linked by sea crossings (ferries and
+-- landing craft): those moves run on dice only - fight them at the ports and
+-- islands, and in the air.
+--
+-- 32 nodes, 36 roads, 11 sea crossings, 6 front links.
+-- ============================================================================
+
+DCC_THEATERS = DCC_THEATERS or {}
+
+DCC_THEATERS.PersianGulf = {
+  name    = "PersianGulf",
+  era     = "modern",
+  country = { blue = "CJTF_BLUE", red = "CJTF_RED" },
+  balance = { blue = 1.0, red = 1.0 },
+
+  nodes = {
+    -- ---------------- BLUE ----------------
+    { id = "umm_al_quwain", name = "Umm Al Quwain", kind = "town", side = "blue", lat = 25.5650, lon = 55.5550 },
+    { id = "sharjah_intl", name = "Sharjah Intl", kind = "airbase", side = "blue", lat = 25.3307, lon = 55.5183, airbase = "Sharjah Intl" },
+    { id = "al_dhaid", name = "Al Dhaid", kind = "town", side = "blue", lat = 25.2880, lon = 55.8810 },
+    { id = "dubai_intl", name = "Dubai Intl", kind = "airbase", side = "blue", lat = 25.2564, lon = 55.3653, airbase = "Dubai Intl" },
+    { id = "sir_abu_nuayr", name = "Sir Abu Nuayr", kind = "airbase", side = "blue", lat = 25.2169, lon = 54.2336, airbase = "Sir Abu Nuayr" },
+    { id = "al_minhad_afb", name = "Al Minhad AFB", kind = "airbase", side = "blue", lat = 25.0269, lon = 55.3658, airbase = "Al Minhad AFB", depot = true },
+    { id = "al_maktoum_intl", name = "Al Maktoum Intl", kind = "airbase", side = "blue", lat = 24.8971, lon = 55.1602, airbase = "Al Maktoum Intl" },
+    { id = "hatta", name = "Hatta", kind = "town", side = "blue", lat = 24.8000, lon = 56.1200 },
+    { id = "abu_dhabi_intl", name = "Abu Dhabi Intl", kind = "airbase", side = "blue", lat = 24.4537, lon = 54.6543, airbase = "Abu Dhabi Intl" },
+    { id = "sas_al_nakheel", name = "Sas Al Nakheel", kind = "airbase", side = "blue", lat = 24.4411, lon = 54.5170, airbase = "Sas Al Nakheel" },
+    { id = "al_bateen", name = "Al-Bateen", kind = "airbase", side = "blue", lat = 24.4281, lon = 54.4586, airbase = "Al-Bateen" },
+    { id = "al_ain_intl", name = "Al Ain Intl", kind = "airbase", side = "blue", lat = 24.2614, lon = 55.6092, airbase = "Al Ain Intl" },
+    { id = "al_dhafra_afb", name = "Al Dhafra AFB", kind = "airbase", side = "blue", lat = 24.2483, lon = 54.5477, airbase = "Al Dhafra AFB", depot = true },
+    { id = "liwa_afb", name = "Liwa AFB", kind = "airbase", side = "blue", lat = 23.6508, lon = 53.8244, airbase = "Liwa AFB" },
+    -- ---------------- RED ----------------
+    { id = "jiroft", name = "Jiroft", kind = "airbase", side = "red", lat = 28.7235, lon = 57.6751, airbase = "Jiroft" },
+    { id = "lar", name = "Lar", kind = "airbase", side = "red", lat = 27.6747, lon = 54.3831, airbase = "Lar", depot = true },
+    { id = "bandar_abbas_intl", name = "Bandar Abbas Intl", kind = "airbase", side = "red", lat = 27.2177, lon = 56.3790, airbase = "Bandar Abbas Intl", depot = true },
+    { id = "havadarya", name = "Havadarya", kind = "airbase", side = "red", lat = 27.1582, lon = 56.1720, airbase = "Havadarya" },
+    { id = "minab", name = "Minab", kind = "town", side = "red", lat = 27.1460, lon = 57.0800 },
+    { id = "bandar_khamir", name = "Bandar Khamir", kind = "town", side = "red", lat = 26.9520, lon = 55.5850 },
+    { id = "qeshm_island", name = "Qeshm Island", kind = "airbase", side = "red", lat = 26.7547, lon = 55.9024, airbase = "Qeshm Island" },
+    { id = "bandar_lengeh", name = "Bandar Lengeh", kind = "airbase", side = "red", lat = 26.5323, lon = 54.8247, airbase = "Bandar Lengeh" },
+    { id = "kish_intl", name = "Kish Intl", kind = "airbase", side = "red", lat = 26.5281, lon = 53.9810, airbase = "Kish Intl" },
+    { id = "tunb_island_afb", name = "Greater Tunb", kind = "airbase", side = "red", lat = 26.2589, lon = 55.3158, airbase = "Tunb Island AFB" },
+    { id = "khasab", name = "Khasab", kind = "airbase", side = "red", lat = 26.1698, lon = 56.2402, airbase = "Khasab", depot = true },
+    { id = "sirri_island", name = "Sirri Island", kind = "airbase", side = "red", lat = 25.9096, lon = 54.5393, airbase = "Sirri Island" },
+    { id = "abu_musa_island", name = "Abu Musa Island", kind = "airbase", side = "red", lat = 25.8760, lon = 55.0329, airbase = "Abu Musa Island" },
+    { id = "bandar_e_jask", name = "Bandar-e-Jask", kind = "airbase", side = "red", lat = 25.6547, lon = 57.8014, airbase = "Bandar-e-Jask" },
+    { id = "dibba", name = "Dibba", kind = "town", side = "red", lat = 25.6200, lon = 56.2700 },
+    { id = "ras_al_khaimah_intl", name = "Ras Al Khaimah Intl", kind = "airbase", side = "red", lat = 25.6135, lon = 55.9388, airbase = "Ras Al Khaimah Intl" },
+    { id = "masafi", name = "Masafi", kind = "town", side = "red", lat = 25.3160, lon = 56.1660 },
+    { id = "fujairah_intl", name = "Fujairah Intl", kind = "airbase", side = "red", lat = 25.1109, lon = 56.3274, airbase = "Fujairah Intl" },
+  },
+
+  edges = {
+    { "abu_dhabi_intl", "al_ain_intl" },   -- 99 km
+    { "abu_dhabi_intl", "al_dhafra_afb" },   -- 25 km
+    { "abu_dhabi_intl", "al_maktoum_intl" },   -- 71 km
+    { "abu_dhabi_intl", "sas_al_nakheel" },   -- 14 km
+    { "al_ain_intl", "al_maktoum_intl" },   -- 84 km
+    { "al_ain_intl", "hatta" },   -- 79 km
+    { "al_bateen", "al_dhafra_afb" },   -- 22 km
+    { "al_bateen", "sas_al_nakheel" },   -- 6 km
+    { "al_dhafra_afb", "liwa_afb" },   -- 99 km
+    { "al_dhafra_afb", "sas_al_nakheel" },   -- 22 km
+    { "al_dhaid", "hatta" },   -- 59 km
+    { "al_dhaid", "masafi" },   -- 29 km
+    { "al_dhaid", "ras_al_khaimah_intl" },   -- 36 km
+    { "al_dhaid", "sharjah_intl" },   -- 37 km
+    { "al_dhaid", "umm_al_quwain" },   -- 45 km
+    { "al_maktoum_intl", "al_minhad_afb" },   -- 25 km
+    { "al_minhad_afb", "dubai_intl" },   -- 25 km
+    { "al_minhad_afb", "hatta" },   -- 80 km
+    { "bandar_abbas_intl", "havadarya" },   -- 22 km
+    { "bandar_abbas_intl", "minab" },   -- 70 km
+    { "bandar_e_jask", "minab" },   -- 180 km
+    { "bandar_khamir", "bandar_lengeh" },   -- 89 km
+    { "bandar_khamir", "havadarya" },   -- 63 km
+    { "bandar_khamir", "lar" },   -- 143 km
+    { "bandar_lengeh", "lar" },   -- 134 km
+    { "dibba", "khasab" },   -- 61 km
+    { "dibba", "masafi" },   -- 35 km
+    { "dibba", "ras_al_khaimah_intl" },   -- 33 km
+    { "dubai_intl", "sharjah_intl" },   -- 17 km
+    { "fujairah_intl", "hatta" },   -- 40 km
+    { "fujairah_intl", "masafi" },   -- 28 km
+    { "jiroft", "minab" },   -- 184 km
+    { "khasab", "ras_al_khaimah_intl" },   -- 69 km
+    { "masafi", "ras_al_khaimah_intl" },   -- 40 km
+    { "ras_al_khaimah_intl", "umm_al_quwain" },   -- 39 km
+    { "sharjah_intl", "umm_al_quwain" },   -- 26 km
+    { "abu_musa_island", "sharjah_intl", sea = true },   -- sea crossing, 78 km
+    { "abu_musa_island", "sirri_island", sea = true },   -- sea crossing, 50 km
+    { "abu_musa_island", "tunb_island_afb", sea = true },   -- sea crossing, 51 km
+    { "bandar_abbas_intl", "khasab", sea = true },   -- sea crossing, 117 km
+    { "bandar_lengeh", "kish_intl", sea = true },   -- sea crossing, 84 km
+    { "bandar_lengeh", "tunb_island_afb", sea = true },   -- sea crossing, 58 km
+    { "havadarya", "qeshm_island", sea = true },   -- sea crossing, 52 km
+    { "khasab", "qeshm_island", sea = true },   -- sea crossing, 73 km
+    { "kish_intl", "sirri_island", sea = true },   -- sea crossing, 88 km
+    { "sharjah_intl", "sir_abu_nuayr", sea = true },   -- sea crossing, 130 km
+    { "sir_abu_nuayr", "sirri_island", sea = true },   -- sea crossing, 83 km
+  },
+}
+
+end
+
+-- >>> theaters/syria.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - theater pack: Syria
+-- ----------------------------------------------------------------------------
+-- GENERATED by tools/make_theater.py from tools/scenarios/syria.py.
+-- Edit the scenario and regenerate rather than editing this file.
+--
+-- Scenario (Modern): a BLUE coalition holds Israel, Jordan and southern Lebanon;
+-- RED holds Syria and the Bekaa / northern Lebanon. The opening fronts are the
+-- Golan Heights, the Daraa - Irbid corridor and the Beirut - Bekaa road.
+-- Turkey and Cyprus stay out of the war.
+--
+-- 45 nodes, 69 roads, 0 sea crossings, 8 front links.
+-- ============================================================================
+
+DCC_THEATERS = DCC_THEATERS or {}
+
+DCC_THEATERS.Syria = {
+  name    = "Syria",
+  era     = "modern",
+  country = { blue = "CJTF_BLUE", red = "CJTF_RED" },
+  balance = { blue = 1.0, red = 1.0 },
+
+  nodes = {
+    -- ---------------- BLUE ----------------
+    { id = "beirut_rafic_hariri", name = "Beirut", kind = "airbase", side = "blue", lat = 33.8251, lon = 35.4830, airbase = "Beirut-Rafic Hariri" },
+    { id = "sidon", name = "Sidon", kind = "town", side = "blue", lat = 33.5630, lon = 35.3690 },
+    { id = "tyre", name = "Tyre", kind = "town", side = "blue", lat = 33.2700, lon = 35.2040 },
+    { id = "kiryat_shmona", name = "Kiryat Shmona", kind = "airbase", side = "blue", lat = 33.2158, lon = 35.5958, airbase = "Kiryat Shmona" },
+    { id = "rosh_pina", name = "Rosh Pina", kind = "airbase", side = "blue", lat = 32.9826, lon = 35.5707, airbase = "Rosh Pina" },
+    { id = "haifa", name = "Haifa", kind = "airbase", side = "blue", lat = 32.8107, lon = 35.0435, airbase = "Haifa" },
+    { id = "ramat_david", name = "Ramat David", kind = "airbase", side = "blue", lat = 32.6664, lon = 35.1842, airbase = "Ramat David", depot = true },
+    { id = "megiddo", name = "Megiddo", kind = "airbase", side = "blue", lat = 32.5971, lon = 35.2301, airbase = "Megiddo" },
+    { id = "irbid", name = "Irbid", kind = "town", side = "blue", lat = 32.5560, lon = 35.8500 },
+    { id = "h4", name = "H4", kind = "airbase", side = "blue", lat = 32.5393, lon = 38.1951, airbase = "H4" },
+    { id = "eyn_shemer", name = "Eyn Shemer", kind = "airbase", side = "blue", lat = 32.4409, lon = 35.0070, airbase = "Eyn Shemer" },
+    { id = "king_hussein_air_college", name = "King Hussein Air College", kind = "airbase", side = "blue", lat = 32.3567, lon = 36.2599, airbase = "King Hussein Air College" },
+    { id = "prince_hassan", name = "Prince Hassan", kind = "airbase", side = "blue", lat = 32.1607, lon = 37.1494, airbase = "Prince Hassan" },
+    { id = "king_abdullah_ii", name = "King Abdullah II", kind = "airbase", side = "blue", lat = 32.0055, lon = 36.2237, airbase = "King Abdullah II" },
+    { id = "marka", name = "Amman-Marka", kind = "airbase", side = "blue", lat = 31.9728, lon = 35.9917, airbase = "Marka", depot = true },
+    { id = "muwaffaq_salti", name = "Muwaffaq Salti", kind = "airbase", side = "blue", lat = 31.8176, lon = 36.7787, airbase = "Muwaffaq Salti" },
+    -- ---------------- RED ----------------
+    { id = "kuweires", name = "Kuweires", kind = "airbase", side = "red", lat = 36.1875, lon = 37.5815, airbase = "Kuweires" },
+    { id = "aleppo", name = "Aleppo", kind = "airbase", side = "red", lat = 36.1806, lon = 37.2244, airbase = "Aleppo", depot = true },
+    { id = "jirah", name = "Jirah", kind = "airbase", side = "red", lat = 36.0969, lon = 37.9365, airbase = "Jirah" },
+    { id = "taftanaz", name = "Taftanaz", kind = "airbase", side = "red", lat = 35.9741, lon = 36.7814, airbase = "Taftanaz" },
+    { id = "tabqa", name = "Tabqa", kind = "airbase", side = "red", lat = 35.7547, lon = 38.5664, airbase = "Tabqa" },
+    { id = "abu_al_duhur", name = "Abu al-Duhur", kind = "airbase", side = "red", lat = 35.7323, lon = 37.1041, airbase = "Abu al-Duhur" },
+    { id = "bassel_al_assad", name = "Latakia (Bassel Al-Assad)", kind = "airbase", side = "red", lat = 35.4038, lon = 35.9502, airbase = "Bassel Al-Assad", depot = true },
+    { id = "hama", name = "Hama", kind = "airbase", side = "red", lat = 35.1180, lon = 36.7124, airbase = "Hama" },
+    { id = "tartus", name = "Tartus", kind = "town", side = "red", lat = 34.8890, lon = 35.8870 },
+    { id = "homs", name = "Homs", kind = "town", side = "red", lat = 34.7300, lon = 36.7090 },
+    { id = "rene_mouawad", name = "Qlayaat", kind = "airbase", side = "red", lat = 34.5893, lon = 36.0114, airbase = "Rene Mouawad" },
+    { id = "al_qusayr", name = "Al Qusayr", kind = "airbase", side = "red", lat = 34.5693, lon = 36.5715, airbase = "Al Qusayr" },
+    { id = "palmyra", name = "Palmyra", kind = "airbase", side = "red", lat = 34.5573, lon = 38.3168, airbase = "Palmyra" },
+    { id = "tiyas", name = "Tiyas", kind = "airbase", side = "red", lat = 34.5226, lon = 37.6301, airbase = "Tiyas" },
+    { id = "shayrat", name = "Shayrat", kind = "airbase", side = "red", lat = 34.4902, lon = 36.9076, airbase = "Shayrat", ewr = true },
+    { id = "wujah_al_hajar", name = "Wujah Al Hajar", kind = "airbase", side = "red", lat = 34.2813, lon = 35.6801, airbase = "Wujah Al Hajar" },
+    { id = "an_nasiriyah", name = "An Nasiriyah", kind = "airbase", side = "red", lat = 33.9186, lon = 36.8658, airbase = "An Nasiriyah" },
+    { id = "rayak", name = "Rayak", kind = "airbase", side = "red", lat = 33.8511, lon = 35.9873, airbase = "Rayak" },
+    { id = "zahle", name = "Zahle", kind = "town", side = "red", lat = 33.8460, lon = 35.9020 },
+    { id = "sayqal", name = "Sayqal", kind = "airbase", side = "red", lat = 33.6798, lon = 37.2171, airbase = "Sayqal" },
+    { id = "al_dumayr", name = "Al-Dumayr", kind = "airbase", side = "red", lat = 33.6097, lon = 36.7491, airbase = "Al-Dumayr" },
+    { id = "mezzeh", name = "Mezzeh", kind = "airbase", side = "red", lat = 33.4778, lon = 36.2242, airbase = "Mezzeh" },
+    { id = "qabr_as_sitt", name = "Qabr as Sitt", kind = "airbase", side = "red", lat = 33.4587, lon = 36.3577, airbase = "Qabr as Sitt" },
+    { id = "damascus", name = "Damascus", kind = "airbase", side = "red", lat = 33.4255, lon = 36.5185, airbase = "Damascus", depot = true },
+    { id = "marj_ruhayyil", name = "Marj Ruhayyil", kind = "airbase", side = "red", lat = 33.2888, lon = 36.4554, airbase = "Marj Ruhayyil" },
+    { id = "quneitra", name = "Quneitra", kind = "town", side = "red", lat = 33.1260, lon = 35.8240 },
+    { id = "khalkhalah", name = "Khalkhalah", kind = "airbase", side = "red", lat = 33.0784, lon = 36.5411, airbase = "Khalkhalah" },
+    { id = "thalah", name = "Tha'lah", kind = "airbase", side = "red", lat = 32.7040, lon = 36.4138, airbase = "Tha'lah" },
+    { id = "daraa", name = "Daraa", kind = "town", side = "red", lat = 32.6250, lon = 36.1060 },
+  },
+
+  edges = {
+    { "abu_al_duhur", "aleppo" },   -- 51 km
+    { "abu_al_duhur", "hama" },   -- 77 km
+    { "abu_al_duhur", "taftanaz" },   -- 40 km
+    { "al_dumayr", "an_nasiriyah" },   -- 36 km
+    { "al_dumayr", "damascus" },   -- 30 km
+    { "al_dumayr", "sayqal" },   -- 44 km
+    { "al_qusayr", "homs" },   -- 22 km
+    { "al_qusayr", "rayak" },   -- 96 km
+    { "al_qusayr", "rene_mouawad" },   -- 51 km
+    { "al_qusayr", "shayrat" },   -- 32 km
+    { "aleppo", "kuweires" },   -- 32 km
+    { "aleppo", "taftanaz" },   -- 46 km
+    { "an_nasiriyah", "rayak" },   -- 82 km
+    { "an_nasiriyah", "sayqal" },   -- 42 km
+    { "an_nasiriyah", "shayrat" },   -- 63 km
+    { "bassel_al_assad", "hama" },   -- 76 km
+    { "bassel_al_assad", "taftanaz" },   -- 98 km
+    { "bassel_al_assad", "tartus" },   -- 57 km
+    { "beirut_rafic_hariri", "sidon" },   -- 31 km
+    { "beirut_rafic_hariri", "wujah_al_hajar" },   -- 54 km
+    { "beirut_rafic_hariri", "zahle" },   -- 39 km
+    { "damascus", "marj_ruhayyil" },   -- 16 km
+    { "damascus", "qabr_as_sitt" },   -- 15 km
+    { "daraa", "irbid" },   -- 25 km
+    { "daraa", "king_hussein_air_college" },   -- 33 km
+    { "daraa", "quneitra" },   -- 61 km
+    { "daraa", "thalah" },   -- 30 km
+    { "eyn_shemer", "megiddo" },   -- 27 km
+    { "h4", "prince_hassan" },   -- 107 km
+    { "haifa", "ramat_david" },   -- 21 km
+    { "haifa", "rosh_pina" },   -- 53 km
+    { "haifa", "tyre" },   -- 53 km
+    { "hama", "homs" },   -- 43 km
+    { "hama", "tartus" },   -- 79 km
+    { "homs", "shayrat" },   -- 32 km
+    { "irbid", "marka" },   -- 66 km
+    { "irbid", "megiddo" },   -- 58 km
+    { "irbid", "rosh_pina" },   -- 54 km
+    { "jirah", "kuweires" },   -- 33 km
+    { "jirah", "tabqa" },   -- 68 km
+    { "khalkhalah", "marj_ruhayyil" },   -- 25 km
+    { "khalkhalah", "thalah" },   -- 43 km
+    { "king_abdullah_ii", "king_hussein_air_college" },   -- 39 km
+    { "king_abdullah_ii", "marka" },   -- 22 km
+    { "king_abdullah_ii", "muwaffaq_salti" },   -- 56 km
+    { "king_hussein_air_college", "prince_hassan" },   -- 86 km
+    { "king_hussein_air_college", "thalah" },   -- 41 km
+    { "kiryat_shmona", "quneitra" },   -- 23 km
+    { "kiryat_shmona", "rosh_pina" },   -- 26 km
+    { "kiryat_shmona", "sidon" },   -- 44 km
+    { "kiryat_shmona", "tyre" },   -- 37 km
+    { "marj_ruhayyil", "qabr_as_sitt" },   -- 21 km
+    { "marj_ruhayyil", "quneitra" },   -- 62 km
+    { "megiddo", "ramat_david" },   -- 9 km
+    { "mezzeh", "qabr_as_sitt" },   -- 13 km
+    { "mezzeh", "quneitra" },   -- 54 km
+    { "mezzeh", "rayak" },   -- 47 km
+    { "muwaffaq_salti", "prince_hassan" },   -- 52 km
+    { "palmyra", "tiyas" },   -- 63 km
+    { "prince_hassan", "thalah" },   -- 92 km
+    { "quneitra", "rosh_pina" },   -- 28 km
+    { "ramat_david", "rosh_pina" },   -- 50 km
+    { "rayak", "zahle" },   -- 8 km
+    { "rene_mouawad", "tartus" },   -- 35 km
+    { "rene_mouawad", "wujah_al_hajar" },   -- 46 km
+    { "sayqal", "tiyas" },   -- 101 km
+    { "shayrat", "tiyas" },   -- 66 km
+    { "sidon", "tyre" },   -- 36 km
+    { "wujah_al_hajar", "zahle" },   -- 52 km
   },
 }
 

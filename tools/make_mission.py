@@ -46,7 +46,7 @@ TERRAINS = {
     "Caucasus": lambda: dcs.terrain.Caucasus(),
     "Syria": lambda: dcs.terrain.Syria(),
     "PersianGulf": lambda: dcs.terrain.PersianGulf(),
-    "GermanyCW": lambda: dcs.terrain.GermanyColdWar(),
+    "GermanyCW": lambda: dcs.terrain.Germany(),
 }
 
 
@@ -135,7 +135,8 @@ def build_ai_templates(m, catalog, cjtf, theater):
                 continue
             name = f"DCC_TPL_{side}_{role}"
             g = m.flight_group_inflight(cjtf[side], name, cls, pos.point_from_heading(90, 20000 + len(made) * 3000),
-                                        altitude=6000, speed=600, group_size=2)
+                                        altitude=9000 if role == "awacs" else 6000, speed=600,
+                                        group_size=spec.get("size", 2))
             g.late_activation = True
             for unit in g.units:
                 unit.pylons.clear()

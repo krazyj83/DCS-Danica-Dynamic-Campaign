@@ -35,13 +35,13 @@ local ROLE_ORDER = { ARMOR_PLT = 1, MECH_PLT = 2, SHORAD = 3 } -- assault prefer
 -- Theater index: static data the model looks up (positions, road lengths).
 -- ---------------------------------------------------------------------------
 local function indexTheater(theater)
-  local T = { name = theater.name, nodes = {}, order = {}, edges = {} }
+  local T = { name = theater.name, nodes = {}, order = {}, edges = {}, sea = {} }
   for _, n in ipairs(theater.nodes) do
     assert(n.id and n.lat and n.lon and n.side, "theater node needs id, lat, lon, side")
     T.nodes[n.id] = {
       id = n.id, name = n.name or n.id, kind = n.kind or "town",
       depot = n.depot and true or false,
-      lat = n.lat, lon = n.lon, airbase = n.airbase,
+      lat = n.lat, lon = n.lon, airbase = n.airbase, ewr = n.ewr,
       startSide = n.side, nb = {},
     }
     T.order[#T.order + 1] = n.id
@@ -52,7 +52,9 @@ local function indexTheater(theater)
     if a and b then
       local km = U.distKm(a, b)
       a.nb[b.id], b.nb[a.id] = km, km
-      T.edges[#T.edges + 1] = { a = a.id, b = b.id, km = km }
+      T.edges[#T.edges + 1] = { a = a.id, b = b.id, km = km, sea = e.sea }
+      -- sea crossings (ferries, landing craft): abstract only, never spawned
+      if e.sea then T.sea[a.id .. "|" .. b.id], T.sea[b.id .. "|" .. a.id] = true, true end
     else
       U.log("theater %s: edge %s-%s skipped (unknown node)", theater.name, tostring(e[1]), tostring(e[2]))
     end
@@ -216,8 +218,14 @@ function War:depotsOpen(attacker)
 end
 
 function War:isNodeLive(id) return self.liveFn ~= nil and self.liveFn(id) == true end
+-- A ground move across a sea edge (ships / landing craft): runs on dice only.
+function War:onSea(mv)
+  return mv.kind ~= "airlift" and self.T.sea[mv.from .. "|" .. mv.to] == true
+end
+
 function War:isMoveLive(mv)
   if mv.kind == "airlift" then return self.airLive == true end
+  if self:onSea(mv) then return false end
   if self.forcedMoveFn and self.forcedMoveFn(mv.id) then return true end   -- a mission target
   return self:isNodeLive(mv.from) or self:isNodeLive(mv.to)
 end

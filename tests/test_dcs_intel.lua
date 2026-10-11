@@ -20,6 +20,7 @@ dofile(DCC_ROOT .. "/src/dcc_dcs.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_supply.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ops.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_intel.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_radar.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
 local errors = 0
@@ -174,9 +175,12 @@ B.drawIntel()
 check("RED map shows the aircraft", texts(RED):find("F-16C_50", 1, true) ~= nil, texts(RED))
 check("BLUE map never shows its own aircraft as a contact", texts(BLUE):find("F-16C_50", 1, true) == nil)
 sg.detected = nil
+local vx = viper.x
+viper.x = sp.x - 900000   -- out of reach of every RED radar and AWACS (phase 5)
 MOCK.advance(DCC.config.intel.airContactSeconds + 1)
 B.intelScan()
 check("aircraft contact dropped after 2 min", B.airContacts.red[viper:getName()] == nil)
+viper.x = vx
 
 print("Aging on the map")
 for _ = 1, DCC.config.intel.staleTicks do war:tick() end

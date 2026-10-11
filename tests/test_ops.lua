@@ -340,6 +340,64 @@ do
   check("contacts in the save", wr:contact("blue", "n:" .. samNode) ~= nil)
 end
 
+print("Radar stations, AWACS, recon photos")
+do
+  local function findM(w, side, t, target)
+    for _, m in ipairs(w:openMissions(side)) do
+      if m.type == t and (target == nil or m.target == target) then return m end
+    end
+  end
+  local wr = wire(DCC.War.new(T, C, cfg, 31))
+  check("EWR at depots only", wr.state.nodes.beslan.ewr.status == "up" and wr.state.nodes.gori.ewr == nil)
+  check("AWACS pools start stocked", wr.state.airPool.blue.awacs == cfg.radar.awacsPoolStart)
+  wr:tick(); wr:tick()
+  local me = findM(wr, "blue", "EWR")
+  check("EWR strike offered (fog off)", me ~= nil)
+  wr:takeMission(me.id, "u9", "Kim")
+  wr:ewrHit(me.target)
+  wr:tick()
+  check("radar kill completes EWR", wr.state.missions[me.id].status == "done")
+  wr.state.nodes[me.target].supply = 300
+  for _ = 1, cfg.radar.ewrRebuildTicks + 1 do wr:tick() end
+  check("destroyed EWR rebuilt after 6 h for supply",
+    wr.state.nodes[me.target].side ~= "red" or wr:ewrUp(me.target))
+
+  check("no HVAA while the enemy has no AWACS up", findM(wr, "blue", "HVAA") == nil)
+  wr:setAwacs("red", true)
+  wr:tick()
+  local mh = findM(wr, "blue", "HVAA")
+  check("HVAA offered against an airborne AWACS", mh ~= nil)
+  wr:takeMission(mh.id, "u9", "Kim")
+  local poolBefore = wr.state.stats.airLost and wr.state.stats.airLost.red or 0
+  wr:awacsLost("red")
+  wr:tick()
+  check("AWACS kill completes HVAA", wr.state.missions[mh.id].status == "done")
+  check("AWACS loss counted", wr.state.stats.airLost.red == poolBefore + 1)
+
+  local h = DCC.War.radarHorizonM(100, 25)
+  check("radar horizon: ~370 m at 100 km", h > 300 and h < 450, h)
+  check("radar horizon: nothing hides close in", DCC.War.radarHorizonM(10, 25) == 0)
+
+  -- fog: EWR needs a known site; recon finds it and photographs the base
+  local wf = wire(DCC.War.new(T, C, cfg, 32), true)
+  wf:tick(); wf:tick()
+  check("fog: no EWR strike on an unknown radar", findM(wf, "blue", "EWR") == nil)
+  wf:recordIntel("blue", "beslan")
+  wf:tick()
+  check("recon finds the radar: EWR strike offered", findM(wf, "blue", "EWR", "beslan") ~= nil)
+  local n = wf:contact("blue", "n:beslan")
+  check("recon photo lists every platoon", n.photo and #n.photo == #wf.state.nodes.beslan.platoons, n.photo and #n.photo)
+  check("recon photo names vehicle types", n.photo and n.photo[1] and n.photo[1].text:find("%dx ") ~= nil,
+    n.photo and n.photo[1] and n.photo[1].text)
+  check("fog: no HVAA on an AWACS nobody has seen", (function() wf:setAwacs("red", true); wf:tick()
+    return findM(wf, "blue", "HVAA") == nil end)())
+
+  -- capture destroys the radar
+  local wc2 = DCC.War.new(T, C, cfg, 33)
+  wc2:onCaptureOps("beslan")
+  check("captured radar destroyed", wc2.state.nodes.beslan.ewr.status == "destroyed")
+end
+
 print("Long run with ops")
 local wl = DCC.War.new(T, C, cfg, 18)
 local ok = true
