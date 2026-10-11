@@ -62,13 +62,17 @@ function DCC.onTick()
     DCC.ended = true
     trigger.action.setUserFlag(DCC.config.campaignOverFlag, 1)
     local nextMap = DCC.nextMap(DCC.theaterName)
-    -- victory bonus for everyone who flew for the winner in this war
-    local names, pts = DCC.pilots:warWon(war.state.roster, war.state.winner, war.state.winBy)
+    -- the war report (scores before the bonus), then the victory bonus
+    local report = DCC.warReport(war)
+    local names, pts = DCC.pilots:warWon(war.state.roster, war.state.winner, war.state.winBy,
+      DCC.config.victoryMinSorties)
     if #names > 0 then
-      trigger.action.outText(string.format("Victory bonus (+%d points, %s) for %d %s pilots: %s", pts,
+      report = report .. string.format("\n\nVictory bonus (+%d points, %s) for %d %s pilots: %s", pts,
         war.state.winBy == "conquest" and "conquest" or "war clock", #names, war.state.winner:upper(),
-        table.concat(names, ", ")), 60)
+        table.concat(names, ", "))
     end
+    trigger.action.outText(report, 90)
+    DCC.persist.writeReport(DCC.theaterName, war.state.tick, report)
     DCC.save()
     -- the server hook sees this and loads the next map's mission
     DCC.persist.writeRotation({ current = nextMap, state = "ended", finished = DCC.theaterName,
@@ -78,6 +82,47 @@ function DCC.onTick()
       nextMap and (" Next theater: " .. nextMap .. ".") or ""), 120)
     U.log("war over, winner %s, flag %d set", war.state.winner, DCC.config.campaignOverFlag)
   end
+end
+
+-- End-of-war report: how it ended, what it cost each side, the best pilots.
+function DCC.warReport(war)
+  local st, cfg = war.state, DCC.config
+  local s, stats = war:summary(), st.stats
+  local function two(t) t = t or {}; return string.format("BLUE %d / RED %d", math.floor((t.blue or 0) + 0.5),
+    math.floor((t.red or 0) + 0.5)) end
+  local days = (st.tick - (st.clockStart or 0)) * cfg.tickSeconds / 86400
+  local lines = {
+    string.format("=== WAR REPORT - %s ===", war.T.name),
+    string.format("%s won %s after %.1f days.", st.winner:upper(),
+      st.winBy == "conquest" and "by conquest" or "on the war clock", days),
+    "Bases held at the end:   " .. two({ blue = s.blue.nodes, red = s.red.nodes }),
+    "Bases captured:          " .. two(stats.captures),
+    "Platoons lost:           " .. two(stats.lost),
+    "Supply delivered (SU):   " .. two(stats.delivered),
+    "Supply destroyed (SU):   " .. two(stats.cargoLost),
+    "AI aircraft lost:        " .. two(stats.airLost),
+  }
+  -- best pilots of this war: points scored since their first sortie here
+  local best = {}
+  for key, r in pairs(st.roster or {}) do
+    local gained = DCC.pilots:score(key) - (r.start or 0)
+    local side = (r.blue or 0) >= (r.red or 0) and "BLUE" or "RED"
+    best[#best + 1] = { key = key, name = r.name or key, pts = gained, side = side,
+                        sorties = (r.blue or 0) + (r.red or 0),
+                        missions = (r.blue_missions or 0) + (r.red_missions or 0) }
+  end
+  table.sort(best, function(a, b) if a.pts ~= b.pts then return a.pts > b.pts end return a.key < b.key end)
+  if #best > 0 then
+    lines[#lines + 1] = string.format("Top pilots (%d flew in this war):", #best)
+    for i = 1, math.min(5, #best) do
+      local b = best[i]
+      lines[#lines + 1] = string.format("  %d. %s (%s) - %d points, %d sorties, %d missions",
+        i, b.name, b.side, b.pts, b.sorties, b.missions)
+    end
+  else
+    lines[#lines + 1] = "No pilots flew in this war - the generals fought it alone."
+  end
+  return table.concat(lines, "\n")
 end
 
 -- The map after this one in the fixed rotation.

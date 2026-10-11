@@ -733,12 +733,32 @@ function War:planReinforcements(side, dist, focus)
 end
 
 -- Who flew for which side in this war (saved with the war; read at victory).
-function War:recordSortie(key, side, name)
+-- startScore: the pilot's career score at their first sortie of this war, so
+-- the war report can show what they scored in this war alone.
+local function rosterEntry(self, key, name, startScore)
   self.state.roster = self.state.roster or {}
-  local r = self.state.roster[key] or { name = name, blue = 0, red = 0 }
-  r[side] = (r[side] or 0) + 1
+  local r = self.state.roster[key]
+  if not r then
+    r = { name = name, blue = 0, red = 0, blue_missions = 0, red_missions = 0, start = startScore }
+    self.state.roster[key] = r
+  end
   r.name = name or r.name
-  self.state.roster[key] = r
+  return r
+end
+
+function War:recordSortie(key, side, name, startScore)
+  local r = rosterEntry(self, key, name, startScore)
+  r[side] = (r[side] or 0) + 1
+end
+
+function War:recordMissionDone(key, side, name)
+  local r = rosterEntry(self, key, name)
+  r[side .. "_missions"] = (r[side .. "_missions"] or 0) + 1
+end
+
+-- Did this pilot do enough for this side to share its victory?
+function War.earnedVictory(r, side, minSorties)
+  return (r[side] or 0) >= (minSorties or 1) or (r[side .. "_missions"] or 0) >= 1
 end
 
 -- End the war: the loser's stray units are removed so one lost truck cannot stall the end.

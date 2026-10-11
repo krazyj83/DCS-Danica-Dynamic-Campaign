@@ -157,6 +157,7 @@ DCC.config = {
   -- Persistence ---------------------------------------------------------------
   saveFolder       = "DCC", -- under Saved Games\DCS\ (lfs.writedir())
   saveSlots        = 24,    -- rotating backups kept
+  victoryMinSorties = 3,    -- victory bonus needs this many sorties for the winner (or one completed mission)
   warClockDays     = 7,     -- a war ends after this many days of server time; most bases wins (0 = off)
   campaignOverFlag = 9900,  -- user flag set to 1 when a war ends (DCSServerBot watches it)
   rotation         = { "Caucasus", "Syria", "PersianGulf", "GermanyCW" }, -- fixed map order
@@ -1213,12 +1214,32 @@ function War:planReinforcements(side, dist, focus)
 end
 
 -- Who flew for which side in this war (saved with the war; read at victory).
-function War:recordSortie(key, side, name)
+-- startScore: the pilot's career score at their first sortie of this war, so
+-- the war report can show what they scored in this war alone.
+local function rosterEntry(self, key, name, startScore)
   self.state.roster = self.state.roster or {}
-  local r = self.state.roster[key] or { name = name, blue = 0, red = 0 }
-  r[side] = (r[side] or 0) + 1
+  local r = self.state.roster[key]
+  if not r then
+    r = { name = name, blue = 0, red = 0, blue_missions = 0, red_missions = 0, start = startScore }
+    self.state.roster[key] = r
+  end
   r.name = name or r.name
-  self.state.roster[key] = r
+  return r
+end
+
+function War:recordSortie(key, side, name, startScore)
+  local r = rosterEntry(self, key, name, startScore)
+  r[side] = (r[side] or 0) + 1
+end
+
+function War:recordMissionDone(key, side, name)
+  local r = rosterEntry(self, key, name)
+  r[side .. "_missions"] = (r[side .. "_missions"] or 0) + 1
+end
+
+-- Did this pilot do enough for this side to share its victory?
+function War.earnedVictory(r, side, minSorties)
+  return (r[side] or 0) >= (minSorties or 1) or (r[side .. "_missions"] or 0) >= 1
 end
 
 -- End the war: the loser's stray units are removed so one lost truck cannot stall the end.
@@ -2328,6 +2349,9 @@ end
 function War:finishMission(m, outcome)
   m.status, m.finished = outcome, self.state.tick
   if outcome == "done" and m.type == "CAP" then self:setAirCover(m.side, m.target) end
+  if outcome == "done" then
+    for key, name in pairs(m.taken) do self:recordMissionDone(key, m.side, name) end
+  end
   if next(m.taken) and (outcome == "done" or outcome == "failed") then
     local names = {}
     for _, n in pairs(m.taken) do names[#names + 1] = n end
@@ -2520,15 +2544,16 @@ function Pilots:sortie(key, side, theater, name)
   p.wars[theater] = true
 end
 
--- War won: every pilot who flew at least one sortie for the winner in this war.
+-- War won: every pilot who did enough for the winner in this war - at least
+-- minSorties sorties, or one completed mission, for that side.
 -- roster = war.state.roster ({ [key] = { name, blue = sorties, red = sorties } }).
 -- Returns the names that got the bonus.
-function Pilots:warWon(roster, winner, how)
+function Pilots:warWon(roster, winner, how, minSorties)
   local field = (how == "conquest") and "wins_conquest" or "wins_clock"
   local names = {}
   for _, key in ipairs(U.sortedKeys(roster or {})) do
     local r = roster[key]
-    if (r[winner] or 0) >= 1 then
+    if DCC.War.earnedVictory(r, winner, minSorties) then
       self:add(key, field, 1, r.name)
       names[#names + 1] = r.name or key
     end
@@ -3166,6 +3191,12 @@ function P.writeRotation(rot)
   local ok, text = pcall(DCC.json.encode, rot)
   if not ok then return false end
   return writeFile(folder() .. "rotation.json", text)
+end
+
+-- The end-of-war report as plain text (for Discord, the forum, the record).
+function P.writeReport(theaterName, tick, text)
+  if not P.available() then return false end
+  return writeFile(folder() .. theaterName .. "_war_report_" .. tostring(tick or 0) .. ".txt", text)
 end
 
 end
@@ -4803,7 +4834,7 @@ function B.onOpsEvent(e)
     if p and not p.takeoff then
       p.takeoff = timer.getTime()
       DCC.pilots:sortie(p.key, p.side, B.war.T.name, p.name)
-      B.war:recordSortie(p.key, p.side, p.name)   -- who flew for whom in this war (victory bonus)
+      B.war:recordSortie(p.key, p.side, p.name, DCC.pilots:score(p.key))   -- who flew for whom (victory bonus, report)
     end
   elseif e.id == ev.S_EVENT_LAND then
     local p = u and B.players[ok(u.getName, u) or ""]
@@ -5865,13 +5896,17 @@ function DCC.onTick()
     DCC.ended = true
     trigger.action.setUserFlag(DCC.config.campaignOverFlag, 1)
     local nextMap = DCC.nextMap(DCC.theaterName)
-    -- victory bonus for everyone who flew for the winner in this war
-    local names, pts = DCC.pilots:warWon(war.state.roster, war.state.winner, war.state.winBy)
+    -- the war report (scores before the bonus), then the victory bonus
+    local report = DCC.warReport(war)
+    local names, pts = DCC.pilots:warWon(war.state.roster, war.state.winner, war.state.winBy,
+      DCC.config.victoryMinSorties)
     if #names > 0 then
-      trigger.action.outText(string.format("Victory bonus (+%d points, %s) for %d %s pilots: %s", pts,
+      report = report .. string.format("\n\nVictory bonus (+%d points, %s) for %d %s pilots: %s", pts,
         war.state.winBy == "conquest" and "conquest" or "war clock", #names, war.state.winner:upper(),
-        table.concat(names, ", ")), 60)
+        table.concat(names, ", "))
     end
+    trigger.action.outText(report, 90)
+    DCC.persist.writeReport(DCC.theaterName, war.state.tick, report)
     DCC.save()
     -- the server hook sees this and loads the next map's mission
     DCC.persist.writeRotation({ current = nextMap, state = "ended", finished = DCC.theaterName,
@@ -5881,6 +5916,47 @@ function DCC.onTick()
       nextMap and (" Next theater: " .. nextMap .. ".") or ""), 120)
     U.log("war over, winner %s, flag %d set", war.state.winner, DCC.config.campaignOverFlag)
   end
+end
+
+-- End-of-war report: how it ended, what it cost each side, the best pilots.
+function DCC.warReport(war)
+  local st, cfg = war.state, DCC.config
+  local s, stats = war:summary(), st.stats
+  local function two(t) t = t or {}; return string.format("BLUE %d / RED %d", math.floor((t.blue or 0) + 0.5),
+    math.floor((t.red or 0) + 0.5)) end
+  local days = (st.tick - (st.clockStart or 0)) * cfg.tickSeconds / 86400
+  local lines = {
+    string.format("=== WAR REPORT - %s ===", war.T.name),
+    string.format("%s won %s after %.1f days.", st.winner:upper(),
+      st.winBy == "conquest" and "by conquest" or "on the war clock", days),
+    "Bases held at the end:   " .. two({ blue = s.blue.nodes, red = s.red.nodes }),
+    "Bases captured:          " .. two(stats.captures),
+    "Platoons lost:           " .. two(stats.lost),
+    "Supply delivered (SU):   " .. two(stats.delivered),
+    "Supply destroyed (SU):   " .. two(stats.cargoLost),
+    "AI aircraft lost:        " .. two(stats.airLost),
+  }
+  -- best pilots of this war: points scored since their first sortie here
+  local best = {}
+  for key, r in pairs(st.roster or {}) do
+    local gained = DCC.pilots:score(key) - (r.start or 0)
+    local side = (r.blue or 0) >= (r.red or 0) and "BLUE" or "RED"
+    best[#best + 1] = { key = key, name = r.name or key, pts = gained, side = side,
+                        sorties = (r.blue or 0) + (r.red or 0),
+                        missions = (r.blue_missions or 0) + (r.red_missions or 0) }
+  end
+  table.sort(best, function(a, b) if a.pts ~= b.pts then return a.pts > b.pts end return a.key < b.key end)
+  if #best > 0 then
+    lines[#lines + 1] = string.format("Top pilots (%d flew in this war):", #best)
+    for i = 1, math.min(5, #best) do
+      local b = best[i]
+      lines[#lines + 1] = string.format("  %d. %s (%s) - %d points, %d sorties, %d missions",
+        i, b.name, b.side, b.pts, b.sorties, b.missions)
+    end
+  else
+    lines[#lines + 1] = "No pilots flew in this war - the generals fought it alone."
+  end
+  return table.concat(lines, "\n")
 end
 
 -- The map after this one in the fixed rotation.

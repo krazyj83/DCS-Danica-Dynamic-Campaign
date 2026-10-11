@@ -153,6 +153,7 @@ DCC.config = {
   -- Persistence ---------------------------------------------------------------
   saveFolder       = "DCC", -- under Saved Games\DCS\ (lfs.writedir())
   saveSlots        = 24,    -- rotating backups kept
+  victoryMinSorties = 3,    -- victory bonus needs this many sorties for the winner (or one completed mission)
   warClockDays     = 7,     -- a war ends after this many days of server time; most bases wins (0 = off)
   campaignOverFlag = 9900,  -- user flag set to 1 when a war ends (DCSServerBot watches it)
   rotation         = { "Caucasus", "Syria", "PersianGulf", "GermanyCW" }, -- fixed map order

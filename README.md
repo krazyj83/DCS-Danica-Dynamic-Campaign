@@ -71,10 +71,30 @@ intercept an enemy airlift. Shot-down AI aircraft are gone from the pool.
 ground, convoy, SAM, buildings), missions by type, rescues flown and received, ejections, deaths
 and captures. Score sets rank, from Lieutenant to General.
 
-**Victory bonus:** when a war ends, every pilot who flew at least one sortie for the winning side
-in that war gets **+150 points for a conquest** (the whole map taken) or **+50 for a war-clock win**.
-The winners are named in a server message, and the record shows wars won of each kind. Switching sides
-is allowed: fly for both and you collect whichever side wins.
+**Victory bonus:** when a war ends, every pilot who did enough for the winning side in that war —
+**3 sorties or 1 completed mission** for that side (`victoryMinSorties`) — gets **+150 points for a
+conquest** (the whole map taken) or **+50 for a war-clock win**. The record shows wars won of each
+kind. Switching sides is allowed: do enough for both and you collect whichever side wins.
+
+**War report:** at the end of every war the server shows, and saves as
+`Saved Games\DCS\DCC\<Map>_war_report_<tick>.txt` (ready to paste into Discord):
+
+```
+=== WAR REPORT - Caucasus ===
+RED won on the war clock after 7.0 days.
+Bases held at the end:   BLUE 18 / RED 21
+Bases captured:          BLUE 56 / RED 52
+Platoons lost:           BLUE 786 / RED 685
+Supply delivered (SU):   BLUE 15951 / RED 15449
+Supply destroyed (SU):   BLUE 658 / RED 408
+AI aircraft lost:        BLUE 4 / RED 7
+Top pilots (12 flew in this war):
+  1. Morten (BLUE) - 356 points, 14 sorties, 6 missions
+  ...
+Victory bonus (+50 points, war clock) for 5 RED pilots: ...
+```
+
+Points in the report are those scored in that war only.
 
 ## Radars, AWACS and recon photos
 
@@ -427,13 +447,13 @@ under Python via `lupa`:
 pip install lupa matplotlib
 
 python tools/run_lua.py tests/test_war.lua          # war model, supply, war clock: 37 checks
-python tools/run_lua.py tests/test_ops.lua          # every mission type, fog gating, radars, AWACS, victory bonus: 89 checks
+python tools/run_lua.py tests/test_ops.lua          # every mission type, fog gating, radars, AWACS, victory bonus: 91 checks
 python tools/run_lua.py tests/test_dcs_bridge.lua   # bridge, convoys, airlifts, warehouses: 49 checks
 python tools/run_lua.py tests/test_dcs_ops.lua      # flying every mission type against a fake DCS: 60 checks
 python tools/run_lua.py tests/test_dcs_intel.lua    # fog of war: each map shows only what that side detected: 40 checks
 python tools/run_lua.py tests/test_dcs_radar.lua    # EWR, AWACS, HVAA, recon photos: 34 checks
 python tools/run_lua.py tests/test_theaters.lua     # all four maps: connected, depots, war runs: 28 checks
-python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended, bonus paid: 31 checks
+python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended, bonus and report: 33 checks
 
 python tools/run_lua.py tools/sim.lua 4320 2026 docs/sim_history.json   # simulate 15 days
 DCC_THEATER=Syria python tools/run_lua.py tools/sim.lua 4320               # ...on another map

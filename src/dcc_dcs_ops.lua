@@ -892,7 +892,7 @@ function B.onOpsEvent(e)
     if p and not p.takeoff then
       p.takeoff = timer.getTime()
       DCC.pilots:sortie(p.key, p.side, B.war.T.name, p.name)
-      B.war:recordSortie(p.key, p.side, p.name)   -- who flew for whom in this war (victory bonus)
+      B.war:recordSortie(p.key, p.side, p.name, DCC.pilots:score(p.key))   -- who flew for whom (victory bonus, report)
     end
   elseif e.id == ev.S_EVENT_LAND then
     local p = u and B.players[ok(u.getName, u) or ""]

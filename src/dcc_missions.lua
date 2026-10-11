@@ -251,6 +251,9 @@ end
 function War:finishMission(m, outcome)
   m.status, m.finished = outcome, self.state.tick
   if outcome == "done" and m.type == "CAP" then self:setAirCover(m.side, m.target) end
+  if outcome == "done" then
+    for key, name in pairs(m.taken) do self:recordMissionDone(key, m.side, name) end
+  end
   if next(m.taken) and (outcome == "done" or outcome == "failed") then
     local names = {}
     for _, n in pairs(m.taken) do names[#names + 1] = n end

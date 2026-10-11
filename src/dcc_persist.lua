@@ -132,3 +132,9 @@ function P.writeRotation(rot)
   if not ok then return false end
   return writeFile(folder() .. "rotation.json", text)
 end
+
+-- The end-of-war report as plain text (for Discord, the forum, the record).
+function P.writeReport(theaterName, tick, text)
+  if not P.available() then return false end
+  return writeFile(folder() .. theaterName .. "_war_report_" .. tostring(tick or 0) .. ".txt", text)
+end

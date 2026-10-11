@@ -69,15 +69,16 @@ function Pilots:sortie(key, side, theater, name)
   p.wars[theater] = true
 end
 
--- War won: every pilot who flew at least one sortie for the winner in this war.
+-- War won: every pilot who did enough for the winner in this war - at least
+-- minSorties sorties, or one completed mission, for that side.
 -- roster = war.state.roster ({ [key] = { name, blue = sorties, red = sorties } }).
 -- Returns the names that got the bonus.
-function Pilots:warWon(roster, winner, how)
+function Pilots:warWon(roster, winner, how, minSorties)
   local field = (how == "conquest") and "wins_conquest" or "wins_clock"
   local names = {}
   for _, key in ipairs(U.sortedKeys(roster or {})) do
     local r = roster[key]
-    if (r[winner] or 0) >= 1 then
+    if DCC.War.earnedVictory(r, winner, minSorties) then
       self:add(key, field, 1, r.name)
       names[#names + 1] = r.name or key
     end
