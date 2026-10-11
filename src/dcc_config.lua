@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.2.0-phase2",
+  version         = "0.3.0-phase3",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -72,6 +72,40 @@ DCC.config = {
     airRestockTicks  = 12,    -- every hour each airbase may replace one lost aircraft...
     airRestockCost   = 5,     -- ...for this much supply
   },
+
+  -- Operations (phase 3): what players can hit or help.
+  ops = {
+    samAt            = { airbase = true, depot = true }, -- node classes with an air-defence site
+    samRepairTicks   = 24,  samRepairCost  = 10,  -- radar knocked out: back after 2 h for 10 SU
+    samRebuildTicks  = 72,  samRebuildCost = 60,  -- site destroyed: rebuilt after 6 h for 60 SU
+    samLiveRadiusKm  = 80,    -- SAM sites spawn when a player is this close
+    infraPerNode     = { airbase = 4, depot = 6 }, -- strike targets per node
+    infraSupplyHit   = 25,    -- SU burned with each destroyed building
+    infraRepairTicks = 36,  infraRepairCost = 15, -- one building repaired every 3 h
+    airPoolStart     = { fighter = 8,  attack = 8 },
+    airPoolMax       = { fighter = 12, attack = 12 },
+    airPoolRestockTicks = 24, airPoolRestockCost = 15, -- one AI aircraft bought every 2 h
+    airCoverTicks    = 12,    -- CAP gives 1 h of air superiority over its area
+    intelFreshTicks  = 72,    -- recon older than 6 h is stale
+    convoyAmbushChance = 0.15, convoyAmbushLoss = 0.5, -- unescorted last leg to the front
+    csarTimeoutTicks = 24,    -- a downed pilot is captured after 2 h
+    crateSU          = 10,    -- supply in one helicopter crate
+  },
+
+  -- Mission board (phase 3)
+  missions = {
+    perType = { CAS = 2, BAI = 3, STRIKE = 2, SEAD = 2, CAP = 1, ESCORT = 2,
+                CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2 },
+    capMinutes      = 20,     -- CAP: time on station that completes the mission
+    capRadiusKm     = 40,
+    reconRadiusKm   = 8,      -- recon: overfly within this distance...
+    reconMaxAglM    = 4500,   -- ...below this height
+    escortRadiusKm  = 15,     -- escort: stay this close to the transport...
+    convoyEscortKm  = 3,      -- ...or the convoy (helicopters)
+    escortShare     = 0.5,    -- ...for at least this share of the time
+  },
+
+  pilotsFile = "pilots.json", -- persistent pilot records (kept across maps)
 
   -- Live bubble (what gets spawned as real DCS units) -----------------------
   liveRadiusKm     = 40,    -- nodes within this distance of a player are live

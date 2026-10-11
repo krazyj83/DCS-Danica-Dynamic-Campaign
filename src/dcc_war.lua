@@ -96,6 +96,7 @@ function War.new(theater, catalog, cfg, seed)
     end
   end
   self:initAllSupply()
+  if self.initOps then self:initOps() end
   self:log("start", nil, "War begins on " .. theater.name)
   return self
 end
@@ -132,6 +133,10 @@ function War.restore(theater, catalog, cfg, state)
     end
   end
   self:initAllSupply()   -- a phase-1 save gets supply and aircraft stock added
+  if self.initOps then
+    self:initOps()        -- an older save gets SAM sites, structures and air pools added
+    self:returnAllCarried() -- a restart lands every helicopter: troops go home
+  end
   return self
 end
 
@@ -144,8 +149,9 @@ end
 -- ---------------------------------------------------------------------------
 -- Small helpers
 -- ---------------------------------------------------------------------------
-function War:log(kind, side, text)
+function War:log(kind, side, text, extra)
   local ev = { tick = self.state.tick, kind = kind, side = side, text = text }
+  if extra then for k, v in pairs(extra) do ev[k] = v end end
   local evs = self.state.events
   evs[#evs + 1] = ev
   while #evs > 100 do table.remove(evs, 1) end
@@ -209,6 +215,7 @@ end
 function War:isNodeLive(id) return self.liveFn ~= nil and self.liveFn(id) == true end
 function War:isMoveLive(mv)
   if mv.kind == "airlift" then return self.airLive == true end
+  if self.forcedMoveFn and self.forcedMoveFn(mv.id) then return true end   -- a mission target
   return self:isNodeLive(mv.from) or self:isNodeLive(mv.to)
 end
 
@@ -301,6 +308,12 @@ function War:joinGarrison(mv)
   self.state.moves[mv.id] = nil
 end
 
+-- Remember moves destroyed on the road (for BAI missions), for one hour.
+function War:markKilled(mid)
+  self.state.killedMoves = self.state.killedMoves or {}
+  self.state.killedMoves[mid] = self.state.tick
+end
+
 -- ---------------------------------------------------------------------------
 -- Tick phases
 -- ---------------------------------------------------------------------------
@@ -323,12 +336,20 @@ function War:productionFactor(side)
   return factor * (self.balance[side] or 1)   -- per-theater balance knob
 end
 
+-- Depot output also drops with strike damage to its buildings (dcc_ops.lua).
+function War:depotFactor(id)
+  local side = self.state.nodes[id].side
+  local f = self:productionFactor(side)
+  if self.infraFactor then f = f * self:infraFactor(id) end
+  return f
+end
+
 function War:produce()
   self.state.prodPoints = self.state.prodPoints or {}
   for _, id in ipairs(self.T.order) do
     local tn, ns = self.T.nodes[id], self.state.nodes[id]
     if tn.depot then
-      local factor = self:productionFactor(ns.side)
+      local factor = self:depotFactor(id)
       local pts = (self.state.prodPoints[id] or 0) + factor / self.cfg.depotProductionEveryTicks
       while pts >= 1 and #ns.platoons < self.cfg.garrisonMax.depot do
         self:newPlatoon(ns.side, self:pickRole("garrison"), id)
@@ -347,7 +368,7 @@ function War:arrive(mv)
     self:joinGarrison(mv)
   else
     mv.status, mv.progress = "fighting", 1
-    self:log("battle", mv.side, string.format("%s forces attack %s", mv.side:upper(), self:nodeName(mv.to)))
+    self:log("battle", mv.side, string.format("%s forces attack %s", mv.side:upper(), self:nodeName(mv.to)), { node = mv.to })
   end
 end
 
@@ -358,6 +379,7 @@ function War:advanceMoves()
     local mv = self.state.moves[mid]
     if mv and mv.status == "moving" then
       if #mv.platoons == 0 and not mv.cargo then
+        self:markKilled(mid)
         self.state.moves[mid] = nil
       else
         -- Live moves are advanced by the bridge from real unit positions.
@@ -377,7 +399,8 @@ function War:capture(mv, carried)
   self:onCaptureSupply(mv.to, carried)
   self.state.stats.captures[mv.side] = self.state.stats.captures[mv.side] + 1
   self:log("capture", mv.side, string.format("%s captured %s from %s",
-    mv.side:upper(), self:nodeName(mv.to), old:upper()))
+    mv.side:upper(), self:nodeName(mv.to), old:upper()), { node = mv.to, from = old })
+  if self.onCaptureOps then self:onCaptureOps(mv.to) end
 end
 
 -- One round of dice for every attacker at a node against its garrison.
@@ -436,7 +459,7 @@ function War:resolveBattles()
       end
       if #alive == 0 then
         self:log("repulsed", ns.side, string.format("%s held %s against a %s assault",
-          ns.side:upper(), self:nodeName(target), attackers[1].side:upper()))
+          ns.side:upper(), self:nodeName(target), attackers[1].side:upper()), { node = target })
       elseif #ns.platoons == 0 then
         local carried = 0
         for _, mv in ipairs(alive) do carried = carried + (mv.carried or 0) end
@@ -717,10 +740,11 @@ function War:checkVictory()
   end
 end
 
--- One war step. Returns the events that happened in it.
+-- One war step. Returns the events that happened in it, plus any logged
+-- since the last tick by the bridge (rescues, crate drops), so missions
+-- can be judged on them.
 function War:tick()
-  self.newEvents = {}
-  if self.state.winner then return self.newEvents end
+  if self.state.winner then self.newEvents = {}; return {} end
   self.state.tick = self.state.tick + 1
   self:produce()
   self:produceSupply()
@@ -728,6 +752,8 @@ function War:tick()
   self:resolveBattles()
   self:upkeep()
   self:restockAircraft()
+  if self.opsTick then self:opsTick() end
+  if self.missionsTick then self:missionsTick() end
   self:checkVictory()
   if not self.state.winner then
     -- Alternate which side plans first so neither always gets first pick.
@@ -741,7 +767,9 @@ function War:tick()
       self:planAirlifts(side, dist, focus)
     end
   end
-  return self.newEvents
+  local evs = self.newEvents
+  self.newEvents = {}
+  return evs
 end
 
 -- ---------------------------------------------------------------------------

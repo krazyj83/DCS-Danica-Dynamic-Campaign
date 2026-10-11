@@ -38,6 +38,9 @@ end
 
 function DCC.save()
   if DCC.warObj then DCC.persist.save(DCC.theaterName, DCC.warObj:snapshot()) end
+  if DCC.pilots and DCC.pilots.dirty then
+    if DCC.persist.savePilots(DCC.pilots.data) then DCC.pilots.dirty = false end
+  end
 end
 
 -- One war step.
@@ -50,6 +53,7 @@ function DCC.onTick()
   DCC.dcs.writeWarehouses()         -- captures and restocks
   DCC.dcs.reconcile()
   DCC.dcs.reconcileCargo()
+  DCC.dcs.opsTick()                 -- mission targets, AI air, menus
   DCC.dcs.draw()
   DCC.save()
 
@@ -86,6 +90,8 @@ function DCC.start()
   end
   DCC.warObj = war
   DCC.started = true
+  DCC.pilots = DCC.Pilots.new(DCC.persist.loadPilots())   -- kept across wars and maps
+  war.onMissionDone = function(m, outcome) DCC.dcs.onMissionDone(m, outcome) end
 
   DCC.dcs.init(war, theater, catalog)
   DCC.dcs.writeWarehouses()         -- enemy aircraft off every base before anyone slots
@@ -93,21 +99,32 @@ function DCC.start()
   DCC.dcs.updateLive()
   DCC.dcs.reconcile()
   DCC.dcs.reconcileCargo()
+  DCC.dcs.opsPoll()
+  DCC.dcs.opsTick()
   DCC.dcs.draw()
 
-  -- Save when the mission ends; guard player slots at enemy-held bases.
+  -- Save when the mission ends; guard player slots; pilot records and missions.
   world.addEventHandler({ onEvent = function(_, e)
     if e.id == world.event.S_EVENT_MISSION_END then safe("save", DCC.save)()
-    elseif e.id == world.event.S_EVENT_BIRTH and e.initiator then
-      safe("slotGuard", DCC.dcs.onBirth)(e.initiator)
+    else
+      if e.id == world.event.S_EVENT_BIRTH and e.initiator then
+        safe("slotGuard", DCC.dcs.onBirth)(e.initiator)
+      end
+      safe("opsEvent", DCC.dcs.onOpsEvent)(e)
     end
   end })
 
   local cfg = DCC.config
   timer.scheduleFunction(function(_, t)
     safe("liveCheck", DCC.dcs.liveCheck)()
+    safe("opsPoll", DCC.dcs.opsPoll)()
     return t + cfg.liveCheckSeconds
   end, nil, timer.getTime() + cfg.liveCheckSeconds)
+
+  timer.scheduleFunction(function(_, t)
+    safe("detect", DCC.dcs.detect)()
+    return t + 10
+  end, nil, timer.getTime() + 10)
 
   timer.scheduleFunction(function(_, t)
     safe("tick", DCC.onTick)()

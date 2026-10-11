@@ -31,6 +31,10 @@ local function invariants(war)
       seen[pid] = true
     end
   end
+  for pid in pairs(war.state.carried or {}) do
+    if seen[pid] then return false, pid .. " carried and placed" end
+    seen[pid] = true
+  end
   for pid, pl in pairs(war.state.platoons) do
     if not seen[pid] then return false, pid .. " is orphaned" end
     if pl.health < cfg.destroyedBelow or pl.health > 1 then return false, pid .. " bad health " .. pl.health end

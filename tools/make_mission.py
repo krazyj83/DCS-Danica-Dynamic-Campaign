@@ -92,6 +92,59 @@ def find_airport(terrain, name):
     return None
 
 
+def pylon_weapons(cls):
+    """{pylon number: [(name, (pylon, weapon dict)), ...]} for a pydcs aircraft type."""
+    out = {}
+    for i in range(1, 30):
+        P = getattr(cls, f"Pylon{i}", None)
+        if P is None:
+            continue
+        out[i] = [(v[1]["name"], v) for v in vars(P).values()
+                  if isinstance(v, tuple) and len(v) == 2 and isinstance(v[1], dict) and "clsid" in v[1]]
+    return out
+
+
+def pick_loadout(cls, wishes):
+    """Fill pylons from a wish list [(name contains, max count), ...], in order."""
+    left = {w: n for w, n in wishes}
+    chosen = []
+    for pylon, weapons in sorted(pylon_weapons(cls).items()):
+        for wish, _ in wishes:
+            if left[wish] <= 0:
+                continue
+            match = [w for name, w in weapons if wish.lower() in name.lower()]
+            if match:
+                chosen.append(match[0])
+                left[wish] -= 1
+                break
+    return chosen
+
+
+def build_ai_templates(m, catalog, cjtf, theater):
+    types = type_index()
+    made = []
+    for side in ("blue", "red"):
+        # Park the templates (late activation = invisible) over the side's first depot.
+        depot = next((n for n in theater["nodes"] if n["side"] == side and n.get("depot")), theater["nodes"][0])
+        ap = find_airport(m.terrain, depot.get("airbase", "")) if depot.get("airbase") else None
+        pos = ap.position if ap else m.terrain.bullseye_blue
+        for role, spec in catalog.get("aiAir", {}).get(side, {}).items():
+            cls = types.get(spec["type"])
+            if cls is None:
+                print(f"  warning: AI type {spec['type']} unknown to pydcs")
+                continue
+            name = f"DCC_TPL_{side}_{role}"
+            g = m.flight_group_inflight(cjtf[side], name, cls, pos.point_from_heading(90, 20000 + len(made) * 3000),
+                                        altitude=6000, speed=600, group_size=2)
+            g.late_activation = True
+            for unit in g.units:
+                unit.pylons.clear()
+                for w in pick_loadout(cls, [tuple(x) for x in spec["loadout"]]):
+                    unit.load_pylon(w)
+            made.append(f"{name} ({spec['type']}, {len(g.units[0].pylons)} pylons)")
+    return made
+
+
 def build(theater_name, era, out, bundle):
     theater, catalog = load_data(theater_name, era)
     if theater_name not in TERRAINS:
@@ -163,6 +216,11 @@ def build(theater_name, era, out, bundle):
                     report[side].append(f"{t} @ {node['name']}")
                 except Exception as exc:  # usually: no free parking for this type
                     print(f"  no slot for {t} at {node['name']}: {exc}")
+
+    # AI aircraft templates (phase 3): late-activated, never fly themselves.
+    # The engine clones them for CAP, CAS and intercept sorties.
+    templates = build_ai_templates(m, catalog, cjtf, theater)
+    print(f"  AI templates: {', '.join(templates)}")
 
     # The single trigger: load the campaign engine.
     if not os.path.exists(bundle):

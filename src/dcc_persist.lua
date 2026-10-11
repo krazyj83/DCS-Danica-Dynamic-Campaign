@@ -93,3 +93,20 @@ function P.archive(theaterName, state)
     writeFile(folder() .. theaterName .. "_war_final_" .. tostring(state.tick or 0) .. ".json", text)
   end
 end
+
+-- Pilot records live in one file for all theaters (they outlast a war).
+function P.savePilots(data)
+  if not P.available() then return false end
+  local ok, text = pcall(DCC.json.encode, data)
+  if not ok then return false end
+  return writeFile(folder() .. DCC.config.pilotsFile, text)
+end
+
+function P.loadPilots()
+  if not P.available() then return nil end
+  local text = readFile(folder() .. DCC.config.pilotsFile)
+  if not text or text == "" then return nil end
+  local ok, v = pcall(DCC.json.decode, text)
+  if ok and type(v) == "table" then return v end
+  return nil
+end

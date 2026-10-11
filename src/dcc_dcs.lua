@@ -97,6 +97,7 @@ function B.init(war, theater, catalog)
   end
   war.liveFn = function(id) return B.liveNodes[id] == true end
   war.airLive = true          -- airlifts are always real aircraft while DCS runs
+  war.forcedMoveFn = function(mid) return B.forced ~= nil and B.forced[mid] == true end
   B.syncAirbases()
 end
 
@@ -163,7 +164,7 @@ function B.desired()
     end
   end
   for mid, mv in pairs(war.state.moves) do
-    if B.liveNodes[mv.from] or B.liveNodes[mv.to] then
+    if B.liveNodes[mv.from] or B.liveNodes[mv.to] or (B.forced and B.forced[mid]) then
       for _, pid in ipairs(mv.platoons) do
         want[pid] = { key = "m:" .. mid, kind = "move", mv = mv }
       end
@@ -362,6 +363,8 @@ function B.draw()
       col, { 0, 0, 0, 0.35 }, 11, true, label)
   end
 
+  if B.drawOps then B.drawOps(newMark, toVec3) end
+
   -- Own assaults in progress: arrows only the attacking side sees.
   for _, mv in pairs(war.state.moves) do
     if mv.kind == "assault" then
@@ -389,8 +392,13 @@ function B.announce(events)
       trigger.action.outText(ev.text, 15)
     elseif ev.kind == "convoy_lost" or ev.kind == "airlift_lost" then
       trigger.action.outText(ev.text, 15)            -- both sides: the kill mattered
+    elseif ev.kind == "sam_destroyed" or ev.kind == "sam_suppressed" or ev.kind == "infra_hit"
+           or ev.kind == "rescued" or ev.kind == "captured" or ev.kind == "airassault" then
+      trigger.action.outText(ev.text, 15)
     elseif (ev.kind == "focus" or ev.kind == "assault" or ev.kind == "airlift" or ev.kind == "airlift_in"
-            or ev.kind == "nosupply" or ev.kind == "cargo_lost") and ev.side then
+            or ev.kind == "nosupply" or ev.kind == "cargo_lost" or ev.kind == "mission_done"
+            or ev.kind == "mission_failed" or ev.kind == "sam_up" or ev.kind == "airdrop"
+            or ev.kind == "airmobile" or ev.kind == "ambush" or ev.kind == "downed") and ev.side then
       trigger.action.outTextForCoalition(COAL[ev.side], "Command: " .. ev.text, 12)
     end
   end
@@ -407,6 +415,7 @@ function B.showStatus(side)
   local f = war.state.focus and war.state.focus[side]
   if f then lines[#lines + 1] = "Main effort: " .. war:nodeName(f.target) end
   if B.supplyLines then for _, l in ipairs(B.supplyLines(side)) do lines[#lines + 1] = l end end
+  if B.opsStatusLines then for _, l in ipairs(B.opsStatusLines(side)) do lines[#lines + 1] = l end end
   lines[#lines + 1] = "Recent:"
   local evs = war.state.events
   local shown = 0

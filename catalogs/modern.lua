@@ -81,4 +81,87 @@ DCC_CATALOGS.modern = {
   -- Stock of each player type at an airbase. Depots hold more. The supply
   -- system (phase 2) restocks lost aircraft only while the base is supplied.
   aircraftStock = { airbase = 4, depot = 8 },
+
+  -- ---------------------------------------------------------------------------
+  -- Phase 3
+  -- ---------------------------------------------------------------------------
+  -- What each player aircraft can do; filters the mission board.
+  --   A2A  CAP, escort        A2G  CAS, BAI, strike     SEAD  SEAD/DEAD
+  --   HELO helicopter convoy escort                      LIFT  CSAR, logistics
+  --   every aircraft can fly RECON
+  capabilities = {
+    ["FA-18C_hornet"] = { A2A = true, A2G = true, SEAD = true },
+    ["F-16C_50"]      = { A2A = true, A2G = true, SEAD = true },
+    ["F-15ESE"]       = { A2A = true, A2G = true },
+    ["A-10C_2"]       = { A2G = true },
+    ["F-14B"]         = { A2A = true, A2G = true },
+    ["AV8BNA"]        = { A2G = true },
+    ["F-4E-45MC"]     = { A2A = true, A2G = true, SEAD = true },
+    ["Su-25T"]        = { A2G = true, SEAD = true },
+    ["Su-27"]         = { A2A = true },
+    ["Su-33"]         = { A2A = true, A2G = true },
+    ["MiG-29S"]       = { A2A = true },
+    ["J-11A"]         = { A2A = true, A2G = true },
+    ["JF-17"]         = { A2A = true, A2G = true, SEAD = true },
+    ["Su-25"]         = { A2G = true },
+    ["MiG-21Bis"]     = { A2A = true, A2G = true },
+    ["AH-64D_BLK_II"] = { A2G = true, HELO = true },
+    ["Ka-50_3"]       = { A2G = true, HELO = true },
+    ["Mi-24P"]        = { A2G = true, HELO = true, LIFT = true },
+    ["OH58D"]         = { HELO = true },
+    ["SA342M"]        = { HELO = true },
+    ["UH-1H"]         = { HELO = true, LIFT = true },
+    ["Mi-8MT"]        = { HELO = true, LIFT = true },
+    ["CH-47Fbl1"]     = { LIFT = true },
+  },
+
+  -- What a transport helicopter carries: supply crates and troop platoons.
+  lift = {
+    ["UH-1H"]     = { crates = 1, troops = 1 },
+    ["Mi-8MT"]    = { crates = 2, troops = 1 },
+    ["Mi-24P"]    = { crates = 0, troops = 1 },
+    ["CH-47Fbl1"] = { crates = 4, troops = 2 },
+  },
+
+  -- AI aircraft. tools/make_mission.py builds a late-activated template group
+  -- for each (2-ship) with this loadout; the engine clones the templates.
+  -- loadout = { { weapon name contains, max count }, ... } picked per pylon.
+  aiAir = {
+    blue = {
+      fighter = { type = "F-16C_50", loadout = { { "AIM-120C", 4 }, { "AIM-9X", 2 } } },
+      attack  = { type = "A-10C",    loadout = { { "AGM-65D", 2 }, { "Mk-82 - 500lb", 6 }, { "LAU-105 - 2 x AIM-9M", 1 } } },
+    },
+    red = {
+      fighter = { type = "MiG-29S",  loadout = { { "R-77", 4 }, { "R-73", 2 } } },
+      attack  = { type = "Su-25",    loadout = { { "S-8KOM", 4 }, { "OFAB-250", 4 }, { "R-60M", 2 } } },
+    },
+  },
+
+  -- Air-defence site at airbases and depots: radars, launchers, support.
+  sam = {
+    blue = { radars = { "Hawk sr", "Hawk tr" }, launchers = { "Hawk ln", "Hawk ln", "Hawk ln" },
+             support = { "Hawk pcp" } },
+    red  = { radars = { "SA-11 Buk SR 9S18M1" }, launchers = { "SA-11 Buk LN 9A310M1", "SA-11 Buk LN 9A310M1",
+             "SA-11 Buk LN 9A310M1" }, support = { "SA-11 Buk CC 9S470M1" } },
+  },
+
+  -- Strike targets at depots and airbases (static objects), in build order.
+  -- The first is always the fuel store.
+  infra = {
+    { type = "Fuel tank",          category = "Fortifications" },
+    { type = ".Ammunition depot",  category = "Warehouses" },
+    { type = "Warehouse",          category = "Warehouses" },
+    { type = "Tank",               category = "Warehouses" },
+    { type = "Warehouse",          category = "Warehouses" },
+    { type = ".Ammunition depot",  category = "Warehouses" },
+  },
+
+  -- Ambush team that hits an escorted convoy (helicopter convoy escort).
+  ambush = {
+    blue = { "M1043 HMMWV Armament", "Soldier M4", "Soldier M4", "Soldier RPG" },
+    red  = { "BRDM-2", "Infantry AK", "Infantry AK", "Paratrooper RPG-16" },
+  },
+
+  -- A pilot on the ground waiting for CSAR.
+  downedPilot = { blue = "Soldier M4", red = "Infantry AK" },
 }

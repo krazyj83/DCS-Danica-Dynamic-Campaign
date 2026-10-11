@@ -99,7 +99,7 @@ function War:produceSupply()
   for _, id in ipairs(self.T.order) do
     local tn, ns = self.T.nodes[id], self.state.nodes[id]
     if tn.depot then
-      ns.supply = math.min(self:supplyCap(id), ns.supply + cfg.depotPerTick * self:productionFactor(ns.side))
+      ns.supply = math.min(self:supplyCap(id), ns.supply + cfg.depotPerTick * self:depotFactor(id))
     end
   end
 end
@@ -137,7 +137,8 @@ function War:restockAircraft()
   if self.state.tick % cfg.airRestockTicks ~= 0 then return end
   for _, id in ipairs(self.T.order) do
     local ns = self.state.nodes[id]
-    if ns.air and ns.supply >= cfg.airRestockCost then
+    local intact = not self.infraFactor or self:infraFactor(id) > 0.5
+    if ns.air and intact and ns.supply >= cfg.airRestockCost then
       local target, lowest, lowType = self:airTarget(id), nil, nil
       for _, t in ipairs(self:aircraftTypes(ns.side)) do
         local n = ns.air[t] or 0
@@ -170,8 +171,11 @@ end
 -- A cargo move arrives: friendly destination gets it, anything else loses it.
 function War:deliver(mv)
   local ns = self.state.nodes[mv.to]
+  if self.ambushCheck then self:ambushCheck(mv) end
   local amount = mv.cargo * (mv.health or 1)
   if ns.side == mv.side then
+    self.state.deliveredMoves = self.state.deliveredMoves or {}
+    self.state.deliveredMoves[mv.id] = { tick = self.state.tick, health = mv.health or 1 }
     ns.supply = math.min(self:supplyCap(mv.to) * S(self).overfillFactor, ns.supply + amount)
     self.state.stats.delivered[mv.side] = self.state.stats.delivered[mv.side] + amount
     if mv.kind == "airlift" then
@@ -190,6 +194,7 @@ end
 function War:destroyCargo(mid, reason)
   local mv = self.state.moves[mid]
   if not mv or not mv.cargo then return end
+  self:markKilled(mid)
   self.state.stats.cargoLost[mv.side] = self.state.stats.cargoLost[mv.side] + mv.cargo * (mv.health or 1)
   self.state.moves[mid] = nil
   self:log(mv.kind == "airlift" and "airlift_lost" or "convoy_lost", mv.side,
@@ -256,7 +261,8 @@ function War:planConvoys(side, dist, focus)
           end
         end
         if best then
-          self:startCargo("convoy", side, id, best.id, math.min(surplus, best.room, cfg.convoyCapacity))
+          local mv = self:startCargo("convoy", side, id, best.id, math.min(surplus, best.room, cfg.convoyCapacity))
+          if mv and dist[best.id] == 1 then mv.front = true end   -- last leg to the front: ambush risk
         end
       end
     end

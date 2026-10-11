@@ -5,20 +5,22 @@
 -- save/restore) before a server ever loads the mission.
 -- ============================================================================
 
-MOCK = { time = 0, groups = {}, players = {}, marks = {}, texts = {}, flags = {},
-         scheduled = {}, handlers = {}, missingTypes = {}, menus = {} }
+MOCK = { time = 0, groups = {}, statics = {}, players = {}, marks = {}, texts = {}, groupTexts = {},
+         flags = {}, scheduled = {}, handlers = {}, missingTypes = {}, menus = {}, groupMenus = {},
+         cargoMass = {}, smokes = 0, nextGroupId = 100 }
 
 env = {
-  mission = { theatre = "Caucasus" },
+  mission = { theatre = "Caucasus", coalition = {} },
   info = function(m) if MOCK.verbose then print(m) end end,
   error = function(m) print("ENV ERROR: " .. m) end,
 }
 
 -- Flat projection around 42N 42E, metres. x = north, z = east (like DCS).
+local KX, KZ = 111000, 111000 * math.cos(math.rad(42))
 coord = {
-  LLtoLO = function(lat, lon, alt)
-    return { x = (lat - 42) * 111000, y = alt or 0, z = (lon - 42) * 111000 * math.cos(math.rad(42)) }
-  end,
+  LLtoLO = function(lat, lon, alt) return { x = (lat - 42) * KX, y = alt or 0, z = (lon - 42) * KZ } end,
+  LOtoLL = function(p) return 42 + p.x / KX, 42 + p.z / KZ, p.y or 0 end,
+  LLtoMGRS = function() return { UTMZone = "38T", MGRSDigraph = "KM", Easting = 12345, Northing = 67890 } end,
 }
 
 land = {
@@ -54,7 +56,9 @@ function MOCK.advance(seconds)
 end
 
 world = {
-  event = { S_EVENT_MISSION_END = 12, S_EVENT_BIRTH = 15 },
+  event = { S_EVENT_TAKEOFF = 3, S_EVENT_LAND = 4, S_EVENT_CRASH = 5, S_EVENT_EJECTION = 6, S_EVENT_DEAD = 8,
+            S_EVENT_PILOT_DEAD = 9, S_EVENT_MISSION_END = 12, S_EVENT_BIRTH = 15, S_EVENT_PLAYER_LEAVE_UNIT = 21,
+            S_EVENT_KILL = 28 },
   addEventHandler = function(h) MOCK.handlers[#MOCK.handlers + 1] = h end,
   getAirbases = function()
     local list = {}
@@ -62,6 +66,13 @@ world = {
     return list
   end,
 }
+
+function MOCK.fire(e)
+  for _, h in ipairs(MOCK.handlers) do h:onEvent(e) end
+end
+
+Object = { Category = { UNIT = 1, WEAPON = 2, STATIC = 3, BASE = 4 } }
+function Object.getCategory(o) return o.objCat or Object.Category.UNIT end
 
 -- ---------------------------------------------------------------------------
 -- Airbases: created from the theater pack, one deliberately renamed to test
@@ -108,6 +119,24 @@ function MOCK.buildAirbases(theater)
   end
 end
 
+-- AI templates as the generated mission has them (late-activated groups).
+function MOCK.addTemplates()
+  local function tpl(name, t)
+    return { name = name, lateActivation = true, groupId = 999, task = "CAP",
+             units = { { name = name .. " Pilot #1", type = t, unitId = 1, x = 0, y = 0, alt = 6000,
+                         payload = { fuel = 3000, pylons = { [1] = { CLSID = "{X}" } } } },
+                       { name = name .. " Pilot #2", type = t, unitId = 2, x = 0, y = 0, alt = 6000,
+                         payload = { fuel = 3000, pylons = { [1] = { CLSID = "{X}" } } } } },
+             route = { points = {} } }
+  end
+  env.mission.coalition = {
+    blue = { country = { { id = 80, plane = { group = { tpl("DCC_TPL_blue_fighter", "F-16C_50"),
+                                                        tpl("DCC_TPL_blue_attack", "A-10C") } } } } },
+    red  = { country = { { id = 81, plane = { group = { tpl("DCC_TPL_red_fighter", "MiG-29S"),
+                                                        tpl("DCC_TPL_red_attack", "Su-25") } } } } },
+  }
+end
+
 -- ---------------------------------------------------------------------------
 -- Groups and units
 -- ---------------------------------------------------------------------------
@@ -121,27 +150,46 @@ local UnitMT = {}
 UnitMT.__index = UnitMT
 function UnitMT:isExist() return self.alive end
 function UnitMT:getLife() return self.alive and 100 or 0 end
-function UnitMT:getPoint() return { x = self.x, y = 0, z = self.z } end
+function UnitMT:getPoint() return { x = self.x, y = self.alt or 0, z = self.z } end
 function UnitMT:getName() return self.name end
 function UnitMT:getID() return self.id or 1 end
 function UnitMT:inAir() return self.air == true end
 function UnitMT:getCoalition() return self.coal end
 function UnitMT:getPlayerName() return self.player end
+function UnitMT:getTypeName() return self.type or "F-16C_50" end
+function UnitMT:getGroup() return self.group end
+function UnitMT:getDesc()
+  local c = (self.group and self.group.category == 0) and Unit.Category.AIRPLANE
+         or (self.group and self.group.category == 1) and Unit.Category.HELICOPTER or Unit.Category.GROUND_UNIT
+  return { category = c, typeName = self.type }
+end
 function UnitMT:destroy() self.alive = false; self.destroyed = true end
 
 local GroupMT = {}
 GroupMT.__index = GroupMT
 function GroupMT:isExist() return self.exists end
 function GroupMT:getUnits() return self.units end
+function GroupMT:getUnit(i) return self.units[i] end
+function GroupMT:getID() return self.id end
+function GroupMT:getName() return self.name end
+function GroupMT:getController() return { setOption = function() end, setTask = function() end } end
 function GroupMT:destroy() self.exists = false; MOCK.groups[self.name] = nil end
 
 Group = { Category = { AIRPLANE = 0, HELICOPTER = 1, GROUND = 2 } }
 function Group.getByName(n) return MOCK.groups[n] end
 
-Unit = {}
+Unit = { Category = { AIRPLANE = 0, HELICOPTER = 1, GROUND_UNIT = 2 } }
 function Unit.getDescByName(t)
   if MOCK.missingTypes[t] then error("unknown type " .. t) end
   return { typeName = t, fuelMassMax = 20000 }
+end
+function Unit.getByName(n)
+  for _, g in pairs(MOCK.groups) do
+    for _, u in ipairs(g.units) do if u.name == n then return u end end
+  end
+  for _, list in pairs(MOCK.players) do
+    for _, u in ipairs(list) do if u.name == n then return u end end
+  end
 end
 
 function coalition.addGroup(countryId, category, data)
@@ -149,35 +197,57 @@ function coalition.addGroup(countryId, category, data)
   assert(category == Group.Category.GROUND or category == Group.Category.AIRPLANE, "addGroup: bad category")
   assert(data.name and data.units and #data.units > 0, "addGroup: bad group data")
   assert(MOCK.groups[data.name] == nil, "addGroup: duplicate group name " .. data.name)
+  assert(not data.lateActivation, "addGroup: a cloned template must not stay late-activated")
+  MOCK.nextGroupId = MOCK.nextGroupId + 1
   local g = setmetatable({ name = data.name, exists = true, units = {}, route = data.route.points,
-                          country = countryId, category = category }, GroupMT)
+                          country = countryId, category = category, id = MOCK.nextGroupId, data = data }, GroupMT)
   local coal = (countryId == 80) and 2 or 1
   for i, u in ipairs(data.units) do
     assert(u.type and u.x and u.y, "addGroup: unit needs type, x, y")
+    assert(u.name, "addGroup: unit needs a name")
     if category == Group.Category.AIRPLANE then
       assert(u.alt and u.payload and u.payload.fuel, "addGroup: aircraft need alt and payload.fuel")
     end
-    g.units[i] = setmetatable({ name = u.name, type = u.type, x = u.x, z = u.y, alive = true,
+    g.units[i] = setmetatable({ name = u.name, type = u.type, x = u.x, z = u.y, alive = true, group = g,
                                 coal = coal, air = (category == Group.Category.AIRPLANE) }, UnitMT)
   end
   MOCK.groups[data.name] = g
   return g
 end
 
+-- Static objects (strike targets)
+local StaticMT = {}
+StaticMT.__index = StaticMT
+function StaticMT:isExist() return self.alive end
+function StaticMT:getLife() return self.alive and 100 or 0 end
+function StaticMT:getName() return self.name end
+function StaticMT:destroy() self.alive = false; MOCK.statics[self.name] = nil end
+StaticObject = {}
+function StaticObject.getByName(n) return MOCK.statics[n] end
+function coalition.addStaticObject(countryId, data)
+  assert(type(countryId) == "number" and data.name and data.type and data.category and data.x and data.y,
+    "addStaticObject: bad data")
+  assert(MOCK.statics[data.name] == nil, "addStaticObject: duplicate name " .. data.name)
+  local s = setmetatable({ name = data.name, type = data.type, x = data.x, z = data.y, alive = true,
+                           objCat = Object.Category.STATIC }, StaticMT)
+  MOCK.statics[data.name] = s
+  return s
+end
+
 -- Move every group toward its last waypoint at the waypoint speed.
 function MOCK.moveGroups(dt)
   if dt <= 0 then return end
   for _, g in pairs(MOCK.groups) do
-    local last = g.route[#g.route]
-    local speed = last.speed or 0
-    if speed > 0 then
+    local last = g.route and g.route[#g.route]
+    local speed = last and last.speed or 0
+    if speed > 0 and not g.player then
       for _, u in ipairs(g.units) do
         local dx, dz = last.x - u.x, last.y - u.z
         local d = math.sqrt(dx * dx + dz * dz)
         if d > 1 then
           local step = math.min(d, speed * dt)
           u.x, u.z = u.x + dx / d * step, u.z + dz / d * step
-        elseif g.category == Group.Category.AIRPLANE then
+        elseif g.category == Group.Category.AIRPLANE and last.type == "Land" then
           u.air = false                                  -- reached the airfield: landed
         end
       end
@@ -197,31 +267,95 @@ function MOCK.addPlayer(side, x, z)
   return u
 end
 
+-- A real player aircraft: own group, player name, fires the birth event.
+function MOCK.spawnPlayer(coal, typeName, x, z, name, heli)
+  MOCK.nextGroupId = MOCK.nextGroupId + 1
+  local gname = "PLAYER_" .. MOCK.nextGroupId
+  local g = setmetatable({ name = gname, exists = true, units = {}, route = {}, player = true,
+                          category = heli and 1 or 0, id = MOCK.nextGroupId }, GroupMT)
+  local u = setmetatable({ name = gname .. "_1", type = typeName, x = x, z = z, alt = 0, alive = true, coal = coal,
+                           player = name or "Morten", group = g, air = false }, UnitMT)
+  g.units[1] = u
+  MOCK.groups[gname] = g
+  MOCK.players[coal] = MOCK.players[coal] or {}
+  table.insert(MOCK.players[coal], u)
+  MOCK.fire({ id = world.event.S_EVENT_BIRTH, initiator = u })
+  return u, g
+end
+
 -- ---------------------------------------------------------------------------
 -- trigger, missionCommands
 -- ---------------------------------------------------------------------------
 local function addMark(kind) return function(coal, id, ...) MOCK.marks[id] = { kind = kind, coal = coal, args = { ... } } end end
 
 trigger = {
+  smokeColor = { Green = 0, Red = 1, White = 2, Orange = 3, Blue = 4 },
   action = {
     outText = function(t) MOCK.texts[#MOCK.texts + 1] = t end,
     outTextForCoalition = function(_, t) MOCK.texts[#MOCK.texts + 1] = t end,
     outTextForUnit = function(_, t) MOCK.texts[#MOCK.texts + 1] = t end,
+    outTextForGroup = function(gid, t)
+      MOCK.groupTexts[gid] = MOCK.groupTexts[gid] or {}
+      table.insert(MOCK.groupTexts[gid], t)
+      MOCK.texts[#MOCK.texts + 1] = t
+    end,
     setUserFlag = function(f, v) MOCK.flags[f] = v end,
     removeMark = function(id) MOCK.marks[id] = nil end,
     lineToAll = addMark("line"),
     circleToAll = addMark("circle"),
     textToAll = addMark("text"),
     arrowToAll = addMark("arrow"),
+    markToGroup = function(id, text, pos, gid) MOCK.marks[id] = { kind = "groupmark", gid = gid, args = { text } } end,
+    smoke = function() MOCK.smokes = MOCK.smokes + 1 end,
+    setUnitInternalCargo = function(name, mass) MOCK.cargoMass[name] = mass end,
   },
 }
 
+-- Group menus are kept as a tree so tests can "click" them.
 missionCommands = {
   addSubMenuForCoalition = function(c, name) return { c, name } end,
   addCommandForCoalition = function(c, name, parent, fn, arg)
     MOCK.menus[#MOCK.menus + 1] = { coal = c, name = name, fn = fn, arg = arg }
   end,
+  addSubMenuForGroup = function(gid, name, parent)
+    MOCK.groupMenus[gid] = MOCK.groupMenus[gid] or {}
+    local path = { gid = gid, name = name, parent = parent }
+    table.insert(MOCK.groupMenus[gid], { sub = true, name = name, path = path, parent = parent })
+    return path
+  end,
+  addCommandForGroup = function(gid, name, parent, fn, arg)
+    MOCK.groupMenus[gid] = MOCK.groupMenus[gid] or {}
+    table.insert(MOCK.groupMenus[gid], { name = name, parent = parent, fn = fn, arg = arg })
+  end,
+  removeItemForGroup = function(gid, path)
+    local list = MOCK.groupMenus[gid] or {}
+    local function under(item)
+      local p = item.parent
+      while p do if p == path then return true end; p = p.parent end
+      return item.path == path
+    end
+    for i = #list, 1, -1 do if under(list[i]) then table.remove(list, i) end end
+  end,
 }
+
+-- Click the first command in a group's menu whose text contains `text`.
+function MOCK.click(gid, text)
+  for _, item in ipairs(MOCK.groupMenus[gid] or {}) do
+    if item.fn and item.name:find(text, 1, true) then item.fn(item.arg); return true end
+  end
+  return false
+end
+
+function MOCK.menuItems(gid)
+  local out = {}
+  for _, item in ipairs(MOCK.groupMenus[gid] or {}) do out[#out + 1] = item.name end
+  return out
+end
+
+function MOCK.lastGroupText(gid)
+  local l = MOCK.groupTexts[gid]
+  return l and l[#l] or ""
+end
 
 -- File system: real files in a temp folder.
 lfs = {
@@ -235,21 +369,20 @@ function MOCK.countMarks(kind)
   return n
 end
 
-function MOCK.countGroups()
+function MOCK.countGroups(prefix)
   local n = 0
-  for _ in pairs(MOCK.groups) do n = n + 1 end
+  for name in pairs(MOCK.groups) do if not prefix or name:find(prefix, 1, true) == 1 then n = n + 1 end end
   return n
 end
 
--- A player spawning in a slot: fires the birth event at every handler.
+-- A player spawning in a slot (slot-guard test).
 function MOCK.playerBirth(coal, x, z)
-  local u = setmetatable({ name = "slot", x = x, z = z, alive = true, coal = coal, player = "Morten" }, UnitMT)
-  for _, h in ipairs(MOCK.handlers) do h:onEvent({ id = world.event.S_EVENT_BIRTH, initiator = u }) end
+  local u, g = MOCK.spawnPlayer(coal, "F-16C_50", x, z, "Morten")
   return u
 end
 
 function MOCK.groupsOfCategory(cat)
   local n = 0
-  for _, g in pairs(MOCK.groups) do if g.category == cat then n = n + 1 end end
+  for _, g in pairs(MOCK.groups) do if g.category == cat and not g.player then n = n + 1 end end
   return n
 end

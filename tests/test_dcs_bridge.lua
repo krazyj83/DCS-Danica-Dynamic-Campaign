@@ -18,6 +18,7 @@ MOCK.missingTypes["M1126 Stryker ICV"] = true   -- pretend a type is missing: fa
 dofile(DCC_ROOT .. "/src/dcc_persist.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_supply.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_ops.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
 local B = DCC.dcs
@@ -33,7 +34,7 @@ check("Sukhumi airbase set to RED", MOCK.airbases["Sukhumi-Babushara"].coalition
 check("auto-capture switched off", MOCK.airbases["Kutaisi"].auto == false)
 check("renamed airbase found by position", B.airbases.minvody == "Mineralnye Vody Airport", B.airbases.minvody)
 check("front line drawn", MOCK.countMarks("line") >= 4, MOCK.countMarks("line"))
-check("node circles drawn", MOCK.countMarks("circle") == #DCC_THEATERS.Caucasus.nodes)
+check("node circles drawn (plus own SAM rings)", MOCK.countMarks("circle") >= #DCC_THEATERS.Caucasus.nodes)
 check("status menu added for both sides", #MOCK.menus == 2)
 
 print("Warehouses (dynamic spawn)")
@@ -64,7 +65,7 @@ check("every Gori platoon spawned", spawnedAtGori == goriPlatoons, spawnedAtGori
 check("missing unit type replaced by fallback", B.unitTypes("MECH_PLT", "blue")[1] == "M-113")
 check("present unit types kept", B.unitTypes("ARMOR_PLT", "blue")[1] == "M-1 Abrams")
 check("spawned groups use CJTF countries", (function()
-  for _, g in pairs(MOCK.groups) do if g.country ~= 80 and g.country ~= 81 then return false end end
+  for _, g in pairs(MOCK.groups) do if not g.player and g.country ~= 80 and g.country ~= 81 then return false end end
   return true end)())
 
 print("Read-back")
