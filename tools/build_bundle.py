@@ -25,6 +25,7 @@ ENGINE = [
     "src/dcc_pilots.lua",
     "src/dcc_intel.lua",
     "src/dcc_radar.lua",
+    "src/dcc_world.lua",
     "src/dcc_front.lua",
     "src/dcc_persist.lua",
     "src/dcc_dcs.lua",
@@ -32,6 +33,9 @@ ENGINE = [
     "src/dcc_dcs_ops.lua",
     "src/dcc_dcs_intel.lua",
     "src/dcc_dcs_radar.lua",
+    "src/dcc_dcs_world.lua",
+    "src/dcc_dcs_jtac.lua",
+    "src/dcc_dcs_public.lua",
     "src/dcc_main.lua",
 ]
 

@@ -51,7 +51,7 @@ end
 
 timer = {
   getTime = function() return MOCK.time end,
-  getAbsTime = function() return 43200 + MOCK.time end,
+  getAbsTime = function() return (MOCK.absBase or 43200) + MOCK.time end,   -- noon unless a test says otherwise
   scheduleFunction = function(fn, arg, t)
     MOCK.scheduled[#MOCK.scheduled + 1] = { fn = fn, arg = arg, t = t }
   end,
@@ -169,6 +169,7 @@ coalition = {
 
 local UnitMT = {}
 UnitMT.__index = UnitMT
+MOCK.UnitMT = UnitMT
 function UnitMT:isExist() return self.alive end
 function UnitMT:getLife() return self.alive and 100 or 0 end
 function UnitMT:getPoint() return { x = self.x, y = self.alt or 0, z = self.z } end
@@ -181,13 +182,15 @@ function UnitMT:getTypeName() return self.type or "F-16C_50" end
 function UnitMT:getGroup() return self.group end
 function UnitMT:getDesc()
   local c = (self.group and self.group.category == 0) and Unit.Category.AIRPLANE
-         or (self.group and self.group.category == 1) and Unit.Category.HELICOPTER or Unit.Category.GROUND_UNIT
+         or (self.group and self.group.category == 1) and Unit.Category.HELICOPTER
+         or (self.group and self.group.category == 3) and Unit.Category.SHIP or Unit.Category.GROUND_UNIT
   return { category = c, typeName = self.type }
 end
 function UnitMT:destroy() self.alive = false; self.destroyed = true end
 
 local GroupMT = {}
 GroupMT.__index = GroupMT
+MOCK.GroupMT = GroupMT
 function GroupMT:isExist() return self.exists end
 function GroupMT:getUnits() return self.units end
 function GroupMT:getUnit(i) return self.units[i] end
@@ -198,7 +201,8 @@ function GroupMT:getController()
   local g = self
   g.ctl = g.ctl or {
     setOption = function(_, id, v) g.options = g.options or {}; g.options[id] = v end,
-    setTask = function() end,
+    setCommand = function(_, c) g.commands = g.commands or {}; g.commands[c.id] = c.params and c.params.value end,
+    setTask = function(_, t) g.lastTask = t end,
     getDetectedTargets = function()
       local out = {}
       for _, u in ipairs(g.detected or {}) do out[#out + 1] = { object = u, visible = true } end
@@ -209,10 +213,10 @@ function GroupMT:getController()
 end
 function GroupMT:destroy() self.exists = false; MOCK.groups[self.name] = nil end
 
-Group = { Category = { AIRPLANE = 0, HELICOPTER = 1, GROUND = 2 } }
+Group = { Category = { AIRPLANE = 0, HELICOPTER = 1, GROUND = 2, SHIP = 3 } }
 function Group.getByName(n) return MOCK.groups[n] end
 
-Unit = { Category = { AIRPLANE = 0, HELICOPTER = 1, GROUND_UNIT = 2 } }
+Unit = { Category = { AIRPLANE = 0, HELICOPTER = 1, GROUND_UNIT = 2, SHIP = 3 } }
 function Unit.getDescByName(t)
   if MOCK.missingTypes[t] then error("unknown type " .. t) end
   return { typeName = t, fuelMassMax = 20000 }
@@ -228,7 +232,8 @@ end
 
 function coalition.addGroup(countryId, category, data)
   assert(type(countryId) == "number", "addGroup: country id must be a number")
-  assert(category == Group.Category.GROUND or category == Group.Category.AIRPLANE, "addGroup: bad category")
+  assert(category == Group.Category.GROUND or category == Group.Category.AIRPLANE or category == Group.Category.SHIP,
+    "addGroup: bad category")
   assert(data.name and data.units and #data.units > 0, "addGroup: bad group data")
   assert(MOCK.groups[data.name] == nil, "addGroup: duplicate group name " .. data.name)
   assert(not data.lateActivation, "addGroup: a cloned template must not stay late-activated")
@@ -419,4 +424,49 @@ function MOCK.groupsOfCategory(cat)
   local n = 0
   for _, g in pairs(MOCK.groups) do if g.category == cat and not g.player then n = n + 1 end end
   return n
+end
+
+-- Lasers and IR pointers (JTAC)
+Spot = {}
+local SpotMT = {}
+SpotMT.__index = SpotMT
+function SpotMT:setPoint(p) self.point = p end
+function SpotMT:destroy() self.dead = true; MOCK.spots[self.id] = nil end
+local function newSpot(kind, src, off, p, code)
+  MOCK.spots = MOCK.spots or {}
+  MOCK.spotId = (MOCK.spotId or 0) + 1
+  local sp = setmetatable({ id = MOCK.spotId, kind = kind, source = src, point = p, code = code }, SpotMT)
+  MOCK.spots[sp.id] = sp
+  return sp
+end
+function Spot.createLaser(src, off, p, code) return newSpot("laser", src, off, p, code) end
+function Spot.createInfraRed(src, off, p) return newSpot("ir", src, off, p) end
+
+-- Fog (DCS 2.9.10+)
+world.weather = {
+  setFogThickness = function(t) MOCK.fog = MOCK.fog or {}; MOCK.fog.thickness = t end,
+  setFogVisibilityDistance = function(v) MOCK.fog = MOCK.fog or {}; MOCK.fog.visibility = v end,
+}
+
+-- A FARP (an Airbase object with a warehouse), as the generated mission has them.
+function MOCK.addFarp(name, x, z, coal)
+  MOCK.abId = (MOCK.abId or 0) + 1
+  local wh = setmetatable({ items = {} }, getmetatable(MOCK.airbases[next(MOCK.airbases)].wh))
+  for _, t in ipairs(DCC_CATALOGS.modern.aircraft[coal == 2 and "blue" or "red"].helicopters) do wh.items[t] = 1 end
+  MOCK.airbases[name] = setmetatable({ name = name, p = { x = x, z = z }, coalition = coal, id = MOCK.abId,
+                                       wh = wh, farp = true }, getmetatable(MOCK.airbases[next(MOCK.airbases)]))
+  return MOCK.airbases[name]
+end
+
+-- A ship group placed in the mission editor.
+function MOCK.addShipGroup(name, coal, x, z, types)
+  MOCK.nextGroupId = MOCK.nextGroupId + 1
+  local g = { name = name, exists = true, units = {}, route = {}, category = 3, id = MOCK.nextGroupId }
+  setmetatable(g, MOCK.GroupMT)
+  for i, t in ipairs(types) do
+    local u = { name = name .. "_" .. i, type = t, x = x + i * 500, z = z, alive = true, coal = coal, group = g }
+    g.units[i] = setmetatable(u, MOCK.UnitMT)
+  end
+  MOCK.groups[name] = g
+  return g
 end

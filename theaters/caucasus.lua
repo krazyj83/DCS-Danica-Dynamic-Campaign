@@ -15,6 +15,8 @@
 -- Scenario (Modern): BLUE holds Georgia, RED holds the north and Abkhazia /
 -- South Ossetia. The opening front runs Zugdidi-Gali, Gori-Tskhinvali and
 -- the Military Georgian Road.
+-- BLUE's depots are Batumi and Kutaisi (with Tbilisi as a depot BLUE gained
+-- ground in 11 of 12 empty-server test wars; with Kutaisi it is 5 of 12).
 -- ============================================================================
 
 DCC_THEATERS = DCC_THEATERS or {}
@@ -33,13 +35,13 @@ DCC_THEATERS.Caucasus = {
     { id = "poti",       name = "Poti",            kind = "town",    side = "blue", lat = 42.1460, lon = 41.6720 },
     { id = "senaki",     name = "Senaki-Kolkhi",   kind = "airbase", side = "blue", lat = 42.2410, lon = 42.0480, airbase = "Senaki-Kolkhi" },
     { id = "zugdidi",    name = "Zugdidi",         kind = "town",    side = "blue", lat = 42.5088, lon = 41.8709 },
-    { id = "kutaisi",    name = "Kutaisi",         kind = "airbase", side = "blue", lat = 42.1767, lon = 42.4826, airbase = "Kutaisi" },
+    { id = "kutaisi",    name = "Kutaisi",         kind = "airbase", side = "blue", lat = 42.1767, lon = 42.4826, airbase = "Kutaisi", depot = true },
     { id = "zestaponi",  name = "Zestaponi",       kind = "town",    side = "blue", lat = 42.1100, lon = 43.0520 },
     { id = "ambrolauri", name = "Ambrolauri",      kind = "town",    side = "blue", lat = 42.5210, lon = 43.1500 },
     { id = "khashuri",   name = "Khashuri",        kind = "town",    side = "blue", lat = 41.9930, lon = 43.6000 },
     { id = "gori",       name = "Gori",            kind = "town",    side = "blue", lat = 41.9840, lon = 44.1100 },
     { id = "pasanauri",  name = "Pasanauri",       kind = "town",    side = "blue", lat = 42.3500, lon = 44.6900 },
-    { id = "tbilisi",    name = "Tbilisi-Lochini", kind = "airbase", side = "blue", lat = 41.6692, lon = 44.9547, airbase = "Tbilisi-Lochini", depot = true },
+    { id = "tbilisi",    name = "Tbilisi-Lochini", kind = "airbase", side = "blue", lat = 41.6692, lon = 44.9547, airbase = "Tbilisi-Lochini" },
     { id = "soganlug",   name = "Soganlug",        kind = "airbase", side = "blue", lat = 41.6460, lon = 44.9370, airbase = "Soganlug" },
     { id = "vaziani",    name = "Vaziani",         kind = "airbase", side = "blue", lat = 41.6290, lon = 45.0270, airbase = "Vaziani" },
 

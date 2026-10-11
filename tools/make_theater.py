@@ -240,6 +240,19 @@ def build(name, plot=True):
         out.append(f"    {{ {lua_str(a)}, {lua_str(b)}, sea = true }},   -- sea crossing, "
                    f"{km_between(by_id[a], by_id[b]):.0f} km")
     out.append("  },")
+    if sc.get("naval"):
+        out.append("")
+        out.append("  -- Naval groups: placed by tools/make_mission.py (with client slots on carriers);")
+        out.append("  -- the engine tracks them and offers ANTISHIP missions against them.")
+        out.append("  naval = {")
+        for sh in sc["naval"]:
+            out.append("    { " + ", ".join([f"id = {lua_str(sh['id'])}", f"side = {lua_str(sh['side'])}",
+                f"name = {lua_str(sh['name'])}", f"kind = {lua_str(sh.get('kind', 'carrier'))}",
+                f"lat = {sh['lat']:.4f}", f"lon = {sh['lon']:.4f}", f"heading = {sh.get('heading', 0)}",
+                f"ship = {lua_str(sh['ship'])}",
+                "escorts = { " + ", ".join(lua_str(e) for e in sh.get("escorts", [])) + " }",
+                "slots = { " + ", ".join(lua_str(e) for e in sh.get("slots", [])) + " }"]) + " },")
+        out.append("  },")
     out.append("}")
     path = os.path.join(ROOT, "theaters", f"{name.lower()}.lua")
     with open(path, "w", encoding="utf-8") as f:

@@ -158,7 +158,8 @@ function B.scanVisual(idx)
           local gkey = t.e and t.e.group or t.u:getName()
           if not seen[gkey] then
             local tp = t.u:getPoint()
-            local range = ((not t.e) or t.e.air) and cfg.visualKmAir or cfg.visualKmGround
+            local isAir = (not t.e) or t.e.air
+            local range = (isAir and cfg.visualKmAir or cfg.visualKmGround) * (B.visualFactor and B.visualFactor(isAir) or 1)
             if dist2D(ep, tp) <= range * 1000 and ok(land.isVisible, from, { x = tp.x, y = tp.y + 2, z = tp.z }) then
               seen[gkey] = true
               B.report(side, t.e, t.u, "visual")

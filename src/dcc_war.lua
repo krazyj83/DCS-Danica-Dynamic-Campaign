@@ -73,7 +73,7 @@ end
 -- ---------------------------------------------------------------------------
 local function base(theater, catalog, cfg)
   return setmetatable({
-    T = indexTheater(theater), cat = catalog, cfg = cfg,
+    T = indexTheater(theater), theater = theater, cat = catalog, cfg = cfg,
     fogOfWar = cfg.intel and cfg.intel.enabled,   -- phase 4: board and map use contacts only
     balance = theater.balance or {},   -- e.g. { red = 1.2 }: production multiplier per side
     liveFn = nil,          -- set by the bridge: function(nodeId) -> bool
@@ -395,6 +395,7 @@ function War:advanceMoves()
       else
         -- Live moves are advanced by the bridge from real unit positions.
         local step = (mv.kind == "airlift") and airKmPerTick or kmPerTick
+        if self.moveSpeedFactor then step = step * self:moveSpeedFactor(mv) end   -- weather
         if not self:isMoveLive(mv) then mv.progress = mv.progress + step / math.max(mv.km, 0.1) end
         if mv.progress >= 1 then self:arrive(mv) end
       end
@@ -425,7 +426,7 @@ function War:abstractRound(target, attackers)
   local bonus = self:bonusOf(target)
   local A = self:power(combined)
   local D = self:power(ns.platoons) * bonus
-  local rate = self.cfg.battleLossRate
+  local rate = self.cfg.battleLossRate * (self.battleFactor and self:battleFactor() or 1)
   local attLoss = D * rate * self.rng:range(0.6, 1.4)
   local defLoss = A * rate * self.rng:range(0.6, 1.4)
   self:damage(combined, attLoss)
@@ -775,13 +776,15 @@ function War:declareWinner(winner, how)
   end
   local s = self:summary()
   local days = (self.state.tick - (self.state.clockStart or 0)) * self.cfg.tickSeconds / 86400
-  self:log("victory", winner, string.format("%s wins the war on %s %s after %.1f days (BLUE %d bases, RED %d bases)",
+  self:log("victory", winner, string.format("%s wins the war on %s %s after %.1f days (BLUE %d bases, RED %d bases; %s %+d since the start)",
     winner:upper(), self.T.name, how == "conquest" and "by conquest" or "on the war clock", days,
-    s.blue.nodes, s.red.nodes))
+    s.blue.nodes, s.red.nodes, winner:upper(), self:groundGained(winner)))
 end
 
--- War clock: the war ends after cfg.warClockDays. The side holding more bases
--- wins; a tie goes to the stronger army, then to the larger stock of supply.
+-- War clock: the war ends after cfg.warClockDays. The side that has GAINED
+-- more ground since the start wins (bases held now minus bases held at the
+-- start), so a map where one side starts bigger stays fair. A tie goes to the
+-- stronger army, then to the larger stock of supply.
 function War:clockTicksLeft()
   local days = self.cfg.warClockDays
   if not days or days <= 0 then return nil end
@@ -789,10 +792,19 @@ function War:clockTicksLeft()
   return limit - (self.state.tick - (self.state.clockStart or 0))
 end
 
+function War:groundGained(side)
+  local n = 0
+  for _, id in ipairs(self.T.order) do if self.state.nodes[id].side == side then n = n + 1 end end
+  local start = 0
+  for _, id in ipairs(self.T.order) do if self.T.nodes[id].startSide == side then start = start + 1 end end
+  return n - start
+end
+
 function War:clockLeader()
-  local s, power, sup = self:summary(), { blue = 0, red = 0 }, self:supplySummary()
+  local power, sup = { blue = 0, red = 0 }, self:supplySummary()
   for _, pl in pairs(self.state.platoons) do power[pl.side] = power[pl.side] + pl.health end
-  if s.blue.nodes ~= s.red.nodes then return s.blue.nodes > s.red.nodes and "blue" or "red" end
+  local gb = self:groundGained("blue")     -- RED's gain is exactly -gb
+  if gb ~= 0 then return gb > 0 and "blue" or "red" end
   if math.abs(power.blue - power.red) > 1e-6 then return power.blue > power.red and "blue" or "red" end
   return sup.blue >= sup.red and "blue" or "red"
 end
@@ -811,8 +823,8 @@ function War:checkVictory()
     local text = w[2]
     if left == math.floor(w[1] * perHour + 0.5) then
       local lead = self:clockLeader()
-      self:log("clock", nil, string.format("War clock: %s left on %s. %s holds the most bases and wins if it stays that way.",
-        text, self.T.name, lead:upper()))
+      self:log("clock", nil, string.format("War clock: %s left on %s. %s has gained ground (%+d bases since the start) and wins if it stays that way.",
+        text, self.T.name, lead:upper(), math.abs(self:groundGained("blue"))))
     end
   end
   if left <= 0 then self:declareWinner(self:clockLeader(), "clock") end

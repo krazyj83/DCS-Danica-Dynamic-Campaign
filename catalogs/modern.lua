@@ -136,8 +136,15 @@ DCC_CATALOGS.modern = {
       fighter = { type = "MiG-29S",  loadout = { { "R-77", 4 }, { "R-73", 2 } } },
       attack  = { type = "Su-25",    loadout = { { "S-8KOM", 4 }, { "OFAB-250", 4 }, { "R-60M", 2 } } },
       awacs   = { type = "A-50",     loadout = {}, size = 1 },
+      antiship = { type = "Su-34",   loadout = { { "Kh-31A", 4 }, { "R-73", 2 } } },  -- only used against ships
     },
   },
+
+  -- After phase 5: convoy air-defence escorts (AI adaptation), JTAC vehicles,
+  -- FARP ground crew (fuel and ammo trucks so the FARP can rearm and refuel).
+  escortAD = { blue = { "M1097 Avenger", "Vulcan" }, red = { "Strela-10M3", "ZSU-23-4 Shilka" } },
+  jtac     = { blue = { "Hummer", "M1043 HMMWV Armament" }, red = { "UAZ-469", "Tigr_233036" } },
+  farpCrew = { blue = { "M978 HEMTT Tanker", "M 818", "Hummer" }, red = { "ATZ-10", "Ural-375", "UAZ-469" } },
 
   -- Early-warning radar sites (phase 5). The first type that exists in this DCS install is used.
   ewr = {

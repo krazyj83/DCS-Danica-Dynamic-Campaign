@@ -38,6 +38,16 @@ local FIELDS = { "sorties", "flightMinutes", "kills_air", "kills_ground", "kills
                  "kills_structure", "missions", "rescues", "deaths", "ejections", "captured", "saved",
                  "wins_conquest", "wins_clock" }
 
+-- Squadron tag from a player name: "[VKG] Morten", "VKG | Morten", "-=VKG=- Morten",
+-- "Morten [VKG]". Tags are 2-8 letters/digits; returned upper-case, or nil.
+function Pilots.squadronOf(name)
+  if type(name) ~= "string" then return nil end
+  local tag = name:match("^%s*%[([%w_%-]+)%]") or name:match("^%s*([%w_%-]+)%s*|")
+           or name:match("^%s*%-=([%w_]+)=%-") or name:match("%[([%w_%-]+)%]%s*$")
+  if tag and #tag >= 2 and #tag <= 8 then return tag:upper() end
+  return nil
+end
+
 function Pilots:get(key, name)
   local p = self.data.pilots[key]
   if not p then
@@ -47,6 +57,8 @@ function Pilots:get(key, name)
     self.dirty = true
   end
   if name and p.name ~= name then p.name = name; self.dirty = true end
+  local sq = Pilots.squadronOf(p.name)
+  if sq ~= p.squadron then p.squadron = sq; self.dirty = true end
   return p
 end
 
@@ -107,7 +119,8 @@ function Pilots:summary(key)
   for _, t in ipairs(U.sortedKeys(p.byType)) do types[#types + 1] = t .. " " .. p.byType[t] end
   local wars = U.sortedKeys(p.wars)
   return table.concat({
-    string.format("%s %s  -  %d points", self:rank(key), p.name, self:score(key)),
+    string.format("%s %s  -  %d points%s", self:rank(key), p.name, self:score(key),
+      p.squadron and ("  (squadron " .. p.squadron .. ")") or ""),
     string.format("Sorties %d (BLUE %d, RED %d), %d h %02d min in the air", p.sorties, p.sides.blue or 0,
       p.sides.red or 0, math.floor(p.flightMinutes / 60), math.floor(p.flightMinutes % 60)),
     string.format("Kills: air %d, ground %d, convoy trucks %d, SAM %d, buildings %d",
@@ -118,6 +131,35 @@ function Pilots:summary(key)
     string.format("Wars won: %d by conquest, %d on the war clock", p.wins_conquest or 0, p.wins_clock or 0),
     "Theaters: " .. (#wars > 0 and table.concat(wars, ", ") or "-"),
   }, "\n")
+end
+
+-- Squadrons: members' scores added up, plus wars won by any member.
+function Pilots:squadrons()
+  local by = {}
+  for key, p in pairs(self.data.pilots) do
+    local sq = p.squadron or Pilots.squadronOf(p.name)
+    if sq then
+      local s = by[sq] or { tag = sq, score = 0, members = 0, wins = 0 }
+      s.score = s.score + self:score(key)
+      s.members = s.members + 1
+      s.wins = s.wins + (p.wins_conquest or 0) + (p.wins_clock or 0)
+      by[sq] = s
+    end
+  end
+  local list = {}
+  for _, s in pairs(by) do list[#list + 1] = s end
+  table.sort(list, function(a, b) if a.score ~= b.score then return a.score > b.score end return a.tag < b.tag end)
+  return list
+end
+
+function Pilots:topSquadrons(n)
+  local out = {}
+  for i, s in ipairs(self:squadrons()) do
+    if i > n then break end
+    out[i] = string.format("%2d. %-8s %6d points, %d pilots, %d war wins", i, s.tag, s.score, s.members, s.wins)
+  end
+  if #out == 0 then out[1] = "No squadrons yet. Put your tag in your name: [TAG] Name" end
+  return out
 end
 
 -- Top N by score, for the leaderboard.

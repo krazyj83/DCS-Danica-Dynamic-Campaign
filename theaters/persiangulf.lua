@@ -20,7 +20,7 @@ DCC_THEATERS.PersianGulf = {
   name    = "PersianGulf",
   era     = "modern",
   country = { blue = "CJTF_BLUE", red = "CJTF_RED" },
-  balance = { blue = 1.0, red = 1.0 },
+  balance = { blue = 1.15, red = 1.0 },
 
   nodes = {
     -- ---------------- BLUE ----------------
@@ -107,5 +107,11 @@ DCC_THEATERS.PersianGulf = {
     { "kish_intl", "sirri_island", sea = true },   -- sea crossing, 88 km
     { "sharjah_intl", "sir_abu_nuayr", sea = true },   -- sea crossing, 130 km
     { "sir_abu_nuayr", "sirri_island", sea = true },   -- sea crossing, 83 km
+  },
+
+  -- Naval groups: placed by tools/make_mission.py (with client slots on carriers);
+  -- the engine tracks them and offers ANTISHIP missions against them.
+  naval = {
+    { id = "cvn", side = "blue", name = "CVN-74 John C. Stennis", kind = "carrier", lat = 24.9500, lon = 57.3500, heading = 330, ship = "Stennis", escorts = { "USS_Arleigh_Burke_IIa", "USS_Arleigh_Burke_IIa", "TICONDEROG" }, slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B" } },
   },
 }

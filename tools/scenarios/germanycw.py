@@ -8,7 +8,7 @@ RED the east, with the front on the old inner-German border from the Baltic
 coast to the Fulda Gap. Berlin is not in play.
 """,
     "maxEdgeKm": 120,
-    # Measured offline (3 wars x 15 days): even production gave BLUE 57 % of the map on average.
+    # Measured offline: RED x1.15 -> BLUE wins 7 of 16 wars on the 7-day clock (even production: 1 of 8).
     "balance": {"blue": 1.0, "red": 1.15},
     "airbases": [
         # ---------------- BLUE: north ----------------

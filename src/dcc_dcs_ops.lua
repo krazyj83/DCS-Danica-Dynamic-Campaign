@@ -270,6 +270,13 @@ function B.showLeaderboard(uname)
   end
 end
 
+function B.showSquadrons(uname)
+  local p = B.players[uname]
+  if p then
+    trigger.action.outTextForGroup(p.gid, "TOP SQUADRONS\n" .. table.concat(DCC.pilots:topSquadrons(10), "\n"), 30)
+  end
+end
+
 -- (Re)build one aircraft's "Missions" menu.
 function B.buildMenu(p)
   if not p.gid then return end
@@ -299,6 +306,7 @@ function B.buildMenu(p)
   missionCommands.addCommandForGroup(p.gid, "Abandon mission", root, B.abandon, p.unit)
   missionCommands.addCommandForGroup(p.gid, "My pilot record", root, B.showRecord, p.unit)
   missionCommands.addCommandForGroup(p.gid, "Leaderboard", root, B.showLeaderboard, p.unit)
+  missionCommands.addCommandForGroup(p.gid, "Squadron leaderboard", root, B.showSquadrons, p.unit)
   local lift = (cat().lift or {})[p.type]
   if lift then
     local c = missionCommands.addSubMenuForGroup(p.gid, "Cargo", root)

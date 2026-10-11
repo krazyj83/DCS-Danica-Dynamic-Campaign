@@ -249,13 +249,13 @@ function War:planConvoys(side, dist, focus)
             local held = self.state.nodes[nb].supply + self:incomingSupply(nb, side)
             local keep = self:supplyKeep(nb, dist, sdist)
             if d and dist[nb] and dist[nb] < d and held < keep then
-              local key = dist[nb] * 1000 - (keep - held)
+              local key = dist[nb] * 1000 - (keep - held) + (self.routeCost and self:routeCost(side, id, nb) or 0)
               if not bestKey or key < bestKey then best, bestKey = { id = nb, room = keep - held }, key end
             end
             if not best and sd and sdist[nb] and sdist[nb] < sd then
               local room = keep + cfg.convoyCapacity * 2 - held
               if room > 0 then
-                local key = 100000 + sdist[nb] * 1000 - room
+                local key = 100000 + sdist[nb] * 1000 - room + (self.routeCost and self:routeCost(side, id, nb) or 0)
                 if not bestKey or key < bestKey then best, bestKey = { id = nb, room = room }, key end
               end
             end

@@ -31,6 +31,9 @@ wins, a server hook loads the next map by itself. Ready-to-fly missions are gene
    `Saved Games\DCS\Scripts\Hooks\`, and untick *Pause without clients* in the server settings.
 4. **Start it as a multiplayer server** (also locally for testing: *Multiplayer → New server*).
    Pick a side and an aircraft at any airbase your side owns.
+5. **Optional — web map and Discord:** copy the `server/` folder to the server PC, copy
+   `dcc_companion.example.json` to `dcc_companion.json`, fill in your `DCC` folder and Discord
+   webhook, and run `start_companion.bat`. See [Web map and Discord](#web-map-and-discord).
 
 That's it — the mission already contains the engine, every airbase, the player aircraft and
 the AI aircraft templates.
@@ -122,9 +125,10 @@ on their map unless they have eyes on you.
 
 - The rotation is fixed: Caucasus → Syria → Persian Gulf → Cold War Germany → Caucasus.
 - **War clock: every war ends after 7 days** of server time, even on an empty server. If nobody has
-  conquered the map by then, the side holding **more bases** wins (a tie goes to the stronger army,
-  then to the bigger supply stock). Everyone gets a warning 24 h, 6 h and 1 h before the end, naming
-  the side that is ahead; **Campaign status** shows the time left. A win on the clock rotates the
+  conquered the map by then, the side that has **gained more ground since the start** wins (bases held
+  now minus bases held at the start — fair on maps where one side starts bigger; a tie goes to the
+  stronger army, then to the bigger supply stock). Everyone gets a warning 24 h, 6 h and 1 h before the
+  end, naming the side that is ahead; **Campaign status** and the web map show the time left. A win on the clock rotates the
   map exactly like a conquest. A save from before the clock existed gets a fresh 7 days.
 - **Pilots carry over** (`pilots.json`); each map keeps its own war save, and a finished war is archived.
 - **Restarts are safe:** if the server comes back on the wrong DCC mission (the mission list still starts
@@ -155,10 +159,12 @@ start, dashed = sea crossing.
 **Sea crossings** are ferries and landing craft: columns and convoys on them run on dice only (they
 never spawn and cannot be BAI or ambush targets). Fight them at the ports and islands, and in the air.
 
-**Balance**, measured offline with nobody online (3 wars × 15 days per map, BLUE's average share of
-the map): Syria 42 %, Persian Gulf 46 %, Germany 56 % (with RED production × 1.15; even production
-gave BLUE 57 % and depots moved forward). Depot placement matters far more than the production
-multiplier: with RED's Gulf depot at Ras Al Khaimah, RED won every test war.
+**Balance**, measured offline with nobody online, as wins on the 7-day clock (the AI fights alone; with
+players, players decide): Caucasus BLUE 6 of 12, Persian Gulf BLUE 16 of 28, Syria BLUE 12 of 28
+(RED production × 1.15), Germany BLUE 10 of 28 (RED production × 1.15). Single 8-war batches swing a lot.
+**Depot placement matters far more than production multipliers:** with BLUE's Caucasus depot at Tbilisi
+BLUE gained ground in 11 of 12 wars (now Kutaisi: 5 of 12); with RED's Gulf depot at Ras Al Khaimah
+RED won every war (now Khasab).
 
 **Adding a map or changing a scenario:**
 
@@ -172,6 +178,75 @@ python tools/build_bundle.py && python tools/make_mission.py --theater Syria --o
 The generator takes airbase positions from pydcs (the same coordinates DCS uses), builds roads as a
 Gabriel graph (two bases are linked when no third base lies inside the circle drawn on the line between
 them: short links, no crossings), joins separate pieces with their shortest link and checks the result.
+
+## Web map and Discord
+
+`server/dcc_companion.py` runs next to the DCS server (plain Python 3.8+, nothing to install). It
+reads two files the campaign writes every few minutes and does two jobs:
+
+| Job | What it does |
+| --- | --- |
+| **Live web map** — `http://<server>:8088/` | Front line and base owners on a real map, war clock and who is ahead, weather, the latest captures and kills, top pilots and squadrons. Refreshes every 30 s; works on a phone. Only public information: no garrison sizes, no supply, no enemy positions. |
+| **Discord feed** — through a channel webhook | Posts captures, radar / AWACS / SAM / ship kills, convoys destroyed, completed missions, FARPs built, weather changes, war-clock warnings, the victory and the full war report. Each event once, even after restarts; if Discord is down it retries. |
+
+Setup: in Discord, *channel settings → Integrations → Webhooks → New webhook → Copy URL*. Put it and
+your `Saved Games\DCS\DCC` folder in `server/dcc_companion.json` (copy the example), then run
+`start_companion.bat`. Open port 8088 in the Windows firewall to share the map. Other modes:
+`--once` (post and exit, for Task Scheduler), `--static <dir>` (write `index.html` + `public.json` for
+any web host), `--no-web`, `--no-discord`. **DCSServerBot** users can run it alongside; nothing clashes.
+
+## Squadrons
+
+Put a tag in your DCS name — `[VKG] Morten`, `VKG | Morten`, `-=VKG=- Morten` or `Morten [VKG]` (2–8
+letters or digits) — and you fly for that squadron. **F10 → Missions → Squadron leaderboard** adds up
+the members' scores and war wins; the war report lists the top squadrons of that war, and the web map
+shows the board.
+
+## Weather, night and the AI's memory
+
+**Weather** changes every 6 hours (clear → overcast → rain → storm and back, saved with the war):
+
+| | Ground columns | Dice battles | Eyes | Helicopter missions | AI attack aircraft |
+| --- | --- | --- | --- | --- | --- |
+| Overcast | — | — | 90 % | yes | yes |
+| Rain | 80 % speed | slower | 60 % | yes | yes |
+| Storm | 60 % speed | slower | 40 % | **none offered** | **grounded** |
+
+Rain and storms show up as fog in DCS (DCS 2.9.10+). Clouds and rain themselves cannot be changed while
+a mission runs. **Night** (20:00–06:00 mission time) halves what eyes can see and grounds AI attack
+sorties; fighters and AWACS still fly. The time of day restarts with the mission file after a server
+restart — DCSServerBot can start missions at the real time if you want the day/night cycle to continue.
+
+**The AI remembers where it is hurt.** Every column killed raises that road's *threat* for the side that
+lost it (halving every 3 hours). At threat 2 the AI tells its side, sends its convoys on that road with
+an **air-defence escort** (Avenger / Vulcan or Strela / Shilka driving with the trucks) and prefers
+another road when one exists; at threat 3 it puts a **CAP pair over the road**. Status shows each side
+its most dangerous road. Measured offline, killing convoys still cuts the enemy's assaults by 43 %:
+the AI makes hunting harder, not pointless.
+
+## JTAC
+
+Take a **CAS** mission and a JTAC team (an invisible, immortal light vehicle) moves up 4 km from the
+battle on your side. It lases the nearest enemy vehicle with **code 1688** and an IR pointer for
+night-vision goggles, follows it, and switches when it dies. **F10 → Missions → JTAC**: *Report target*
+(type, MGRS, code, how many hostiles), *Mark with smoke* (red), *Next target*. The team packs up when
+the mission ends.
+
+## FARPs
+
+Every town can become a FARP. Fly **3 supply crates** (30 SU) to a friendly town — the **FARP** mission
+on the board points you at towns right behind the front — and it becomes a FARP: fuel and ammo trucks
+arrive, it shows on everyone's map, and your side's helicopters can **spawn there** (2 of each type,
+dynamic spawn). A captured town loses its FARP. Behind the scenes each town has two invisible FARPs in
+the mission (one per side) with empty stock; the engine stocks the right one.
+
+## Carrier (Persian Gulf)
+
+BLUE has **CVN-74 John C. Stennis** with three escorts in the Gulf of Oman: TACAN **74X**, ICLS **4**,
+client slots for 2 F/A-18C and 2 F-14B. It sails into the wind and turns back every leg. RED's radars,
+AWACS and pilots can find it; once found, RED gets an **ANTISHIP** mission and its AI sends Su-34s with
+Kh-31A now and then. **Sunk = gone for the rest of the war**, with its air wing — the carrier stays
+sunk after a restart. Theater packs can add more ships (`naval` in the scenario file).
 
 ## Fog of war and intel
 
@@ -213,7 +288,7 @@ Spectators see only the front line and who owns each base.
 
 | Concept | What it means |
 | --- | --- |
-| **Node** | A place that can be owned: an airbase, a town or a **depot**. Depots produce new forces and supply, and can only be attacked once nothing else of that side is within reach. Caucasus depots: Batumi and Tbilisi-Lochini (BLUE), Sochi-Adler, Beslan and Krasnodar-Center (RED). |
+| **Node** | A place that can be owned: an airbase, a town or a **depot**. Depots produce new forces and supply, and can only be attacked once nothing else of that side is within reach. Caucasus depots: Batumi and Kutaisi (BLUE), Sochi-Adler, Beslan and Krasnodar-Center (RED). |
 | **Edge** | A road between two nodes. All ground movement follows edges. |
 | **Platoon** | The unit of force: one DCS group of 3–5 vehicles with a role (armour, mechanised, SHORAD) and a health from 0 to 1. |
 | **Tick** | One war step = 5 minutes of mission time. Each tick: depots produce, columns and cargo move, battles resolve, supply is used, each side plans. |
@@ -233,6 +308,9 @@ Spectators see only the front line and who owns each base.
 | **EWR / AWACS** | Each side's radars as model state: EWR sites per node (up / destroyed), the AWACS pool and whether one is on station. |
 | **Sea crossing** | A link between landmasses (ferries, landing craft). Moves on it run on dice only. |
 | **Rotation file** | `DCC\rotation.json`: which map the campaign is on, and the next one after a win. Read by the server hook. |
+| **Threat** | Per side, per road: how much that side has lost there recently. Drives AI escorts, re-routing and CAP. |
+| **FARP** | A town where players delivered 3 crates: helicopter spawn, rearm, refuel. |
+| **public.json / feed.jsonl** | Public status and the event feed for the web map and Discord (written by the mission, read by `server/dcc_companion.py`). |
 | **Theater pack** | A data file per map (`theaters/*.lua`): nodes with lat/lon, roads, start owners. No map is named in engine code. |
 | **Era catalog** | A data file per era (`catalogs/*.lua`) mapping roles to DCS unit types per side, plus convoy trucks, transports and player aircraft. |
 
@@ -289,7 +367,7 @@ Use the generated **`dist/DCC_<map>.miz`** (Caucasus, Syria, PersianGulf, German
 | Coalitions | CJTF Blue vs CJTF Red (either side can use any unit type) |
 | Airbase ownership | As in the theater pack (BLUE Georgia, RED north / Abkhazia / South Ossetia) |
 | **Dynamic spawn** on all 23 campaign airbases | In multiplayer, players pick any aircraft their side's base holds. The engine removes the enemy's types and stocks the owner's at mission start and after every capture. |
-| **Fixed client slots** at the depots | One per aircraft type at Batumi, Tbilisi-Lochini (BLUE) and Sochi-Adler, Beslan, Krasnodar-Center (RED). These also work in single player. |
+| **Fixed client slots** at the depots | One per aircraft type at Batumi, Kutaisi (BLUE) and Sochi-Adler, Beslan, Krasnodar-Center (RED). These also work in single player. |
 | AI templates | Late-activated groups: 2-ships `DCC_TPL_blue_fighter` F-16C, `_blue_attack` A-10C, `_red_fighter` MiG-29S, `_red_attack` Su-25 with loadouts, and single `DCC_TPL_blue_awacs` E-3A / `_red_awacs` A-50. The engine copies them for AI sorties — change a template's loadout in the Mission Editor if you like. |
 | One trigger | MISSION START → DO SCRIPT FILE `dcc_bundle.lua` (the engine) |
 | Options | F10 map view **Allies only** (enemies appear only through the campaign's intel layer), civil traffic off |
@@ -377,6 +455,11 @@ The offline tests use a fake DCS API, so these need a real server to confirm:
 - [ ] Firing a HARM at a lit SAM makes it stop guiding (dark) for 1–2 minutes.
 - [ ] A low pass over an enemy base puts "N vehicles seen" there; a hill between you and it does not.
 - [ ] Spectators see only the front line and base owners (intel is per coalition).
+- [ ] **FARP:** deliver 3 crates to a friendly town; the trucks appear, and the town's FARP offers your side's helicopters in the slot list (dynamic spawn on script-stocked invisible FARPs is the least-tested DCS feature here).
+- [ ] **JTAC:** take a CAS mission, *Report target*, and check the laser on 1688 in your targeting pod.
+- [ ] **Carrier (Gulf):** the F/A-18C / F-14B slots spawn on the deck; TACAN 74X and ICLS 4 work; the group turns around at the end of its leg.
+- [ ] **Weather:** in a storm (status says so) fog closes in (DCS 2.9.10+).
+- [ ] **Companion:** the web map shows the front; a capture shows up in Discord within a minute.
 - [ ] `dcs.log` has no `DCC: ERROR` lines (errors now include a stack traceback).
 
 ---
@@ -412,7 +495,10 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `liveRadiusKm` | 40 | How close a player must be for units to spawn |
 | `maxLivePlatoons` | 120 | Hard cap on spawned platoons (~500 vehicles) — lower it if the server struggles |
 | `battleLossRate` | 0.15 | How fast dice battles bleed; higher = faster wars |
-| `warClockDays` | 7 | A war ends after this many days of server time; most bases wins. 0 = no clock |
+| `warClockDays` | 7 | A war ends after this many days of server time; most ground gained wins. 0 = no clock |
+| `victoryMinSorties` | 3 | Sorties for the winner needed for the victory bonus (or one completed mission) |
+| `world.*` | | Weather effects, night hours, fog, AI threat levels, FARP size, AI anti-ship rate |
+| `jtac.laserCode` | 1688 | JTAC laser code |
 | `defenderBonus` | town 1.3, airbase 1.5, depot 2.0 | How hard each node class is to take (only while supplied) |
 
 Phase 3 settings are in `ops` (SAM repair times and costs, structures, AI air pools, air
@@ -446,13 +532,15 @@ under Python via `lupa`:
 ```bash
 pip install lupa matplotlib
 
-python tools/run_lua.py tests/test_war.lua          # war model, supply, war clock: 37 checks
-python tools/run_lua.py tests/test_ops.lua          # every mission type, fog gating, radars, AWACS, victory bonus: 91 checks
+python tools/run_lua.py tests/test_war.lua          # war model, supply, war clock: 38 checks
+python tools/run_lua.py tests/test_ops.lua          # every mission type, fog, radars, AWACS, bonus, weather, threat, FARPs, ships, squadrons: 118 checks
 python tools/run_lua.py tests/test_dcs_bridge.lua   # bridge, convoys, airlifts, warehouses: 49 checks
 python tools/run_lua.py tests/test_dcs_ops.lua      # flying every mission type against a fake DCS: 60 checks
 python tools/run_lua.py tests/test_dcs_intel.lua    # fog of war: each map shows only what that side detected: 40 checks
 python tools/run_lua.py tests/test_dcs_radar.lua    # EWR, AWACS, HVAA, recon photos: 34 checks
 python tools/run_lua.py tests/test_theaters.lua     # all four maps: connected, depots, war runs: 28 checks
+python tools/run_lua.py tests/test_dcs_world.lua    # weather, night, AI escorts and CAP, FARPs, JTAC, carrier, public files: 46 checks
+python tests/test_companion.py                      # web map and Discord feed (with a fake Discord): 7 tests
 python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended, bonus and report: 33 checks
 
 python tools/run_lua.py tools/sim.lua 4320 2026 docs/sim_history.json   # simulate 15 days
@@ -482,6 +570,7 @@ src/
   dcc_pilots.lua      persistent pilot records, score and rank
   dcc_intel.lua       contacts per side: aging, troops in contact, front estimates, SAM knowledge
   dcc_radar.lua       EWR sites, AWACS pool, EWR and HVAA missions, recon photos
+  dcc_world.lua       weather, night, road threat (AI adaptation), FARPs, ships, ANTISHIP and FARP missions
   dcc_front.lua       front-line geometry from ownership
   dcc_persist.lua     save / load / backups (the only file access)
   dcc_dcs.lua         DCS bridge: live bubble, spawning, read-back, F10 drawing, menus
@@ -489,10 +578,14 @@ src/
   dcc_dcs_ops.lua     DCS bridge: menus, briefings, detection, SAMs, statics, AI air, CSAR, cargo
   dcc_dcs_intel.lua   DCS bridge: eyes, AI sensors, ELINT, SAM EMCON/HARM, the per-side intel map layer
   dcc_dcs_radar.lua   DCS bridge: EWR units, AWACS orbits, radar-horizon air picture, photo reports
+  dcc_dcs_world.lua   DCS bridge: night, fog, convoy escorts, road CAP, FARP stock and crews, ships
+  dcc_dcs_jtac.lua    DCS bridge: JTAC teams, laser and IR pointer, smoke, menu
+  dcc_dcs_public.lua  DCS bridge: public.json and feed.jsonl for the companion
   dcc_main.lua        start-up and the 30 s / 5 min loops
   dcc_loader.lua      development loader
 theaters/*.lua          Caucasus (hand-made), Syria, Persian Gulf, Cold War Germany (generated)
 hooks/DCC_rotation_hook.lua   server hook: loads the next map after a win
+server/                 dcc_companion.py (web map + Discord), example config, start_companion.bat
 catalogs/modern.lua     Modern era: ground roles, convoys, transports, player aircraft, capabilities,
                         AI air loadouts, SAM sites, strike buildings, ambush teams
 dist/                   dcc_bundle.lua (the engine) and DCC_Caucasus.miz (the mission)
@@ -513,8 +606,12 @@ tools/                  Lua runner, simulator, plotter, interdiction test, bundl
 | 4 — Fog of war and intel ✓ | Contact table with aging, eyes / AI sensors / ELINT / recon / troops in contact, SAM EMCON and HARM shutdown, intel-gated BAI and SEAD, per-side intel map layer (own ELINT instead of the Hound library — no extra dependency) | Each side's map shows only what it has detected |
 | **5 — Rotation and all maps ✓ (this)** | Rotation hook and rotation file, Syria / Persian Gulf / Cold War Germany packs from a generator, sea crossings, EWR sites, AWACS, HVAA and EWR missions, recon photos | A win on Caucasus loads the next map unattended |
 
-**After phase 5** (ideas, not started): fog for the AI commanders too, a Cold War era catalog for
-Germany, carrier operations on the Gulf, a web page with the live front from the save files.
+**After phase 5 ✓:** war clock (7 days, ground gained wins), victory bonus and war report, squadrons,
+web map and Discord feed, weather and night, AI that adapts to interdiction, JTAC, player-built FARPs,
+carrier operations in the Gulf.
+
+**Ideas, not started:** fog for the AI commanders too, a Cold War era catalog (if wanted later),
+player-requested AI support (artillery, CAS on call), more ships (a RED surface group in the Gulf).
 
 ## License
 

@@ -143,8 +143,8 @@ do
   check("every node starts with supply", (function()
     for _, ns in pairs(w.state.nodes) do if not ns.supply or ns.supply <= 0 then return false end end
     return true end)())
-  check("airbases start with their owner's aircraft", w.state.nodes.kutaisi.air["FA-18C_hornet"] == 4
-    and w.state.nodes.kutaisi.air["Su-27"] == nil)
+  check("airbases start with their owner's aircraft", w.state.nodes.senaki.air["FA-18C_hornet"] == 4
+    and w.state.nodes.senaki.air["Su-27"] == nil)
   local convoys, airlifts = 0, 0
   for _ = 1, 400 do
     w:tick()
@@ -206,9 +206,9 @@ do
     check("clock ends it exactly on time", ended.tick == limit, ended.tick)
     check("three warnings: 24 h, 6 h, 1 h", #warnings == 3 and warnings[1]:find("24 hours") and warnings[3]:find("1 hour"),
       #warnings)
-    local s = w:summary()
-    check("the side with more bases wins", (s.blue.nodes >= s.red.nodes) == (w.state.winner == "blue")
-      or s.blue.nodes == s.red.nodes, s.blue.nodes .. "/" .. s.red.nodes)
+    local gb = w:groundGained("blue")
+    check("the side that gained ground wins", gb == 0 or ((gb > 0) == (w.state.winner == "blue")), gb)
+    check("gains add up to zero", w:groundGained("blue") == -w:groundGained("red"))
     check("victory message says war clock", ended.text:find("war clock", 1, true) ~= nil, ended.text)
   else
     check("(ended by conquest before the clock)", true)

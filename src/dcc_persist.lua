@@ -138,3 +138,19 @@ function P.writeReport(theaterName, tick, text)
   if not P.available() then return false end
   return writeFile(folder() .. theaterName .. "_war_report_" .. tostring(tick or 0) .. ".txt", text)
 end
+
+-- Plain files for the companion tool (web map, Discord): public.json (rewritten)
+-- and feed.jsonl (one event per line, appended).
+function P.writeFile(name, text)
+  if not P.available() then return false end
+  return writeFile(folder() .. name, text)
+end
+
+function P.appendFile(name, text)
+  if not P.available() then return false end
+  local f = io.open(folder() .. name, "a")
+  if not f then return false end
+  f:write(text)
+  f:close()
+  return true
+end

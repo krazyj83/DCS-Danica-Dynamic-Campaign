@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.5.0-phase5",
+  version         = "0.6.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -95,7 +95,7 @@ DCC.config = {
   -- Mission board (phase 3)
   missions = {
     perType = { CAS = 2, BAI = 3, STRIKE = 2, SEAD = 2, CAP = 1, ESCORT = 2,
-                CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1 },
+                CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1, ANTISHIP = 1, FARP = 2 },
     capMinutes      = 20,     -- CAP: time on station that completes the mission
     capRadiusKm     = 40,
     reconRadiusKm   = 8,      -- recon: overfly within this distance...
@@ -142,6 +142,27 @@ DCC.config = {
     awacsRestockTicks = 72, awacsRestockCost = 40,  -- one AWACS bought every 6 h at most
   },
 
+  -- Weather, night, AI adaptation, FARPs, ships, JTAC, public feed (after phase 5)
+  world = {
+    weatherTicks   = 72,      -- the weather may change every 6 h
+    speedFactor    = { rain = 0.8, storm = 0.6 },      -- ground columns
+    battleFactor   = { rain = 0.85, storm = 0.7 },     -- dice battles bleed slower
+    visualFactor   = { overcast = 0.9, rain = 0.6, storm = 0.4 },
+    nightVisual    = 0.5,     -- eyes at night (NVGs help, but not that much)
+    nightStartHour = 20,  nightEndHour = 6,             -- mission clock
+    fog            = { rain = { 4000, 400 }, storm = { 1500, 900 } },  -- DCS fog: visibility m, thickness m
+    escortThreat   = 2,       -- road threat that gets convoys an air-defence escort
+    rerouteThreat  = 2,       -- ...and makes the AI prefer another road
+    reroutePenalty = 400,     -- (planning cost per threat point; one step nearer the front = 1000)
+    capThreat      = 3,       -- ...and gets AI CAP over it
+    threatDecayTicks = 36,    -- threat halves every 3 h
+    farpBuildSU    = 30,      -- crates (10 SU each) to turn a town into a FARP
+    farpHelos      = 2,       -- helicopters of each own type a FARP can spawn
+    antishipChance = 0.4,     -- chance per hour of an AI strike on a known enemy ship
+  },
+  jtac = { laserCode = 1688, searchKm = 6, standoffKm = 4 },
+  public = { events = 40, everySeconds = 60 },   -- DCC\public.json for the web map / Discord
+
   -- Live bubble (what gets spawned as real DCS units) -----------------------
   liveRadiusKm     = 40,    -- nodes within this distance of a player are live
   maxLivePlatoons  = 120,   -- hard cap on spawned platoons (~500 vehicles)
@@ -154,7 +175,7 @@ DCC.config = {
   saveFolder       = "DCC", -- under Saved Games\DCS\ (lfs.writedir())
   saveSlots        = 24,    -- rotating backups kept
   victoryMinSorties = 3,    -- victory bonus needs this many sorties for the winner (or one completed mission)
-  warClockDays     = 7,     -- a war ends after this many days of server time; most bases wins (0 = off)
+  warClockDays     = 7,     -- a war ends after this many days of server time; most ground gained wins (0 = off)
   campaignOverFlag = 9900,  -- user flag set to 1 when a war ends (DCSServerBot watches it)
   rotation         = { "Caucasus", "Syria", "PersianGulf", "GermanyCW" }, -- fixed map order
   rotationEnforce  = true,  -- a mission for the wrong map waits for the hook instead of starting a war

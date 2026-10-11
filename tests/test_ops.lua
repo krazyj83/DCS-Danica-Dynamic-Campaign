@@ -46,7 +46,7 @@ end
 check("BLUE board has SEAD, STRIKE, CAP, RECON", types.blueSEAD and types.blueSTRIKE and types.blueCAP and types.blueRECON)
 check("RED board has SEAD, STRIKE, CAP, RECON", types.redSEAD and types.redSTRIKE and types.redCAP and types.redRECON)
 check("SAM sites at airbases and depots", war.state.nodes.sochi.sam.status == "up" and war.state.nodes.gori.sam == nil)
-check("structures at depots and airbases", war.state.nodes.beslan.infra.total == 6 and war.state.nodes.kutaisi.infra.total == 4)
+check("structures at depots and airbases", war.state.nodes.beslan.infra.total == 6 and war.state.nodes.senaki.infra.total == 4)
 check("air pools start stocked", war.state.airPool.red.fighter == 8 and war.state.airPool.blue.attack == 8)
 
 print("SEAD / DEAD")
@@ -425,6 +425,100 @@ do
   wm:takeMission(mm.id, "k2", "Lea")
   wm:completeMission(mm.id, true)
   check("completed mission on the roster", wm.state.roster.k2 and wm.state.roster.k2.blue_missions == 1)
+end
+
+print("Weather, night, adaptation, FARPs, ships, squadrons")
+do
+  local function findM(w, side, t, target)
+    for _, m in ipairs(w:openMissions(side)) do
+      if m.type == t and (target == nil or m.target == target) then return m end
+    end
+  end
+  -- weather changes over a few days and every kind turns up
+  local ww = wire(DCC.War.new(T, C, cfg, 51))
+  local seen = {}
+  for _ = 1, 2016 do ww:tick(); seen[ww:weatherKind()] = true; if ww.state.winner then break end end
+  check("weather cycles through clear, overcast, rain and storm", seen.clear and seen.overcast and seen.rain and seen.storm)
+
+  local w = wire(DCC.War.new(T, C, cfg, 52))
+  w:tick(); w:tick()
+  w.state.weather = { kind = "storm", since = w.state.tick }
+  check("storm slows columns", w:moveSpeedFactor({ kind = "convoy" }) < 1 and w:moveSpeedFactor({ kind = "airlift" }) == 1)
+  check("storm softens battles", w:battleFactor() < 1)
+  w.state.missions = {}
+  w:tick()
+  check("storm: no helicopter missions", not findM(w, "blue", "CSAR") and not findM(w, "blue", "LOGISTICS")
+    and not findM(w, "blue", "FARP") and not findM(w, "blue", "CONVOY"))
+  check("storm grounds AI attack aircraft", not w:aiAttackAllowed())
+  w.state.weather = { kind = "clear", since = w.state.tick }
+  w.night = true
+  check("night halves eyes and grounds AI attack", w:visualFactor() == cfg.world.nightVisual and not w:aiAttackAllowed())
+  w.night = false
+  check("clear day: full eyes, AI attacks", w:visualFactor() == 1 and w:aiAttackAllowed())
+
+  -- adaptation: kills on a road -> escorts, rerouting, CAP target, decay
+  local wa = DCC.War.new(T, C, cfg, 53)
+  local a, b = "kutaisi", "zestaponi"
+  for i = 1, 2 do
+    local mv = wa:startCargo("convoy", "blue", a, b, 10)
+    wa:destroyCargo(mv.id, "player")
+  end
+  check("two kills on a road = threat 2", wa:threatOn("blue", a, b) == 2)
+  local mv = wa:startCargo("convoy", "blue", a, b, 10)
+  check("next convoy there gets an AI escort", mv and mv.aiEscort and mv.escorted)
+  check("planning cost on the threatened road", wa:routeCost("blue", a, b) > 0 and wa:routeCost("blue", "batumi", "kobuleti") == 0)
+  local adapt = 0
+  for _, ev in ipairs(wa.state.events) do if ev.kind == "adapt" then adapt = adapt + 1 end end
+  check("the side is told its convoys will be escorted", adapt == 1)
+  wa:addThreat("blue", a, b, 1)
+  local ra, rb = wa:worstRoad("blue")
+  check("worst road gets CAP", ra == "kutaisi" and rb == "zestaponi")
+  check("RED's threat table untouched", next(wa.state.threat.red) == nil)
+  for _ = 1, cfg.world.threatDecayTicks * 4 do wa:tick() end
+  check("threat decays when the killing stops", wa:threatOn("blue", a, b) < 1)
+
+  -- FARP: crates to a friendly town
+  local wf = wire(DCC.War.new(T, C, cfg, 54))
+  wf:tick(); wf:tick()
+  local town = "gori"
+  for _ = 1, 2 do wf:deliverCrate("blue", town, 10) end
+  check("two crates are not a FARP yet", not wf:farpAt(town) and wf.state.nodes[town].farpSU == 20)
+  wf:deliverCrate("blue", town, 10)
+  check("third crate builds the FARP", wf:farpAt(town))
+  local built = false
+  for _, ev in ipairs(wf.state.events) do if ev.kind == "farp_built" and ev.node == town then built = true end end
+  check("FARP announced", built)
+  wf:deliverCrate("blue", "kutaisi", 10)
+  check("airbases do not need FARPs", wf.state.nodes.kutaisi.farp == nil)
+  wf:onCaptureOps(town)
+  check("capture removes the FARP", not wf:farpAt(town))
+
+  -- ships (Persian Gulf carrier)
+  local PG = DCC_THEATERS.PersianGulf
+  local wsh = wire(DCC.War.new(PG, C, cfg, 55))
+  check("carrier in the save", wsh:shipUp("cvn"))
+  wsh.fogOfWar = false
+  wsh:tick(); wsh:tick()
+  local am = findM(wsh, "red", "ANTISHIP")
+  check("RED gets an ANTISHIP mission", am ~= nil and am.target == "cvn")
+  check("BLUE does not", findM(wsh, "blue", "ANTISHIP") == nil)
+  wsh:shipLost("cvn")
+  wsh:tick()
+  check("sinking completes ANTISHIP", wsh.state.missions[am.id].status == "done")
+  check("sunk is saved", J.decode(J.encode(wsh:snapshot())).naval.cvn.status == "sunk")
+  local wfog = wire(DCC.War.new(PG, C, cfg, 56), true)
+  wfog:tick(); wfog:tick()
+  check("fog: no ANTISHIP until the ship is found", findM(wfog, "red", "ANTISHIP") == nil)
+
+  -- squadrons
+  local S = DCC.Pilots.squadronOf
+  check("squadron tags", S("[VKG] Morten") == "VKG" and S("vkg | Morten") == "VKG" and S("-=JG52=- Hans") == "JG52"
+    and S("Morten [VKG]") == "VKG" and S("Morten") == nil and S("[X] Solo") == nil)
+  local PS = DCC.Pilots.new()
+  PS:add("a", "kills_air", 3, "[VKG] Anna"); PS:add("b", "kills_air", 1, "[VKG] Bo"); PS:add("c", "kills_air", 5, "[ZZ] Cy")
+  local sq = PS:squadrons()
+  check("squadron board adds members up", sq[1].tag == "ZZ" and sq[1].score == 50 and sq[2].tag == "VKG"
+    and sq[2].score == 40 and sq[2].members == 2)
 end
 
 print("Long run with ops")

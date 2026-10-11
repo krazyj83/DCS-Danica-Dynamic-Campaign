@@ -1,0 +1,9 @@
+{
+  "dcc": "C:\\Users\\you\\Saved Games\\DCS.server\\DCC",
+  "webhook": "https://discord.com/api/webhooks/XXXXXXXX/YYYYYYYY",
+  "port": 8088,
+  "interval": 30,
+  "username": "Danica Dynamic Campaign",
+  "kinds": ["capture", "victory", "clock", "weather", "ewr_destroyed", "awacs_lost", "sam_destroyed",
+            "convoy_lost", "airlift_lost", "farp_built", "ship_sunk", "mission_done", "rescued", "report"]
+}

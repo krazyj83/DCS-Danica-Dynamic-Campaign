@@ -11,6 +11,8 @@ landing craft): those moves run on dice only - fight them at the ports and
 islands, and in the air.
 """,
     "maxEdgeKm": 200,
+    # Measured offline (16 wars of 7 days): BLUE x1.15 -> BLUE wins 9 of 16 on the clock.
+    "balance": {"blue": 1.15, "red": 1.0},
     # RED's depot is on the Musandam peninsula (Khasab): with it at Ras Al Khaimah RED won
     # every test war, without one on the beachhead BLUE held 65 %. Khasab gives ~46 % BLUE.
     "airbases": [
@@ -52,6 +54,13 @@ islands, and in the air.
         ("Dibba", "red", 25.6200, 56.2700, {"group": "arabia"}),
         ("Minab", "red", 27.1460, 57.0800, {"group": "iran"}),
         ("Bandar Khamir", "red", 26.9520, 55.5850, {"group": "iran"}),
+    ],
+    # BLUE carrier group in the Gulf of Oman, out of reach of the beachhead's guns.
+    "naval": [
+        {"id": "cvn", "side": "blue", "name": "CVN-74 John C. Stennis", "kind": "carrier",
+         "lat": 24.95, "lon": 57.35, "heading": 330, "ship": "Stennis",
+         "escorts": ["USS_Arleigh_Burke_IIa", "USS_Arleigh_Burke_IIa", "TICONDEROG"],
+         "slots": ["FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B"]},
     ],
     "noEdges": [],
     "extraEdges": [],

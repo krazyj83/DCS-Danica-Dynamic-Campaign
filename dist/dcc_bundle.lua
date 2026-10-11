@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.5.0-phase5 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.6.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.5.0-phase5",
+  version         = "0.6.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -99,7 +99,7 @@ DCC.config = {
   -- Mission board (phase 3)
   missions = {
     perType = { CAS = 2, BAI = 3, STRIKE = 2, SEAD = 2, CAP = 1, ESCORT = 2,
-                CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1 },
+                CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1, ANTISHIP = 1, FARP = 2 },
     capMinutes      = 20,     -- CAP: time on station that completes the mission
     capRadiusKm     = 40,
     reconRadiusKm   = 8,      -- recon: overfly within this distance...
@@ -146,6 +146,27 @@ DCC.config = {
     awacsRestockTicks = 72, awacsRestockCost = 40,  -- one AWACS bought every 6 h at most
   },
 
+  -- Weather, night, AI adaptation, FARPs, ships, JTAC, public feed (after phase 5)
+  world = {
+    weatherTicks   = 72,      -- the weather may change every 6 h
+    speedFactor    = { rain = 0.8, storm = 0.6 },      -- ground columns
+    battleFactor   = { rain = 0.85, storm = 0.7 },     -- dice battles bleed slower
+    visualFactor   = { overcast = 0.9, rain = 0.6, storm = 0.4 },
+    nightVisual    = 0.5,     -- eyes at night (NVGs help, but not that much)
+    nightStartHour = 20,  nightEndHour = 6,             -- mission clock
+    fog            = { rain = { 4000, 400 }, storm = { 1500, 900 } },  -- DCS fog: visibility m, thickness m
+    escortThreat   = 2,       -- road threat that gets convoys an air-defence escort
+    rerouteThreat  = 2,       -- ...and makes the AI prefer another road
+    reroutePenalty = 400,     -- (planning cost per threat point; one step nearer the front = 1000)
+    capThreat      = 3,       -- ...and gets AI CAP over it
+    threatDecayTicks = 36,    -- threat halves every 3 h
+    farpBuildSU    = 30,      -- crates (10 SU each) to turn a town into a FARP
+    farpHelos      = 2,       -- helicopters of each own type a FARP can spawn
+    antishipChance = 0.4,     -- chance per hour of an AI strike on a known enemy ship
+  },
+  jtac = { laserCode = 1688, searchKm = 6, standoffKm = 4 },
+  public = { events = 40, everySeconds = 60 },   -- DCC\public.json for the web map / Discord
+
   -- Live bubble (what gets spawned as real DCS units) -----------------------
   liveRadiusKm     = 40,    -- nodes within this distance of a player are live
   maxLivePlatoons  = 120,   -- hard cap on spawned platoons (~500 vehicles)
@@ -158,7 +179,7 @@ DCC.config = {
   saveFolder       = "DCC", -- under Saved Games\DCS\ (lfs.writedir())
   saveSlots        = 24,    -- rotating backups kept
   victoryMinSorties = 3,    -- victory bonus needs this many sorties for the winner (or one completed mission)
-  warClockDays     = 7,     -- a war ends after this many days of server time; most bases wins (0 = off)
+  warClockDays     = 7,     -- a war ends after this many days of server time; most ground gained wins (0 = off)
   campaignOverFlag = 9900,  -- user flag set to 1 when a war ends (DCSServerBot watches it)
   rotation         = { "Caucasus", "Syria", "PersianGulf", "GermanyCW" }, -- fixed map order
   rotationEnforce  = true,  -- a mission for the wrong map waits for the hook instead of starting a war
@@ -554,7 +575,7 @@ end
 -- ---------------------------------------------------------------------------
 local function base(theater, catalog, cfg)
   return setmetatable({
-    T = indexTheater(theater), cat = catalog, cfg = cfg,
+    T = indexTheater(theater), theater = theater, cat = catalog, cfg = cfg,
     fogOfWar = cfg.intel and cfg.intel.enabled,   -- phase 4: board and map use contacts only
     balance = theater.balance or {},   -- e.g. { red = 1.2 }: production multiplier per side
     liveFn = nil,          -- set by the bridge: function(nodeId) -> bool
@@ -876,6 +897,7 @@ function War:advanceMoves()
       else
         -- Live moves are advanced by the bridge from real unit positions.
         local step = (mv.kind == "airlift") and airKmPerTick or kmPerTick
+        if self.moveSpeedFactor then step = step * self:moveSpeedFactor(mv) end   -- weather
         if not self:isMoveLive(mv) then mv.progress = mv.progress + step / math.max(mv.km, 0.1) end
         if mv.progress >= 1 then self:arrive(mv) end
       end
@@ -906,7 +928,7 @@ function War:abstractRound(target, attackers)
   local bonus = self:bonusOf(target)
   local A = self:power(combined)
   local D = self:power(ns.platoons) * bonus
-  local rate = self.cfg.battleLossRate
+  local rate = self.cfg.battleLossRate * (self.battleFactor and self:battleFactor() or 1)
   local attLoss = D * rate * self.rng:range(0.6, 1.4)
   local defLoss = A * rate * self.rng:range(0.6, 1.4)
   self:damage(combined, attLoss)
@@ -1256,13 +1278,15 @@ function War:declareWinner(winner, how)
   end
   local s = self:summary()
   local days = (self.state.tick - (self.state.clockStart or 0)) * self.cfg.tickSeconds / 86400
-  self:log("victory", winner, string.format("%s wins the war on %s %s after %.1f days (BLUE %d bases, RED %d bases)",
+  self:log("victory", winner, string.format("%s wins the war on %s %s after %.1f days (BLUE %d bases, RED %d bases; %s %+d since the start)",
     winner:upper(), self.T.name, how == "conquest" and "by conquest" or "on the war clock", days,
-    s.blue.nodes, s.red.nodes))
+    s.blue.nodes, s.red.nodes, winner:upper(), self:groundGained(winner)))
 end
 
--- War clock: the war ends after cfg.warClockDays. The side holding more bases
--- wins; a tie goes to the stronger army, then to the larger stock of supply.
+-- War clock: the war ends after cfg.warClockDays. The side that has GAINED
+-- more ground since the start wins (bases held now minus bases held at the
+-- start), so a map where one side starts bigger stays fair. A tie goes to the
+-- stronger army, then to the larger stock of supply.
 function War:clockTicksLeft()
   local days = self.cfg.warClockDays
   if not days or days <= 0 then return nil end
@@ -1270,10 +1294,19 @@ function War:clockTicksLeft()
   return limit - (self.state.tick - (self.state.clockStart or 0))
 end
 
+function War:groundGained(side)
+  local n = 0
+  for _, id in ipairs(self.T.order) do if self.state.nodes[id].side == side then n = n + 1 end end
+  local start = 0
+  for _, id in ipairs(self.T.order) do if self.T.nodes[id].startSide == side then start = start + 1 end end
+  return n - start
+end
+
 function War:clockLeader()
-  local s, power, sup = self:summary(), { blue = 0, red = 0 }, self:supplySummary()
+  local power, sup = { blue = 0, red = 0 }, self:supplySummary()
   for _, pl in pairs(self.state.platoons) do power[pl.side] = power[pl.side] + pl.health end
-  if s.blue.nodes ~= s.red.nodes then return s.blue.nodes > s.red.nodes and "blue" or "red" end
+  local gb = self:groundGained("blue")     -- RED's gain is exactly -gb
+  if gb ~= 0 then return gb > 0 and "blue" or "red" end
   if math.abs(power.blue - power.red) > 1e-6 then return power.blue > power.red and "blue" or "red" end
   return sup.blue >= sup.red and "blue" or "red"
 end
@@ -1292,8 +1325,8 @@ function War:checkVictory()
     local text = w[2]
     if left == math.floor(w[1] * perHour + 0.5) then
       local lead = self:clockLeader()
-      self:log("clock", nil, string.format("War clock: %s left on %s. %s holds the most bases and wins if it stays that way.",
-        text, self.T.name, lead:upper()))
+      self:log("clock", nil, string.format("War clock: %s left on %s. %s has gained ground (%+d bases since the start) and wins if it stays that way.",
+        text, self.T.name, lead:upper(), math.abs(self:groundGained("blue"))))
     end
   end
   if left <= 0 then self:declareWinner(self:clockLeader(), "clock") end
@@ -1613,13 +1646,13 @@ function War:planConvoys(side, dist, focus)
             local held = self.state.nodes[nb].supply + self:incomingSupply(nb, side)
             local keep = self:supplyKeep(nb, dist, sdist)
             if d and dist[nb] and dist[nb] < d and held < keep then
-              local key = dist[nb] * 1000 - (keep - held)
+              local key = dist[nb] * 1000 - (keep - held) + (self.routeCost and self:routeCost(side, id, nb) or 0)
               if not bestKey or key < bestKey then best, bestKey = { id = nb, room = keep - held }, key end
             end
             if not best and sd and sdist[nb] and sdist[nb] < sd then
               local room = keep + cfg.convoyCapacity * 2 - held
               if room > 0 then
-                local key = 100000 + sdist[nb] * 1000 - room
+                local key = 100000 + sdist[nb] * 1000 - room + (self.routeCost and self:routeCost(side, id, nb) or 0)
                 if not bestKey or key < bestKey then best, bestKey = { id = nb, room = room }, key end
               end
             end
@@ -2513,6 +2546,16 @@ local FIELDS = { "sorties", "flightMinutes", "kills_air", "kills_ground", "kills
                  "kills_structure", "missions", "rescues", "deaths", "ejections", "captured", "saved",
                  "wins_conquest", "wins_clock" }
 
+-- Squadron tag from a player name: "[VKG] Morten", "VKG | Morten", "-=VKG=- Morten",
+-- "Morten [VKG]". Tags are 2-8 letters/digits; returned upper-case, or nil.
+function Pilots.squadronOf(name)
+  if type(name) ~= "string" then return nil end
+  local tag = name:match("^%s*%[([%w_%-]+)%]") or name:match("^%s*([%w_%-]+)%s*|")
+           or name:match("^%s*%-=([%w_]+)=%-") or name:match("%[([%w_%-]+)%]%s*$")
+  if tag and #tag >= 2 and #tag <= 8 then return tag:upper() end
+  return nil
+end
+
 function Pilots:get(key, name)
   local p = self.data.pilots[key]
   if not p then
@@ -2522,6 +2565,8 @@ function Pilots:get(key, name)
     self.dirty = true
   end
   if name and p.name ~= name then p.name = name; self.dirty = true end
+  local sq = Pilots.squadronOf(p.name)
+  if sq ~= p.squadron then p.squadron = sq; self.dirty = true end
   return p
 end
 
@@ -2582,7 +2627,8 @@ function Pilots:summary(key)
   for _, t in ipairs(U.sortedKeys(p.byType)) do types[#types + 1] = t .. " " .. p.byType[t] end
   local wars = U.sortedKeys(p.wars)
   return table.concat({
-    string.format("%s %s  -  %d points", self:rank(key), p.name, self:score(key)),
+    string.format("%s %s  -  %d points%s", self:rank(key), p.name, self:score(key),
+      p.squadron and ("  (squadron " .. p.squadron .. ")") or ""),
     string.format("Sorties %d (BLUE %d, RED %d), %d h %02d min in the air", p.sorties, p.sides.blue or 0,
       p.sides.red or 0, math.floor(p.flightMinutes / 60), math.floor(p.flightMinutes % 60)),
     string.format("Kills: air %d, ground %d, convoy trucks %d, SAM %d, buildings %d",
@@ -2593,6 +2639,35 @@ function Pilots:summary(key)
     string.format("Wars won: %d by conquest, %d on the war clock", p.wins_conquest or 0, p.wins_clock or 0),
     "Theaters: " .. (#wars > 0 and table.concat(wars, ", ") or "-"),
   }, "\n")
+end
+
+-- Squadrons: members' scores added up, plus wars won by any member.
+function Pilots:squadrons()
+  local by = {}
+  for key, p in pairs(self.data.pilots) do
+    local sq = p.squadron or Pilots.squadronOf(p.name)
+    if sq then
+      local s = by[sq] or { tag = sq, score = 0, members = 0, wins = 0 }
+      s.score = s.score + self:score(key)
+      s.members = s.members + 1
+      s.wins = s.wins + (p.wins_conquest or 0) + (p.wins_clock or 0)
+      by[sq] = s
+    end
+  end
+  local list = {}
+  for _, s in pairs(by) do list[#list + 1] = s end
+  table.sort(list, function(a, b) if a.score ~= b.score then return a.score > b.score end return a.tag < b.tag end)
+  return list
+end
+
+function Pilots:topSquadrons(n)
+  local out = {}
+  for i, s in ipairs(self:squadrons()) do
+    if i > n then break end
+    out[i] = string.format("%2d. %-8s %6d points, %d pilots, %d war wins", i, s.tag, s.score, s.members, s.wins)
+  end
+  if #out == 0 then out[1] = "No squadrons yet. Put your tag in your name: [TAG] Name" end
+  return out
 end
 
 -- Top N by score, for the leaderboard.
@@ -3018,6 +3093,310 @@ end
 
 end
 
+-- >>> src/dcc_world.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - weather, night, AI adaptation, FARPs and ships
+-- (pure Lua 5.1). Load after dcc_radar.lua.
+-- ----------------------------------------------------------------------------
+--   Weather  : a front passes every few hours: clear -> overcast -> rain ->
+--              storm and back (a seeded Markov chain, saved with the war).
+--              Rain and storms slow ground columns and soften battles; a storm
+--              grounds helicopter missions and AI attack sorties.
+--   Night    : the bridge tells the model when it is dark. Night halves
+--              visual detection and stops AI attack sorties.
+--   Adaption : every enemy kill on a road raises that road's THREAT for the
+--              side that lost the column (decays by half every 3 h). The AI
+--              then (1) routes convoys around threatened roads when it can,
+--              (2) gives convoys on them an air-defence escort, and (3) sends
+--              its CAP to cover the worst road.
+--   FARPs    : helicopters that deliver farp.buildSU of crates to a friendly
+--              town turn it into a FARP: rearm, refuel and helicopter spawns.
+--              Lost when the town is captured.
+--   Ships    : naval groups from the theater pack (a carrier in the Gulf).
+--              Sunk = gone for the rest of the war, with its air wing. The
+--              enemy gets an ANTISHIP mission once it has found the ship.
+-- ============================================================================
+
+DCC = DCC or {}
+local U = DCC.util
+local War = DCC.War
+local SIDES = { "blue", "red" }
+
+local function W(self) return self.cfg.world end
+
+-- ===========================================================================
+-- Initialisation
+-- ===========================================================================
+function War:initWorld()
+  local st = self.state
+  st.weather = st.weather or { kind = "clear", since = st.tick }
+  st.warId = st.warId or string.format("%s-%d", self.T.name, self.rng:int(1000000000))
+  st.threat = st.threat or { blue = {}, red = {} }
+  st.naval = st.naval or {}
+  for _, ship in ipairs(self.theater and self.theater.naval or {}) do
+    st.naval[ship.id] = st.naval[ship.id] or { status = "up", side = ship.side }
+  end
+end
+
+local baseInitOps = War.initOps
+function War:initOps()
+  baseInitOps(self)
+  self:initWorld()
+end
+
+-- ===========================================================================
+-- Weather and night
+-- ===========================================================================
+War.WEATHER_NEXT = {
+  clear    = { { "clear", 0.5 }, { "overcast", 0.35 }, { "rain", 0.15 } },
+  overcast = { { "clear", 0.3 }, { "overcast", 0.3 }, { "rain", 0.3 }, { "storm", 0.1 } },
+  rain     = { { "clear", 0.1 }, { "overcast", 0.4 }, { "rain", 0.3 }, { "storm", 0.2 } },
+  storm    = { { "overcast", 0.4 }, { "rain", 0.6 } },
+}
+War.WEATHER_TEXT = {
+  clear = "clear skies", overcast = "overcast", rain = "rain and low cloud",
+  storm = "storm - helicopters grounded",
+}
+
+function War:weatherKind() return self.state.weather and self.state.weather.kind or "clear" end
+function War:isStorm() return self:weatherKind() == "storm" end
+function War:isNight() return self.night == true end   -- set by the bridge, not saved
+
+function War:weatherTick()
+  local w, cfg = self.state.weather, W(self)
+  if self.state.tick - w.since < cfg.weatherTicks then return end
+  local roll, acc, nextKind = self.rng:next(), 0, w.kind
+  for _, opt in ipairs(War.WEATHER_NEXT[w.kind]) do
+    acc = acc + opt[2]
+    if roll < acc then nextKind = opt[1]; break end
+  end
+  local changed = nextKind ~= w.kind
+  self.state.weather = { kind = nextKind, since = self.state.tick }
+  if changed then
+    self:log("weather", nil, string.format("Weather on %s: %s.", self.T.name, War.WEATHER_TEXT[nextKind]))
+  end
+end
+
+-- Ground column speed and dice battles in bad weather.
+function War:moveSpeedFactor(mv)
+  if mv.kind == "airlift" then return 1 end
+  return W(self).speedFactor[self:weatherKind()] or 1
+end
+
+function War:battleFactor()
+  return W(self).battleFactor[self:weatherKind()] or 1
+end
+
+-- Visual detection range multiplier (players' eyes).
+function War:visualFactor(air)
+  local f = W(self).visualFactor[self:weatherKind()] or 1
+  if self:isNight() then f = f * W(self).nightVisual end
+  return f
+end
+
+-- Can AI attack aircraft fly now?
+function War:aiAttackAllowed()
+  return not self:isStorm() and not self:isNight()
+end
+
+-- ===========================================================================
+-- AI adaptation: road threat
+-- ===========================================================================
+local function edgeKey(a, b) if a < b then return a .. "|" .. b end return b .. "|" .. a end
+War.edgeKey = edgeKey
+
+function War:threatOn(side, a, b)
+  return (self.state.threat[side] or {})[edgeKey(a, b)] or 0
+end
+
+function War:addThreat(side, a, b, amount)
+  local t = self.state.threat[side]
+  local k = edgeKey(a, b)
+  local before = t[k] or 0
+  t[k] = before + (amount or 1)
+  local cfg = W(self)
+  if before < cfg.escortThreat and t[k] >= cfg.escortThreat then
+    self:log("adapt", side, string.format("%s command: convoys between %s and %s will get air-defence escorts",
+      side:upper(), self:nodeName(a), self:nodeName(b)), { a = a, b = b })
+  end
+end
+
+function War:decayThreat()
+  local cfg = W(self)
+  if self.state.tick % cfg.threatDecayTicks ~= 0 then return end
+  for _, side in ipairs(SIDES) do
+    for k, v in pairs(self.state.threat[side]) do
+      v = v * 0.5
+      self.state.threat[side][k] = (v >= 0.25) and v or nil
+    end
+  end
+end
+
+-- The road a side should cover with CAP: its worst threatened road.
+function War:worstRoad(side)
+  local best, bestV
+  for _, k in ipairs(U.sortedKeys(self.state.threat[side])) do
+    local v = self.state.threat[side][k]
+    if v >= W(self).capThreat and (not bestV or v > bestV) then best, bestV = k, v end
+  end
+  if not best then return nil end
+  local a, b = best:match("^(.-)|(.+)$")
+  return a, b, bestV
+end
+
+-- Extra cost for planning a convoy on a threatened road (planConvoys adds it).
+function War:routeCost(side, a, b)
+  local t = self:threatOn(side, a, b)
+  if t >= W(self).rerouteThreat then return W(self).reroutePenalty * t end
+  return 0
+end
+
+-- Every killed column raises the threat on its road.
+local baseMarkKilled = War.markKilled
+function War:markKilled(mid)
+  local mv = self.state.moves[mid]
+  if mv and mv.kind ~= "airlift" and self.state.threat then self:addThreat(mv.side, mv.from, mv.to, 1) end
+  baseMarkKilled(self, mid)
+end
+
+-- Convoys on threatened roads get an escort (an air-defence vehicle in the
+-- column; abstract ambushes cannot touch them).
+local baseStartCargo = War.startCargo
+function War:startCargo(kind, side, from, to, amount)
+  local mv = baseStartCargo(self, kind, side, from, to, amount)
+  if mv and kind == "convoy" and self:threatOn(side, from, to) >= W(self).escortThreat then
+    mv.aiEscort, mv.escorted = true, true
+  end
+  return mv
+end
+
+-- ===========================================================================
+-- FARPs
+-- ===========================================================================
+function War:canHaveFarp(id)
+  return self.T.nodes[id].kind == "town"
+end
+
+local baseDeliverCrate = War.deliverCrate
+function War:deliverCrate(side, id, su)
+  local ok = baseDeliverCrate(self, side, id, su)
+  local ns = self.state.nodes[id]
+  if ok and self:canHaveFarp(id) and not ns.farp then
+    ns.farpSU = (ns.farpSU or 0) + su
+    local need = W(self).farpBuildSU
+    if ns.farpSU >= need then
+      ns.farp = { side = side, built = self.state.tick }
+      ns.farpSU = nil
+      self:log("farp_built", side, string.format("%s helicopters built a FARP at %s - rearm, refuel and spawn there",
+        side:upper(), self:nodeName(id)), { node = id })
+    end
+  end
+  return ok
+end
+
+function War:farpAt(id)
+  local f = self.state.nodes[id].farp
+  return f ~= nil and f.side == self.state.nodes[id].side
+end
+
+-- ===========================================================================
+-- Ships
+-- ===========================================================================
+function War:shipUp(id) return self.state.naval[id] ~= nil and self.state.naval[id].status == "up" end
+
+function War:shipLost(id)
+  local s = self.state.naval[id]
+  if not s or s.status ~= "up" then return end
+  s.status, s.since = "sunk", self.state.tick
+  local name = id
+  for _, ship in ipairs(self.theater and self.theater.naval or {}) do if ship.id == id then name = ship.name end end
+  self:log("ship_sunk", s.side, string.format("%s %s has been sunk - its air wing is lost for the rest of the war",
+    s.side:upper(), name), { ship = id })
+end
+
+War.MISSION_NEEDS.ANTISHIP = "A2G"
+War.MISSION_NEEDS.FARP = "LIFT"
+do
+  local order = {}
+  for _, t in ipairs(War.MISSION_ORDER) do
+    if t ~= "ANTISHIP" and t ~= "FARP" then order[#order + 1] = t end
+    if t == "STRIKE" then order[#order + 1] = "ANTISHIP" end
+    if t == "LOGISTICS" then order[#order + 1] = "FARP" end
+  end
+  War.MISSION_ORDER = order
+end
+
+local gen = War.missionGenerators
+gen.ANTISHIP = function(self, side)
+  local out = {}
+  for _, ship in ipairs(self.theater and self.theater.naval or {}) do
+    local known = (not self.fogOfWar) or self:isFresh(side, "ship:" .. ship.id)
+    if ship.side ~= side and self:shipUp(ship.id) and known then
+      out[#out + 1] = { type = "ANTISHIP", target = ship.id, prio = 0, label = ship.name }
+    end
+  end
+  return out
+end
+
+-- Build a FARP: friendly towns right behind the front, no FARP yet.
+gen.FARP = function(self, side)
+  if self:isStorm() then return {} end
+  local dist = self:frontDistance(side)
+  local out = {}
+  for _, id in ipairs(self.T.order) do
+    local ns = self.state.nodes[id]
+    if ns.side == side and self:canHaveFarp(id) and not self:farpAt(id) and (dist[id] or 9) <= 2 then
+      out[#out + 1] = { type = "FARP", target = id, node = id, prio = dist[id] or 9,
+        label = string.format("build a FARP at %s (%d/%d SU)", self:nodeName(id), math.floor(ns.farpSU or 0),
+          W(self).farpBuildSU) }
+    end
+  end
+  return out
+end
+
+-- Helicopter missions stay on the ground in a storm.
+local HELO = { CONVOY = true, CSAR = true, LOGISTICS = true, FARP = true }
+for t in pairs(HELO) do
+  local g = gen[t]
+  if g then
+    gen[t] = function(self, side)
+      if self:isStorm() then return {} end
+      return g(self, side)
+    end
+  end
+end
+
+local baseOutcome = War.missionOutcome
+function War:missionOutcome(m, events)
+  if m.type == "ANTISHIP" then
+    return self:shipUp(m.target) and "open" or "done"
+  elseif m.type == "FARP" then
+    if self.state.nodes[m.target].side ~= m.side then return "expired" end
+    return self:farpAt(m.target) and "done" or "open"
+  end
+  return baseOutcome(self, m, events)
+end
+
+-- ===========================================================================
+-- Hooks
+-- ===========================================================================
+local baseCapture = War.onCaptureOps
+function War:onCaptureOps(id)
+  baseCapture(self, id)
+  local ns = self.state.nodes[id]
+  ns.farp, ns.farpSU = nil, nil
+end
+
+local baseOpsTick = War.opsTick
+function War:opsTick()
+  baseOpsTick(self)
+  self:weatherTick()
+  self:decayThreat()
+end
+
+end
+
 -- >>> src/dcc_front.lua
 do
 -- ============================================================================
@@ -3197,6 +3576,22 @@ end
 function P.writeReport(theaterName, tick, text)
   if not P.available() then return false end
   return writeFile(folder() .. theaterName .. "_war_report_" .. tostring(tick or 0) .. ".txt", text)
+end
+
+-- Plain files for the companion tool (web map, Discord): public.json (rewritten)
+-- and feed.jsonl (one event per line, appended).
+function P.writeFile(name, text)
+  if not P.available() then return false end
+  return writeFile(folder() .. name, text)
+end
+
+function P.appendFile(name, text)
+  if not P.available() then return false end
+  local f = io.open(folder() .. name, "a")
+  if not f then return false end
+  f:write(text)
+  f:close()
+  return true
 end
 
 end
@@ -3625,8 +4020,10 @@ function B.showStatus(side)
   local left = war:clockTicksLeft()
   if left then
     local h = math.max(0, left) * DCC.config.tickSeconds / 3600
-    lines[#lines + 1] = string.format("War clock: %dd %02dh left - %s holds the most bases", math.floor(h / 24),
-      math.floor(h % 24), war:clockLeader():upper())
+    local gb = war:groundGained("blue")
+    lines[#lines + 1] = string.format("War clock: %dd %02dh left - %s", math.floor(h / 24), math.floor(h % 24),
+      gb == 0 and "even: no ground gained yet" or string.format("%s is ahead (%+d bases since the start)",
+        gb > 0 and "BLUE" or "RED", math.abs(gb)))
   end
   if B.opsStatusLines then for _, l in ipairs(B.opsStatusLines(side)) do lines[#lines + 1] = l end end
   if B.intelStatusLines then for _, l in ipairs(B.intelStatusLines(side)) do lines[#lines + 1] = l end end
@@ -4212,6 +4609,13 @@ function B.showLeaderboard(uname)
   end
 end
 
+function B.showSquadrons(uname)
+  local p = B.players[uname]
+  if p then
+    trigger.action.outTextForGroup(p.gid, "TOP SQUADRONS\n" .. table.concat(DCC.pilots:topSquadrons(10), "\n"), 30)
+  end
+end
+
 -- (Re)build one aircraft's "Missions" menu.
 function B.buildMenu(p)
   if not p.gid then return end
@@ -4241,6 +4645,7 @@ function B.buildMenu(p)
   missionCommands.addCommandForGroup(p.gid, "Abandon mission", root, B.abandon, p.unit)
   missionCommands.addCommandForGroup(p.gid, "My pilot record", root, B.showRecord, p.unit)
   missionCommands.addCommandForGroup(p.gid, "Leaderboard", root, B.showLeaderboard, p.unit)
+  missionCommands.addCommandForGroup(p.gid, "Squadron leaderboard", root, B.showSquadrons, p.unit)
   local lift = (cat().lift or {})[p.type]
   if lift then
     local c = missionCommands.addSubMenuForGroup(p.gid, "Cargo", root)
@@ -5105,7 +5510,8 @@ function B.scanVisual(idx)
           local gkey = t.e and t.e.group or t.u:getName()
           if not seen[gkey] then
             local tp = t.u:getPoint()
-            local range = ((not t.e) or t.e.air) and cfg.visualKmAir or cfg.visualKmGround
+            local isAir = (not t.e) or t.e.air
+            local range = (isAir and cfg.visualKmAir or cfg.visualKmGround) * (B.visualFactor and B.visualFactor(isAir) or 1)
             if dist2D(ep, tp) <= range * 1000 and ok(land.isVisible, from, { x = tp.x, y = tp.y + 2, z = tp.z }) then
               seen[gkey] = true
               B.report(side, t.e, t.u, "visual")
@@ -5830,6 +6236,801 @@ end
 
 end
 
+-- >>> src/dcc_dcs_world.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - DCS bridge: weather, night, AI adaptation,
+-- FARPs and ships. Load after dcc_dcs_radar.lua.
+-- ----------------------------------------------------------------------------
+--   Weather/night - tells the model when it is night (mission clock), and
+--                   shows rain and storms as fog where DCS allows it
+--                   (world.weather fog functions, DCS 2.9.10+). Clouds and rain
+--                   themselves cannot be changed while a mission runs.
+--   Adaptation    - convoys the model marked aiEscort get an air-defence
+--                   vehicle driving with them; the AI sends a CAP pair over
+--                   its most threatened road; storms and night ground AI
+--                   attack sorties.
+--   FARPs         - each town has two invisible FARPs in the mission (one per
+--                   coalition) with an empty helicopter stock. A FARP the
+--                   players built gets the owner's helicopters, a fuel truck,
+--                   an ammo truck and a map mark; a lost one is emptied.
+--   Ships         - naval groups from the theater pack (placed by the mission
+--                   generator). Polled for losses, turned around at the end
+--                   of their leg, found by enemy radars, attacked by enemy AI.
+-- ============================================================================
+
+DCC = DCC or {}
+local B = DCC.dcs
+local U = DCC.util
+
+local SIDES = { "blue", "red" }
+local function WC() return DCC.config.world end
+local function ok(fn, ...) local s, r = pcall(fn, ...); if s then return r end end
+local function alive(u) return u ~= nil and ok(u.isExist, u) == true end
+local function dist2D(a, b)
+  local dx, dz = a.x - b.x, a.z - b.z
+  return math.sqrt(dx * dx + dz * dz)
+end
+local function otherSide(s) return s == "blue" and "red" or "blue" end
+local function firstValid(list)
+  for _, t in ipairs(list or {}) do if B.validType(t) then return t end end
+  return nil
+end
+local function unitsOf(gname)
+  local g = ok(Group.getByName, gname)
+  local out = {}
+  if g and ok(g.isExist, g) then
+    for _, u in ipairs(g:getUnits() or {}) do if alive(u) and u:getLife() >= 1 then out[#out + 1] = u end end
+  end
+  return out
+end
+
+B.escorts  = {}   -- convoy move id -> escort group name
+B.farps    = {}   -- node id -> { side, crew = group name, mark }
+B.naval    = {}   -- ship id -> { group, side, leg }
+B.fogKind  = nil
+
+-- ===========================================================================
+-- 1. Night and weather
+-- ===========================================================================
+function B.hourOfDay()
+  return math.floor((timer.getAbsTime() % 86400) / 3600)
+end
+
+function B.updateNight()
+  local h, cfg = B.hourOfDay(), WC()
+  B.war.night = (h >= cfg.nightStartHour or h < cfg.nightEndHour)
+end
+
+function B.applyWeather()
+  local kind = B.war:weatherKind()
+  if kind == B.fogKind then return end
+  B.fogKind = kind
+  local wx = world and world.weather
+  if not wx or not wx.setFogVisibilityDistance then return end   -- older DCS: nothing to do
+  local f = WC().fog[kind]
+  if f then
+    pcall(wx.setFogThickness, f[2])
+    pcall(wx.setFogVisibilityDistance, f[1])
+  else
+    pcall(wx.setFogThickness, 0)
+    pcall(wx.setFogVisibilityDistance, 0)
+  end
+end
+
+-- ===========================================================================
+-- 2. AI adaptation
+-- ===========================================================================
+local baseSpawnConvoy = B.spawnConvoy
+function B.spawnConvoy(mv)
+  baseSpawnConvoy(mv)
+  if not mv.aiEscort or not B.cargo[mv.id] then return end
+  local t = firstValid(B.catalog.escortAD and B.catalog.escortAD[mv.side])
+  local rec = B.cargo[mv.id]
+  local g = ok(Group.getByName, rec.group)
+  if not t or not g then return end
+  local route = g.data and g.data.route or nil
+  local lead = g:getUnit(1)
+  if not alive(lead) then return end
+  local p = lead:getPoint()
+  local b = B.nodePos[mv.to]
+  local gname = rec.group .. "_esc"
+  local s = DCC.config.liveSpeedMps * 0.8
+  local data = { name = gname, task = "Ground Nothing",
+    units = { { name = gname .. "_1", type = t, skill = "Good", x = p.x - 60, y = p.z, heading = 0,
+                playerCanDrive = false } },
+    route = route or { points = {
+      { x = p.x, y = p.z, type = "Turning Point", action = "On Road", speed = s, ETA = 0, ETA_locked = false },
+      { x = b.x, y = b.z, type = "Turning Point", action = "Off Road", speed = s, ETA = 0, ETA_locked = false } } } }
+  if pcall(coalition.addGroup, B.countryId(mv.side), Group.Category.GROUND, data) then B.escorts[mv.id] = gname end
+end
+
+local baseDespawnCargo = B.despawnCargo
+function B.despawnCargo(mid, rec)
+  baseDespawnCargo(mid, rec)
+  local e = B.escorts[mid]
+  if e then
+    local g = ok(Group.getByName, e)
+    if g and ok(g.isExist, g) then g:destroy() end
+    B.escorts[mid] = nil
+  end
+end
+
+local basePlanAir = B.planAir
+function B.planAir()
+  local war = B.war
+  -- storms and night: no AI attack sorties (fighters still fly CAP)
+  local spawn = B.spawnSortie
+  if not war:aiAttackAllowed() then
+    B.spawnSortie = function(side, role, kind, target, extra)
+      if role == "attack" then return nil end
+      return spawn(side, role, kind, target, extra)
+    end
+  end
+  local okP, err = pcall(basePlanAir)
+  B.spawnSortie = spawn
+  if not okP then error(err) end
+  if #B.playerPositions() == 0 then return end
+  -- CAP over the worst threatened road
+  for _, side in ipairs(SIDES) do
+    local a, b = war:worstRoad(side)
+    if a then
+      local busy = false
+      for _, s in pairs(B.sorties) do if s.side == side and s.kind == "ROADCAP" then busy = true end end
+      if not busy then
+        local pa, pb = B.nodePos[a], B.nodePos[b]
+        local mid = { x = (pa.x + pb.x) / 2, y = 0, z = (pa.z + pb.z) / 2 }
+        local gname = B.spawnSortie(side, "fighter", "CAP", mid, { node = a })
+        if gname and B.sorties[gname] then
+          B.sorties[gname].kind = "ROADCAP"
+          trigger.action.outTextForCoalition(B.COAL[side], string.format(
+            "Command: fighters to cover the road %s - %s (convoys lost there).", war:nodeName(a), war:nodeName(b)), 10)
+        end
+      end
+    end
+  end
+  -- AI strike on a known enemy ship, now and then
+  for _, ship in ipairs(war.theater.naval or {}) do
+    local side = otherSide(ship.side)
+    local rec = B.naval[ship.id]
+    if rec and war:shipUp(ship.id) and war:isFresh(side, "ship:" .. ship.id) and war:aiAttackAllowed() then
+      local busy = false
+      for _, s in pairs(B.sorties) do if s.side == side and s.kind == "ANTISHIP" then busy = true end end
+      if not busy and war.rng:next() < WC().antishipChance then
+        local g = ok(Group.getByName, rec.group)
+        local u = g and g:getUnit(1)
+        if alive(u) then
+          B.spawnSortie(side, "attack", "ANTISHIP", u:getPoint(), { groupId = g:getID(), template = "antiship" })
+        end
+      end
+    end
+  end
+end
+
+-- ===========================================================================
+-- 3. FARPs
+-- ===========================================================================
+local function farpWarehouse(id, side)
+  local ab = ok(Airbase.getByName, "DCC_FARP_" .. id .. "_" .. side)
+  return ab and ok(ab.getWarehouse, ab), ab
+end
+
+-- Stock the right FARPs; spawn or remove ground crews.
+function B.reconcileFarps()
+  local war = B.war
+  for _, id in ipairs(war.T.order) do
+    if war:canHaveFarp(id) then
+      local ns = war.state.nodes[id]
+      for _, side in ipairs(SIDES) do
+        local wh, ab = farpWarehouse(id, side)
+        local want = war:farpAt(id) and ns.side == side
+        if wh then
+          local n = want and WC().farpHelos or 0
+          for _, t in ipairs(B.catalog.aircraft[side].helicopters or {}) do pcall(wh.setItem, wh, t, n) end
+        end
+        local rec = B.farps[id]
+        if want and (not rec or rec.side ~= side) then
+          if rec then B.removeFarpCrew(id) end
+          B.spawnFarpCrew(id, side, ab)
+        elseif not want and rec and rec.side == side then
+          B.removeFarpCrew(id)
+        end
+      end
+    end
+  end
+end
+
+function B.spawnFarpCrew(id, side, ab)
+  local p = (ab and ok(ab.getPoint, ab)) or B.nodePos[id]
+  local units = {}
+  for i, list in ipairs({ { B.catalog.farpCrew[side][1] }, { B.catalog.farpCrew[side][2] }, { B.catalog.farpCrew[side][3] } }) do
+    local t = firstValid(list)
+    if t then
+      units[#units + 1] = { name = "DCC_FARPCREW_" .. id .. "_" .. i, type = t, skill = "Average",
+                            x = p.x + 40 + i * 15, y = p.z + 40, heading = 0, playerCanDrive = false }
+    end
+  end
+  local gname = "DCC_FARPCREW_" .. id
+  if #units > 0 then
+    pcall(coalition.addGroup, B.countryId(side), Group.Category.GROUND, { name = gname, task = "Ground Nothing",
+      units = units, route = { points = { { x = units[1].x, y = units[1].y, type = "Turning Point", action = "Off Road",
+      speed = 0, ETA = 0, ETA_locked = false } } } })
+  end
+  B.farps[id] = { side = side, crew = gname }
+  U.log("FARP at %s ready for %s", id, side)
+end
+
+function B.removeFarpCrew(id)
+  local rec = B.farps[id]
+  if not rec then return end
+  local g = ok(Group.getByName, rec.crew)
+  if g and ok(g.isExist, g) then g:destroy() end
+  B.farps[id] = nil
+end
+
+-- ===========================================================================
+-- 4. Ships
+-- ===========================================================================
+function B.initNaval()
+  local war = B.war
+  for _, ship in ipairs(war.theater.naval or {}) do
+    local gname = "DCC_NAVAL_" .. ship.id
+    local g = ok(Group.getByName, gname)
+    if g then
+      if not war:shipUp(ship.id) then
+        g:destroy()          -- sunk earlier in this war: it stays sunk after a restart
+      else
+        B.naval[ship.id] = { group = gname, side = ship.side, leg = 0,
+          start = (g:getUnit(1) and g:getUnit(1):getPoint()) or B.navalPos(ship) }
+      end
+    end
+  end
+end
+
+function B.navalPos(ship)
+  local p = coord.LLtoLO(ship.lat, ship.lon, 0)
+  return { x = p.x, y = 0, z = p.z }
+end
+
+-- Carrier dead -> sunk; at the end of a leg, sail back (DCS ships stop at their last waypoint).
+function B.pollNaval()
+  local war = B.war
+  for id, rec in pairs(B.naval) do
+    local g = ok(Group.getByName, rec.group)
+    local main = g and g:getUnit(1)
+    if not alive(main) or main:getLife() < 1 then
+      war:shipLost(id)
+      B.naval[id] = nil
+    elseif timer.getTime() - (rec.turned or 0) > 1800 then
+      local p = main:getPoint()
+      local ship
+      for _, s in ipairs(war.theater.naval or {}) do if s.id == id then ship = s end end
+      local home = rec.start
+      local far = { x = home.x + math.cos(math.rad(ship.heading)) * 80000, z = home.z + math.sin(math.rad(ship.heading)) * 80000 }
+      local target = (dist2D(p, far) < 8000) and home or ((dist2D(p, home) < 8000) and far or nil)
+      if target then
+        local ctl = g:getController()
+        pcall(ctl.setTask, ctl, { id = "Mission", params = { route = { points = {
+          { x = p.x, y = p.z, type = "Turning Point", action = "Turning Point", speed = 12.8 },
+          { x = target.x, y = target.z, type = "Turning Point", action = "Turning Point", speed = 12.8 } } } } })
+        rec.turned = timer.getTime()
+      end
+    end
+  end
+end
+
+-- Enemy radars and eyes find ships (they sit on the sea: radar horizon applies).
+function B.scanShips()
+  local war = B.war
+  for id, rec in pairs(B.naval) do
+    local enemy = otherSide(rec.side)
+    local g = ok(Group.getByName, rec.group)
+    local u = g and g:getUnit(1)
+    if alive(u) then
+      local seen = false
+      for _, r in ipairs(B.radarsOf(enemy)) do
+        if B.radarSees(r, u) then seen = "radar"; break end
+      end
+      if not seen then
+        for _, pu in ipairs(coalition.getPlayers(B.COAL[enemy]) or {}) do
+          if alive(pu) and dist2D(pu:getPoint(), u:getPoint()) <= 40000 then seen = "visual"; break end
+        end
+      end
+      if seen then
+        local p = u:getPoint()
+        local name = id
+        for _, s in ipairs(war.theater.naval or {}) do if s.id == id then name = s.name end end
+        war:addContact(enemy, "ship:" .. id, { kind = "ship", source = seen, pos = { x = p.x, z = p.z }, label = name })
+      end
+    end
+  end
+end
+
+-- Ships: radar horizon for something on the sea surface.
+local baseRadarSees = B.radarSees
+function B.radarSees(r, u)
+  local desc = ok(u.getDesc, u)
+  if desc and desc.category == 3 then          -- Unit.Category.SHIP
+    local p = u:getPoint()
+    local d = dist2D(r.pos, p)
+    if d > r.km * 1000 then return false end
+    local need = DCC.War.radarHorizonM(d / 1000, r.agl)
+    return need <= 40                            -- a carrier's island is ~40 m tall
+  end
+  return baseRadarSees(r, u)
+end
+
+-- ===========================================================================
+-- 5. Map, status, hooks
+-- ===========================================================================
+local baseDrawIntel = B.drawIntel
+function B.drawIntel()
+  baseDrawIntel()
+  local war = B.war
+  if not war.fogOfWar then return end
+  for _, side in ipairs(SIDES) do
+    for key, c in pairs(war.state.contacts[side]) do
+      if c.kind == "ship" and c.pos then
+        local fresh = war:isFresh(side, key)
+        local ec = DCC.config.colours[otherSide(side)]
+        local col = { ec[1], ec[2], ec[3], fresh and 1 or 0.45 }
+        B.nextMark = (B.nextMark or DCC.config.markIdBase) + 1
+        B.intelMarks[#B.intelMarks + 1] = B.nextMark
+        trigger.action.circleToAll(B.COAL[side], B.nextMark, { x = c.pos.x, y = 0, z = c.pos.z }, 5000, col,
+          { ec[1], ec[2], ec[3], 0.15 }, 1, true, "")
+        B.nextMark = B.nextMark + 1
+        B.intelMarks[#B.intelMarks + 1] = B.nextMark
+        trigger.action.textToAll(B.COAL[side], B.nextMark, { x = c.pos.x + 5500, y = 0, z = c.pos.z }, col,
+          { 0, 0, 0, 0.35 }, 11, true, (c.label or "ship") .. (fresh and "" or " (last seen)"))
+      end
+    end
+  end
+end
+
+local baseDrawOps = B.drawOps
+function B.drawOps(newMark, toVec3)
+  baseDrawOps(newMark, toVec3)
+  local war = B.war
+  for _, id in ipairs(war.T.order) do
+    local ns = war.state.nodes[id]
+    if war:farpAt(id) then
+      local p = B.nodePos[id]
+      local col = DCC.config.colours[ns.side]
+      trigger.action.textToAll(-1, newMark(), { x = p.x + 2500, y = p.y, z = p.z + 2500 }, col, { 0, 0, 0, 0.35 },
+        11, true, "FARP")
+    elseif ns.farpSU then
+      local p = B.nodePos[id]
+      trigger.action.textToAll(B.COAL[ns.side], newMark(), { x = p.x + 2500, y = p.y, z = p.z + 2500 },
+        DCC.config.colours[ns.side], { 0, 0, 0, 0.35 }, 10, true,
+        string.format("FARP %d/%d SU", math.floor(ns.farpSU), WC().farpBuildSU))
+    end
+  end
+end
+
+local baseStatus = B.opsStatusLines
+function B.opsStatusLines(side)
+  local lines = baseStatus(side)
+  local war = B.war
+  lines[#lines + 1] = string.format("Weather: %s%s.", DCC.War.WEATHER_TEXT[war:weatherKind()],
+    war:isNight() and ", night" or "")
+  local a, b, v = war:worstRoad(side)
+  if a then lines[#lines + 1] = string.format("Most dangerous road: %s - %s (AI escorts and CAP there)",
+    war:nodeName(a), war:nodeName(b)) end
+  for _, ship in ipairs(war.theater.naval or {}) do
+    if ship.side == side then
+      lines[#lines + 1] = string.format("%s: %s", ship.name, war:shipUp(ship.id) and "on station" or "SUNK")
+    end
+  end
+  return lines
+end
+
+-- AI sortie templates by name (antiship uses the "antiship" template, attack pool).
+local baseSpawnSortie = B.spawnSortie
+function B.spawnSortie(side, role, kind, target, extra)
+  if extra and extra.template then
+    local find = B.findTemplate
+    B.findTemplate = function(name)
+      return find("DCC_TPL_" .. side .. "_" .. extra.template) or find(name)
+    end
+    local okS, r = pcall(baseSpawnSortie, side, role, kind, target, extra)
+    B.findTemplate = find
+    return okS and r or nil
+  end
+  return baseSpawnSortie(side, role, kind, target, extra)
+end
+
+local basePoll = B.opsPoll
+function B.opsPoll()
+  basePoll()
+  B.pollNaval()
+  B.reconcileFarps()
+end
+
+local baseTick = B.opsTick
+function B.opsTick()
+  B.updateNight()
+  B.applyWeather()
+  baseTick()
+end
+
+local baseScan = B.intelScan
+function B.intelScan()
+  baseScan()
+  if B.war.fogOfWar then B.scanShips() end
+end
+
+-- eyes see less in bad weather and at night
+B.visualFactor = function(air) return B.war:visualFactor(air) end
+
+local baseInit = B.init
+function B.init(war, theater, catalog)
+  baseInit(war, theater, catalog)
+  B.escorts, B.farps, B.naval, B.fogKind = {}, {}, {}, nil
+  B.updateNight()
+  B.initNaval()
+end
+
+end
+
+-- >>> src/dcc_dcs_jtac.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - DCS bridge: JTAC for CAS missions.
+-- Load after dcc_dcs_world.lua.
+-- ----------------------------------------------------------------------------
+-- When a player takes a CAS mission, a friendly JTAC team (an invisible,
+-- immortal light vehicle) sets up jtac.standoffKm from the battle on the
+-- friendly side. Every 10 seconds it picks the nearest live enemy vehicle
+-- within jtac.searchKm of the battle and keeps a laser (code jtac.laserCode)
+-- and an IR pointer on it, following it as it moves and switching when it
+-- dies. The pilot's F10 > Missions > JTAC menu: report target (type, MGRS,
+-- code), mark with smoke, next target. The team packs up when the mission
+-- ends.
+-- ============================================================================
+
+DCC = DCC or {}
+local B = DCC.dcs
+local U = DCC.util
+
+B.jtacs = {}   -- mission id -> { group, side, node, target, laser, ir, code }
+
+local function JC() return DCC.config.jtac end
+local function ok(fn, ...) local s, r = pcall(fn, ...); if s then return r end end
+local function alive(u) return u ~= nil and ok(u.isExist, u) == true and (ok(u.getLife, u) or 0) >= 1 end
+local function dist2D(a, b)
+  local dx, dz = a.x - b.x, a.z - b.z
+  return math.sqrt(dx * dx + dz * dz)
+end
+
+local function friendlyNeighbour(side, node)
+  local war = B.war
+  local best, bestD
+  for nb in pairs(war.T.nodes[node].nb) do
+    if war.state.nodes[nb].side == side then
+      local d = dist2D(B.nodePos[nb], B.nodePos[node])
+      if not bestD or d < bestD then best, bestD = nb, d end
+    end
+  end
+  return best
+end
+
+function B.spawnJtac(m)
+  if B.jtacs[m.id] then return B.jtacs[m.id] end
+  local side, node = m.side, m.target
+  local types = B.catalog.jtac and B.catalog.jtac[side] or {}
+  local t
+  for _, c in ipairs(types) do if B.validType(c) then t = c; break end end
+  if not t then return nil end
+  local tp = B.nodePos[node]
+  local from = friendlyNeighbour(side, node)
+  local fp = from and B.nodePos[from] or { x = tp.x - 1, z = tp.z }
+  local dx, dz = fp.x - tp.x, fp.z - tp.z
+  local len = math.max(1, math.sqrt(dx * dx + dz * dz))
+  local s = JC().standoffKm * 1000
+  local x, z = tp.x + dx / len * s, tp.z + dz / len * s
+  local gname = "DCC_JTAC_" .. m.id
+  local data = { name = gname, task = "Ground Nothing",
+    units = { { name = gname .. "_1", type = t, skill = "Excellent", x = x, y = z, heading = 0, playerCanDrive = false } },
+    route = { points = { { x = x, y = z, type = "Turning Point", action = "Off Road", speed = 0,
+                           ETA = 0, ETA_locked = false } } } }
+  if not pcall(coalition.addGroup, B.countryId(side), Group.Category.GROUND, data) then return nil end
+  local g = ok(Group.getByName, gname)
+  local ctl = g and ok(g.getController, g)
+  if ctl then
+    pcall(ctl.setCommand, ctl, { id = "SetInvisible", params = { value = true } })
+    pcall(ctl.setCommand, ctl, { id = "SetImmortal", params = { value = true } })
+    if AI and AI.Option and AI.Option.Ground then
+      pcall(ctl.setOption, ctl, AI.Option.Ground.id.ROE, AI.Option.Ground.val.ROE.WEAPON_HOLD)
+    end
+  end
+  local rec = { group = gname, side = side, node = node, code = JC().laserCode, mission = m.id }
+  B.jtacs[m.id] = rec
+  return rec
+end
+
+function B.removeJtac(mid)
+  local rec = B.jtacs[mid]
+  if not rec then return end
+  if rec.laser then pcall(rec.laser.destroy, rec.laser) end
+  if rec.ir then pcall(rec.ir.destroy, rec.ir) end
+  local g = ok(Group.getByName, rec.group)
+  if g and ok(g.isExist, g) then g:destroy() end
+  B.jtacs[mid] = nil
+end
+
+-- Enemy vehicles near the battle: spawned platoons of the other side.
+function B.jtacCandidates(rec)
+  local war, out = B.war, {}
+  local center = B.nodePos[rec.node]
+  for pid, srec in pairs(B.spawned) do
+    local pl = war.state.platoons[pid]
+    if pl and pl.side ~= rec.side then
+      local g = ok(Group.getByName, srec.group)
+      if g and ok(g.isExist, g) then
+        for _, u in ipairs(g:getUnits() or {}) do
+          if alive(u) and dist2D(u:getPoint(), center) <= JC().searchKm * 1000 then out[#out + 1] = u end
+        end
+      end
+    end
+  end
+  return out
+end
+
+function B.jtacPick(rec, skipCurrent)
+  local g = ok(Group.getByName, rec.group)
+  local me = g and g:getUnit(1)
+  if not alive(me) then return nil end
+  local mp = me:getPoint()
+  local best, bestD
+  for _, u in ipairs(B.jtacCandidates(rec)) do
+    if not (skipCurrent and rec.target == u:getName()) then
+      local d = dist2D(mp, u:getPoint())
+      if not bestD or d < bestD then best, bestD = u, d end
+    end
+  end
+  return best, me
+end
+
+-- Keep the laser on the current target (or a new one).
+function B.jtacUpdate(rec, forceNew)
+  local target = rec.target and ok(Unit.getByName, rec.target)
+  local me
+  if forceNew or not alive(target) then
+    target, me = B.jtacPick(rec, forceNew)
+    rec.target = target and target:getName() or nil
+    if rec.laser then pcall(rec.laser.destroy, rec.laser); rec.laser = nil end
+    if rec.ir then pcall(rec.ir.destroy, rec.ir); rec.ir = nil end
+  end
+  if not target then return nil end
+  if not me then
+    local g = ok(Group.getByName, rec.group)
+    me = g and g:getUnit(1)
+  end
+  if not alive(me) then return nil end
+  local p = target:getPoint()
+  local aim = { x = p.x, y = p.y + 2, z = p.z }
+  if rec.laser then
+    pcall(rec.laser.setPoint, rec.laser, aim)
+    if rec.ir then pcall(rec.ir.setPoint, rec.ir, aim) end
+  elseif Spot then
+    rec.laser = ok(Spot.createLaser, me, { x = 0, y = 2, z = 0 }, aim, rec.code)
+    rec.ir = ok(Spot.createInfraRed, me, { x = 0, y = 2, z = 0 }, aim)
+  end
+  return target
+end
+
+local function mgrs(p)
+  local lat, lon = coord.LOtoLL(p)
+  local m = ok(coord.LLtoMGRS, lat, lon)
+  if not m then return string.format("%.4f %.4f", lat, lon) end
+  return string.format("%s %s %05d %05d", m.UTMZone, m.MGRSDigraph, m.Easting, m.Northing)
+end
+
+-- ---------------------------------------------------------------------------
+-- Pilot commands
+-- ---------------------------------------------------------------------------
+local function jtacOf(uname)
+  local p = B.players[uname]
+  if not p then return nil end
+  local m = p.mission and B.war.state.missions[p.mission]
+  if not m or m.type ~= "CAS" or m.status ~= "open" then
+    trigger.action.outTextForGroup(p.gid, "No JTAC: take a CAS mission first.", 10)
+    return nil, p
+  end
+  return B.jtacs[m.id] or B.spawnJtac(m), p
+end
+
+function B.jtacReport(uname)
+  local rec, p = jtacOf(uname)
+  if not rec then return end
+  local t = B.jtacUpdate(rec)
+  if not t then
+    trigger.action.outTextForGroup(p.gid, "JTAC: no enemy vehicles in sight at " .. B.war:nodeName(rec.node) ..
+      " yet. Stand by.", 15)
+    return
+  end
+  trigger.action.outTextForGroup(p.gid, string.format(
+    "JTAC: lasing %s, code %d, IR pointer on.\nMGRS %s\n%d hostile vehicles in the area.",
+    ok(t.getTypeName, t) or "vehicle", rec.code, mgrs(t:getPoint()), #B.jtacCandidates(rec)), 30)
+end
+
+function B.jtacSmoke(uname)
+  local rec, p = jtacOf(uname)
+  if not rec then return end
+  local t = B.jtacUpdate(rec)
+  if not t then trigger.action.outTextForGroup(p.gid, "JTAC: nothing to mark.", 10); return end
+  local tp = t:getPoint()
+  pcall(trigger.action.smoke, { x = tp.x, y = tp.y, z = tp.z }, trigger.smokeColor and trigger.smokeColor.Red or 1)
+  trigger.action.outTextForGroup(p.gid, "JTAC: red smoke on the target.", 10)
+end
+
+function B.jtacNext(uname)
+  local rec, p = jtacOf(uname)
+  if not rec then return end
+  local t = B.jtacUpdate(rec, true)
+  if t then B.jtacReport(uname) else trigger.action.outTextForGroup(p.gid, "JTAC: no other target.", 10) end
+end
+
+-- ---------------------------------------------------------------------------
+-- Hooks
+-- ---------------------------------------------------------------------------
+local baseBuildMenu = B.buildMenu
+function B.buildMenu(p)
+  baseBuildMenu(p)
+  if not p.menu then return end
+  local m = p.mission and B.war.state.missions[p.mission]
+  if m and m.type == "CAS" then
+    local j = missionCommands.addSubMenuForGroup(p.gid, "JTAC", p.menu)
+    missionCommands.addCommandForGroup(p.gid, "Report target", j, B.jtacReport, p.unit)
+    missionCommands.addCommandForGroup(p.gid, "Mark with smoke", j, B.jtacSmoke, p.unit)
+    missionCommands.addCommandForGroup(p.gid, "Next target", j, B.jtacNext, p.unit)
+  end
+end
+
+local baseTake = B.takeMission
+function B.takeMission(args)
+  baseTake(args)
+  local p = B.players[args.unit]
+  local m = p and p.mission and B.war.state.missions[p.mission]
+  if m and m.type == "CAS" and m.id == args.mid then
+    if B.spawnJtac(m) then
+      trigger.action.outTextForGroup(p.gid, string.format(
+        "JTAC team moving up to %s. Laser code %d. F10 > Missions > JTAC.", B.war:nodeName(m.target),
+        JC().laserCode), 15)
+    end
+  end
+end
+
+-- Every 10 s (detection loop): lase; pack up when the mission is over.
+function B.jtacTick()
+  for mid, rec in pairs(B.jtacs) do
+    local m = B.war.state.missions[mid]
+    if not m or m.status ~= "open" then B.removeJtac(mid) else B.jtacUpdate(rec) end
+  end
+end
+
+local baseDetect = B.detect
+function B.detect()
+  baseDetect()
+  B.jtacTick()
+end
+
+end
+
+-- >>> src/dcc_dcs_public.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - public status for the web map and Discord.
+-- Load after dcc_dcs_jtac.lua.
+-- ----------------------------------------------------------------------------
+-- Writes two files to Saved Games\DCS\DCC\ for server/dcc_companion.py:
+--
+--   public.json  - rewritten every public.everySeconds: map, war clock,
+--                  weather, every base (position, owner, FARP), the front line,
+--                  recent public events, top pilots and squadrons, ships.
+--                  ONLY what both sides know anyway: owners and the front, no
+--                  garrison sizes, no supply, no enemy positions.
+--   feed.jsonl   - one line per public event (captures, kills of radars,
+--                  AWACS, ships, convoys, completed missions, weather, war
+--                  clock warnings, victory and the war report), each with a
+--                  running number per war so the companion posts it once.
+-- ============================================================================
+
+DCC = DCC or {}
+local B = DCC.dcs
+local U = DCC.util
+
+B.PUBLIC_KINDS = {
+  capture = true, victory = true, clock = true, weather = true, ewr_destroyed = true, awacs_lost = true,
+  sam_destroyed = true, convoy_lost = true, airlift_lost = true, farp_built = true, ship_sunk = true,
+  mission_done = true, rescued = true, report = true,
+}
+
+local function ll(p)
+  local lat, lon = coord.LOtoLL({ x = p.x, y = 0, z = p.z })
+  return { lat = math.floor(lat * 1e5 + 0.5) / 1e5, lon = math.floor(lon * 1e5 + 0.5) / 1e5 }
+end
+
+function B.publicState()
+  local war, cfg = B.war, DCC.config
+  local st = war.state
+  local s = war:summary()
+  local out = {
+    map = war.T.name, version = cfg.version, warId = st.warId, tick = st.tick,
+    day = (st.tick - (st.clockStart or 0)) * cfg.tickSeconds / 86400,
+    updated = timer.getAbsTime(),
+    winner = st.winner, winBy = st.winBy,
+    bases = { blue = s.blue.nodes, red = s.red.nodes },
+    weather = war:weatherKind(), night = war:isNight(),
+    nodes = {}, front = {}, events = {}, pilots = {}, squadrons = {}, ships = {},
+  }
+  local left = war:clockTicksLeft()
+  if left then
+    out.clock = { hoursLeft = math.max(0, left) * cfg.tickSeconds / 3600, leader = war:clockLeader(),
+                  gained = math.abs(war:groundGained("blue")) }
+  end
+  for _, id in ipairs(war.T.order) do
+    local tn, ns = war.T.nodes[id], st.nodes[id]
+    out.nodes[#out.nodes + 1] = { id = id, name = tn.name, lat = tn.lat, lon = tn.lon, kind = tn.kind,
+      depot = tn.depot, side = ns.side, farp = war:farpAt(id) or nil }
+  end
+  for _, seg in ipairs(DCC.front.segments(war)) do
+    out.front[#out.front + 1] = { { seg.a.lat, seg.a.lon }, { seg.b.lat, seg.b.lon } }
+  end
+  local evs = st.events
+  for i = #evs, 1, -1 do
+    local ev = evs[i]
+    if B.PUBLIC_KINDS[ev.kind] then
+      out.events[#out.events + 1] = { tick = ev.tick, kind = ev.kind, side = ev.side, text = ev.text }
+      if #out.events >= cfg.public.events then break end
+    end
+  end
+  for key, p in pairs(DCC.pilots.data.pilots) do
+    out.pilots[#out.pilots + 1] = { name = p.name, score = DCC.pilots:score(key), rank = DCC.pilots:rank(key),
+      squadron = p.squadron, sorties = p.sorties }
+  end
+  table.sort(out.pilots, function(a, b) if a.score ~= b.score then return a.score > b.score end return a.name < b.name end)
+  while #out.pilots > 20 do table.remove(out.pilots) end
+  for i, sq in ipairs(DCC.pilots:squadrons()) do
+    if i > 10 then break end
+    out.squadrons[i] = sq
+  end
+  for _, ship in ipairs(war.theater.naval or {}) do
+    out.ships[#out.ships + 1] = { name = ship.name, side = ship.side, status = st.naval[ship.id] and st.naval[ship.id].status }
+  end
+  return out
+end
+
+function B.writePublic()
+  local okE, text = pcall(DCC.json.encode, B.publicState())
+  if okE then DCC.persist.writeFile("public.json", text) end
+end
+
+-- Append public events to the feed (each once: numbered per war).
+function B.publishFeed(events)
+  local war = B.war
+  local st = war.state
+  local lines = {}
+  for _, ev in ipairs(events or {}) do
+    if B.PUBLIC_KINDS[ev.kind] then
+      st.feedSeq = (st.feedSeq or 0) + 1
+      local okE, line = pcall(DCC.json.encode, { seq = st.feedSeq, warId = st.warId, map = war.T.name,
+        tick = ev.tick or st.tick, kind = ev.kind, side = ev.side, text = ev.text })
+      if okE then lines[#lines + 1] = line end
+    end
+  end
+  if #lines > 0 then DCC.persist.appendFile("feed.jsonl", table.concat(lines, "\n") .. "\n") end
+end
+
+local baseAnnounce = B.announce
+function B.announce(events)
+  baseAnnounce(events)
+  B.publishFeed(events)
+  B.writePublic()
+end
+
+end
+
 -- >>> src/dcc_main.lua
 do
 -- ============================================================================
@@ -5907,6 +7108,7 @@ function DCC.onTick()
     end
     trigger.action.outText(report, 90)
     DCC.persist.writeReport(DCC.theaterName, war.state.tick, report)
+    if DCC.dcs.publishFeed then DCC.dcs.publishFeed({ { kind = "report", text = report } }); DCC.dcs.writePublic() end
     DCC.save()
     -- the server hook sees this and loads the next map's mission
     DCC.persist.writeRotation({ current = nextMap, state = "ended", finished = DCC.theaterName,
@@ -5952,6 +7154,22 @@ function DCC.warReport(war)
       local b = best[i]
       lines[#lines + 1] = string.format("  %d. %s (%s) - %d points, %d sorties, %d missions",
         i, b.name, b.side, b.pts, b.sorties, b.missions)
+    end
+    local sq, sqList = {}, {}
+    for _, b in ipairs(best) do
+      local tag = DCC.Pilots.squadronOf(b.name)
+      if tag then
+        sq[tag] = sq[tag] or { tag = tag, pts = 0, n = 0 }
+        sq[tag].pts, sq[tag].n = sq[tag].pts + b.pts, sq[tag].n + 1
+      end
+    end
+    for _, s in pairs(sq) do sqList[#sqList + 1] = s end
+    table.sort(sqList, function(a, b) if a.pts ~= b.pts then return a.pts > b.pts end return a.tag < b.tag end)
+    if #sqList > 0 then
+      lines[#lines + 1] = "Top squadrons:"
+      for i = 1, math.min(3, #sqList) do
+        lines[#lines + 1] = string.format("  %d. %s - %d points (%d pilots)", i, sqList[i].tag, sqList[i].pts, sqList[i].n)
+      end
     end
   else
     lines[#lines + 1] = "No pilots flew in this war - the generals fought it alone."
@@ -6011,6 +7229,7 @@ function DCC.start()
   DCC.dcs.opsPoll()
   DCC.dcs.opsTick()
   DCC.dcs.draw()
+  if DCC.dcs.writePublic then DCC.dcs.writePublic() end
 
   -- Save when the mission ends; guard player slots; pilot records and missions.
   world.addEventHandler({ onEvent = function(_, e)
@@ -6198,8 +7417,15 @@ DCC_CATALOGS.modern = {
       fighter = { type = "MiG-29S",  loadout = { { "R-77", 4 }, { "R-73", 2 } } },
       attack  = { type = "Su-25",    loadout = { { "S-8KOM", 4 }, { "OFAB-250", 4 }, { "R-60M", 2 } } },
       awacs   = { type = "A-50",     loadout = {}, size = 1 },
+      antiship = { type = "Su-34",   loadout = { { "Kh-31A", 4 }, { "R-73", 2 } } },  -- only used against ships
     },
   },
+
+  -- After phase 5: convoy air-defence escorts (AI adaptation), JTAC vehicles,
+  -- FARP ground crew (fuel and ammo trucks so the FARP can rearm and refuel).
+  escortAD = { blue = { "M1097 Avenger", "Vulcan" }, red = { "Strela-10M3", "ZSU-23-4 Shilka" } },
+  jtac     = { blue = { "Hummer", "M1043 HMMWV Armament" }, red = { "UAZ-469", "Tigr_233036" } },
+  farpCrew = { blue = { "M978 HEMTT Tanker", "M 818", "Hummer" }, red = { "ATZ-10", "Ural-375", "UAZ-469" } },
 
   -- Early-warning radar sites (phase 5). The first type that exists in this DCS install is used.
   ewr = {
@@ -6257,6 +7483,8 @@ do
 -- Scenario (Modern): BLUE holds Georgia, RED holds the north and Abkhazia /
 -- South Ossetia. The opening front runs Zugdidi-Gali, Gori-Tskhinvali and
 -- the Military Georgian Road.
+-- BLUE's depots are Batumi and Kutaisi (with Tbilisi as a depot BLUE gained
+-- ground in 11 of 12 empty-server test wars; with Kutaisi it is 5 of 12).
 -- ============================================================================
 
 DCC_THEATERS = DCC_THEATERS or {}
@@ -6275,13 +7503,13 @@ DCC_THEATERS.Caucasus = {
     { id = "poti",       name = "Poti",            kind = "town",    side = "blue", lat = 42.1460, lon = 41.6720 },
     { id = "senaki",     name = "Senaki-Kolkhi",   kind = "airbase", side = "blue", lat = 42.2410, lon = 42.0480, airbase = "Senaki-Kolkhi" },
     { id = "zugdidi",    name = "Zugdidi",         kind = "town",    side = "blue", lat = 42.5088, lon = 41.8709 },
-    { id = "kutaisi",    name = "Kutaisi",         kind = "airbase", side = "blue", lat = 42.1767, lon = 42.4826, airbase = "Kutaisi" },
+    { id = "kutaisi",    name = "Kutaisi",         kind = "airbase", side = "blue", lat = 42.1767, lon = 42.4826, airbase = "Kutaisi", depot = true },
     { id = "zestaponi",  name = "Zestaponi",       kind = "town",    side = "blue", lat = 42.1100, lon = 43.0520 },
     { id = "ambrolauri", name = "Ambrolauri",      kind = "town",    side = "blue", lat = 42.5210, lon = 43.1500 },
     { id = "khashuri",   name = "Khashuri",        kind = "town",    side = "blue", lat = 41.9930, lon = 43.6000 },
     { id = "gori",       name = "Gori",            kind = "town",    side = "blue", lat = 41.9840, lon = 44.1100 },
     { id = "pasanauri",  name = "Pasanauri",       kind = "town",    side = "blue", lat = 42.3500, lon = 44.6900 },
-    { id = "tbilisi",    name = "Tbilisi-Lochini", kind = "airbase", side = "blue", lat = 41.6692, lon = 44.9547, airbase = "Tbilisi-Lochini", depot = true },
+    { id = "tbilisi",    name = "Tbilisi-Lochini", kind = "airbase", side = "blue", lat = 41.6692, lon = 44.9547, airbase = "Tbilisi-Lochini" },
     { id = "soganlug",   name = "Soganlug",        kind = "airbase", side = "blue", lat = 41.6460, lon = 44.9370, airbase = "Soganlug" },
     { id = "vaziani",    name = "Vaziani",         kind = "airbase", side = "blue", lat = 41.6290, lon = 45.0270, airbase = "Vaziani" },
 
@@ -6560,7 +7788,7 @@ DCC_THEATERS.PersianGulf = {
   name    = "PersianGulf",
   era     = "modern",
   country = { blue = "CJTF_BLUE", red = "CJTF_RED" },
-  balance = { blue = 1.0, red = 1.0 },
+  balance = { blue = 1.15, red = 1.0 },
 
   nodes = {
     -- ---------------- BLUE ----------------
@@ -6648,6 +7876,12 @@ DCC_THEATERS.PersianGulf = {
     { "sharjah_intl", "sir_abu_nuayr", sea = true },   -- sea crossing, 130 km
     { "sir_abu_nuayr", "sirri_island", sea = true },   -- sea crossing, 83 km
   },
+
+  -- Naval groups: placed by tools/make_mission.py (with client slots on carriers);
+  -- the engine tracks them and offers ANTISHIP missions against them.
+  naval = {
+    { id = "cvn", side = "blue", name = "CVN-74 John C. Stennis", kind = "carrier", lat = 24.9500, lon = 57.3500, heading = 330, ship = "Stennis", escorts = { "USS_Arleigh_Burke_IIa", "USS_Arleigh_Burke_IIa", "TICONDEROG" }, slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B" } },
+  },
 }
 
 end
@@ -6674,7 +7908,7 @@ DCC_THEATERS.Syria = {
   name    = "Syria",
   era     = "modern",
   country = { blue = "CJTF_BLUE", red = "CJTF_RED" },
-  balance = { blue = 1.0, red = 1.0 },
+  balance = { blue = 1.0, red = 1.15 },
 
   nodes = {
     -- ---------------- BLUE ----------------

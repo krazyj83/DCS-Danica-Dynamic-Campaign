@@ -21,6 +21,9 @@ dofile(DCC_ROOT .. "/src/dcc_dcs_supply.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ops.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_intel.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_radar.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_world.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_jtac.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_public.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
 local errors = 0
@@ -192,7 +195,12 @@ check("stale contacts still drawn", #intelMarks(BLUE, "circle") >= 1)
 check("stale contacts can no longer be tasked", war:samKnown("blue", samNode) ~= "known" or war:isFresh("blue", "n:" .. samNode))
 for _ = 1, DCC.config.intel.expireTicks + 1 do war:tick() end
 B.drawIntel()
-check("expired contacts gone from the map", #intelMarks(BLUE, "circle") == 0, #intelMarks(BLUE, "circle"))
+local old, rings = 0, 0
+for key, c in pairs(war.state.contacts.blue) do
+  if war.state.tick - c.seen > DCC.config.intel.expireTicks then old = old + 1 end
+end
+for _, m in ipairs(intelMarks(BLUE, "circle")) do if m.args[2] == 25000 then rings = rings + 1 end end
+check("expired contacts gone from the map", old == 0 and rings == 0, old .. " old, " .. rings .. " SAM rings")
 
 print("Fog off")
 war.fogOfWar = false

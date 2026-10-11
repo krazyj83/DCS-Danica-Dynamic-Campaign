@@ -39,6 +39,8 @@ from dcs.coalition import Coalition
 from dcs.forcedoptions import ForcedOptions
 from dcs.mission import StartType
 from dcs.triggers import TriggerStart
+from dcs import mapping, ships, task as dtask, unit as dunit
+from dcs.terrain.terrain import Warehouse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -146,6 +148,76 @@ def build_ai_templates(m, catalog, cjtf, theater):
     return made
 
 
+def latlon_point(m, lat, lon):
+    return mapping.Point.from_latlng(mapping.LatLng(lat, lon), m.terrain)
+
+
+def build_farps(m, theater, catalog, cjtf):
+    """Two invisible FARPs per town (one per coalition) with dynamic spawn and
+    an EMPTY helicopter stock. The engine stocks the owner's FARP once players
+    have built it (crates), and empties it when the town is lost."""
+    made = 0
+    for node in theater["nodes"]:
+        if node.get("kind") != "town":
+            continue
+        base = latlon_point(m, node["lat"], node["lon"])
+        for i, side in enumerate(("blue", "red")):
+            pos = base.point_from_heading(90 + i * 180, 1500)
+            g = m.farp(cjtf[side], f"DCC_FARP_{node['id']}_{side}", pos, hidden=True,
+                       farp_type=dunit.InvisibleFARP)
+            wh = Warehouse()
+            wh.coalition = side.upper()
+            wh.dynamic_spawn = True
+            wh.allow_hot_start = True
+            wh.unlimited_aircrafts = False
+            wh.aircrafts = {"planes": {}, "helicopters": {t: {"initialAmount": 1}
+                                                         for t in catalog["aircraft"][side].get("helicopters", [])}}
+            m.warehouses.warehouses[int(g.units[0].id)] = wh.dict()
+            made += 1
+    return made
+
+
+def build_naval(m, theater, cjtf, types):
+    """Ship groups from the theater pack; carriers get TACAN/ICLS and client slots."""
+    report = []
+    for sh in theater.get("naval", []) or []:
+        side = sh["side"]
+        cls = ships.ship_map.get(sh["ship"])
+        if cls is None:
+            print(f"  warning: ship type {sh['ship']} unknown to pydcs")
+            continue
+        pos = latlon_point(m, sh["lat"], sh["lon"])
+        g = m.ship_group(cjtf[side], f"DCC_NAVAL_{sh['id']}", cls, pos, heading=sh.get("heading", 0))
+        for i, et in enumerate(sh.get("escorts", []) or []):
+            ecls = ships.ship_map.get(et)
+            if ecls:
+                e = m.ship(f"DCC_NAVAL_{sh['id']} escort {i + 1}", ecls)
+                p = pos.point_from_heading((sh.get("heading", 0) + 90 + i * 120) % 360, 2500)
+                e.position.x, e.position.y = p.x, p.y
+                e.heading = sh.get("heading", 0)
+                g.add_unit(e)
+        # sail into the wind at 25 kn; the engine turns the group around at the end
+        far = pos.point_from_heading(sh.get("heading", 0), 80000)
+        g.add_waypoint(far, 46)
+        if sh.get("kind") == "carrier":
+            cv = g.units[0]
+            g.points[0].tasks.append(dtask.ActivateBeaconCommand(channel=74, modechannel="X", callsign="STN",
+                                                                 bearing=True, unit_id=cv.id, aa=False))
+            g.points[0].tasks.append(dtask.ActivateICLSCommand(channel=4, unit_id=cv.id))
+            for n, t in enumerate(sh.get("slots", []) or []):
+                cls_a = types.get(t)
+                if cls_a is None:
+                    continue
+                try:
+                    fg = m.flight_group_from_unit(cjtf[side], f"{side.upper()} {sh['name']} {t} {n + 1}", cls_a, g,
+                                                  start_type=StartType.Cold, group_size=1)
+                    fg.set_client()
+                    report.append(f"{t} @ {sh['name']}")
+                except Exception as exc:
+                    print(f"  no carrier slot for {t}: {exc}")
+    return report
+
+
 def build(theater_name, era, out, bundle):
     theater, catalog = load_data(theater_name, era)
     if theater_name not in TERRAINS:
@@ -222,6 +294,11 @@ def build(theater_name, era, out, bundle):
     # The engine clones them for CAP, CAS and intercept sorties.
     templates = build_ai_templates(m, catalog, cjtf, theater)
     print(f"  AI templates: {', '.join(templates)}")
+
+    # FARPs players can build at towns, and ships (carrier in the Gulf).
+    farps = build_farps(m, theater, catalog, cjtf)
+    naval = build_naval(m, theater, cjtf, types)
+    print(f"  FARP sites: {farps}  naval slots: {len(naval)}")
 
     # The single trigger: load the campaign engine.
     if not os.path.exists(bundle):

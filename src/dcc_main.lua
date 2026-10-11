@@ -73,6 +73,7 @@ function DCC.onTick()
     end
     trigger.action.outText(report, 90)
     DCC.persist.writeReport(DCC.theaterName, war.state.tick, report)
+    if DCC.dcs.publishFeed then DCC.dcs.publishFeed({ { kind = "report", text = report } }); DCC.dcs.writePublic() end
     DCC.save()
     -- the server hook sees this and loads the next map's mission
     DCC.persist.writeRotation({ current = nextMap, state = "ended", finished = DCC.theaterName,
@@ -118,6 +119,22 @@ function DCC.warReport(war)
       local b = best[i]
       lines[#lines + 1] = string.format("  %d. %s (%s) - %d points, %d sorties, %d missions",
         i, b.name, b.side, b.pts, b.sorties, b.missions)
+    end
+    local sq, sqList = {}, {}
+    for _, b in ipairs(best) do
+      local tag = DCC.Pilots.squadronOf(b.name)
+      if tag then
+        sq[tag] = sq[tag] or { tag = tag, pts = 0, n = 0 }
+        sq[tag].pts, sq[tag].n = sq[tag].pts + b.pts, sq[tag].n + 1
+      end
+    end
+    for _, s in pairs(sq) do sqList[#sqList + 1] = s end
+    table.sort(sqList, function(a, b) if a.pts ~= b.pts then return a.pts > b.pts end return a.tag < b.tag end)
+    if #sqList > 0 then
+      lines[#lines + 1] = "Top squadrons:"
+      for i = 1, math.min(3, #sqList) do
+        lines[#lines + 1] = string.format("  %d. %s - %d points (%d pilots)", i, sqList[i].tag, sqList[i].pts, sqList[i].n)
+      end
     end
   else
     lines[#lines + 1] = "No pilots flew in this war - the generals fought it alone."
@@ -177,6 +194,7 @@ function DCC.start()
   DCC.dcs.opsPoll()
   DCC.dcs.opsTick()
   DCC.dcs.draw()
+  if DCC.dcs.writePublic then DCC.dcs.writePublic() end
 
   -- Save when the mission ends; guard player slots; pilot records and missions.
   world.addEventHandler({ onEvent = function(_, e)

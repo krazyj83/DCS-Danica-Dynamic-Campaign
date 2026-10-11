@@ -16,6 +16,8 @@ Golan Heights, the Daraa - Irbid corridor and the Beirut - Bekaa road.
 Turkey and Cyprus stay out of the war.
 """,
     "maxEdgeKm": 130,
+    # Measured offline (16 wars of 7 days, nobody online): RED x1.15 -> BLUE wins 9 of 16 on the clock.
+    "balance": {"blue": 1.0, "red": 1.15},
     "airbases": [
         # ---------------- BLUE: Israel ----------------
         ("Ramat David", "blue", {"depot": True}),

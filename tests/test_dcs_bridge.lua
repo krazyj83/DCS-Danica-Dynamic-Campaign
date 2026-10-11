@@ -21,6 +21,9 @@ dofile(DCC_ROOT .. "/src/dcc_dcs_supply.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ops.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_intel.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_radar.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_world.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_jtac.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_public.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
 local B = DCC.dcs
@@ -41,9 +44,10 @@ check("status menu added for both sides", #MOCK.menus == 2)
 
 print("Warehouses (dynamic spawn)")
 local kut = MOCK.airbases["Kutaisi"].wh
-check("BLUE base: BLUE aircraft stocked", kut:getItemCount("FA-18C_hornet") == 4, kut:getItemCount("FA-18C_hornet"))
+-- Kutaisi is a BLUE depot: depots hold 8 of each type
+check("BLUE base: BLUE aircraft stocked", kut:getItemCount("FA-18C_hornet") == 8, kut:getItemCount("FA-18C_hornet"))
 check("BLUE base: RED-only aircraft removed", kut:getItemCount("Su-27") == 0)
-check("type flown by both sides stays", kut:getItemCount("Su-25T") == 4, kut:getItemCount("Su-25T"))
+check("type flown by both sides stays", kut:getItemCount("Su-25T") == 8, kut:getItemCount("Su-25T"))
 local bat = MOCK.airbases["Batumi"].wh
 check("depot holds more", bat:getItemCount("F-16C_50") == 8, bat:getItemCount("F-16C_50"))
 local soc = MOCK.airbases["Sochi-Adler"].wh

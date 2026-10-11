@@ -420,8 +420,10 @@ function B.showStatus(side)
   local left = war:clockTicksLeft()
   if left then
     local h = math.max(0, left) * DCC.config.tickSeconds / 3600
-    lines[#lines + 1] = string.format("War clock: %dd %02dh left - %s holds the most bases", math.floor(h / 24),
-      math.floor(h % 24), war:clockLeader():upper())
+    local gb = war:groundGained("blue")
+    lines[#lines + 1] = string.format("War clock: %dd %02dh left - %s", math.floor(h / 24), math.floor(h % 24),
+      gb == 0 and "even: no ground gained yet" or string.format("%s is ahead (%+d bases since the start)",
+        gb > 0 and "BLUE" or "RED", math.abs(gb)))
   end
   if B.opsStatusLines then for _, l in ipairs(B.opsStatusLines(side)) do lines[#lines + 1] = l end end
   if B.intelStatusLines then for _, l in ipairs(B.intelStatusLines(side)) do lines[#lines + 1] = l end end
