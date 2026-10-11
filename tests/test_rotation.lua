@@ -148,12 +148,28 @@ do
   DCC.start()
   local w = DCC.warObj
   w.state.clockStart = w.state.tick - w:clockTicksLeft() - (w.state.tick - (w.state.clockStart or 0)) + 1
+  -- Morten flies one sortie for the side that is ahead
+  local lead = w:clockLeader()
+  local someNode
+  for _, id in ipairs(w.T.order) do if w.state.nodes[id].side == lead then someNode = id; break end end
+  local np = DCC.dcs.nodePos[someNode]
+  local u = MOCK.spawnPlayer(DCC.dcs.COAL[lead], "F-16C_50", np.x, np.z, "Morten")
+  u.air = true
+  MOCK.fire({ id = world.event.S_EVENT_TAKEOFF, initiator = u })
+  check("sortie on the war roster", (function() for _, r in pairs(w.state.roster or {}) do
+    if r.name == "Morten" and r[lead] == 1 then return true end end return false end)())
   check("one tick left on the clock", w:clockTicksLeft() == 1, w:clockTicksLeft())
   DCC.onTick()
   check("clock victory", w.state.winner ~= nil and w.state.winBy == "clock")
   local r = DCC.persist.readRotation()
   check("rotation: ended on Syria, next Persian Gulf", r.state == "ended" and r.finished == "Syria" and r.next == "PersianGulf")
   check("flag 9900 set", MOCK.flags[DCC.config.campaignOverFlag] == 1)
+  local text = table.concat(MOCK.texts, "\n")
+  check("victory bonus announced for the roster", text:find("Victory bonus (+50 points, war clock)", 1, true) ~= nil
+    and text:find("Morten", 1, true) ~= nil)
+  local key
+  for k, p in pairs(DCC.pilots.data.pilots) do if p.name == "Morten" then key = k end end
+  check("bonus saved in pilots.json", key and DCC.persist.loadPilots().pilots[key].wins_clock == 1)
 end
 check("no script errors", errors == 0, errors)
 

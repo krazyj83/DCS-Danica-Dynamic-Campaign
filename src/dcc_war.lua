@@ -732,6 +732,15 @@ function War:planReinforcements(side, dist, focus)
   end
 end
 
+-- Who flew for which side in this war (saved with the war; read at victory).
+function War:recordSortie(key, side, name)
+  self.state.roster = self.state.roster or {}
+  local r = self.state.roster[key] or { name = name, blue = 0, red = 0 }
+  r[side] = (r[side] or 0) + 1
+  r.name = name or r.name
+  self.state.roster[key] = r
+end
+
 -- End the war: the loser's stray units are removed so one lost truck cannot stall the end.
 function War:declareWinner(winner, how)
   local loser = U.otherSide(winner)

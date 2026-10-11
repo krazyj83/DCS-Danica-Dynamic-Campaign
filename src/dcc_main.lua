@@ -62,6 +62,14 @@ function DCC.onTick()
     DCC.ended = true
     trigger.action.setUserFlag(DCC.config.campaignOverFlag, 1)
     local nextMap = DCC.nextMap(DCC.theaterName)
+    -- victory bonus for everyone who flew for the winner in this war
+    local names, pts = DCC.pilots:warWon(war.state.roster, war.state.winner, war.state.winBy)
+    if #names > 0 then
+      trigger.action.outText(string.format("Victory bonus (+%d points, %s) for %d %s pilots: %s", pts,
+        war.state.winBy == "conquest" and "conquest" or "war clock", #names, war.state.winner:upper(),
+        table.concat(names, ", ")), 60)
+    end
+    DCC.save()
     -- the server hook sees this and loads the next map's mission
     DCC.persist.writeRotation({ current = nextMap, state = "ended", finished = DCC.theaterName,
                                 winner = war.state.winner, next = nextMap, tick = war.state.tick })

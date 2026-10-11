@@ -398,6 +398,25 @@ do
   check("captured radar destroyed", wc2.state.nodes.beslan.ewr.status == "destroyed")
 end
 
+print("Victory bonus")
+do
+  local P2 = DCC.Pilots.new()
+  local roster = { a = { name = "Anna", blue = 3, red = 0 }, b = { name = "Bo", blue = 0, red = 2 },
+                   c = { name = "Cy", blue = 1, red = 4 } }
+  local names, pts = P2:warWon(roster, "blue", "conquest")
+  check("everyone who flew for the winner gets it", #names == 2 and names[1] == "Anna" and names[2] == "Cy")
+  check("conquest is worth 150", pts == 150 and P2:score("a") == 150 and P2:score("b") == 0)
+  local P3 = DCC.Pilots.new()
+  local _, pc = P3:warWon(roster, "red", "clock")
+  check("a clock win is worth less", pc == 50 and P3:score("b") == 50 and pc < pts)
+  check("wins in the record", P2:summary("a"):find("1 by conquest", 1, true) ~= nil)
+  local wr = DCC.War.new(T, C, cfg, 41)
+  wr:recordSortie("k1", "blue", "Kim"); wr:recordSortie("k1", "blue", "Kim"); wr:recordSortie("k1", "red", "Kim")
+  check("roster counts sorties per side", wr.state.roster.k1.blue == 2 and wr.state.roster.k1.red == 1)
+  local back = DCC.War.restore(T, C, cfg, J.decode(J.encode(wr:snapshot())))
+  check("roster survives save/restore", back.state.roster.k1.blue == 2)
+end
+
 print("Long run with ops")
 local wl = DCC.War.new(T, C, cfg, 18)
 local ok = true

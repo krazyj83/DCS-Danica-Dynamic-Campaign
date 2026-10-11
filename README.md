@@ -71,6 +71,11 @@ intercept an enemy airlift. Shot-down AI aircraft are gone from the pool.
 ground, convoy, SAM, buildings), missions by type, rescues flown and received, ejections, deaths
 and captures. Score sets rank, from Lieutenant to General.
 
+**Victory bonus:** when a war ends, every pilot who flew at least one sortie for the winning side
+in that war gets **+150 points for a conquest** (the whole map taken) or **+50 for a war-clock win**.
+The winners are named in a server message, and the record shows wars won of each kind. Switching sides
+is allowed: fly for both and you collect whichever side wins.
+
 ## Radars, AWACS and recon photos
 
 | What | How it works | How to hurt it |
@@ -422,13 +427,13 @@ under Python via `lupa`:
 pip install lupa matplotlib
 
 python tools/run_lua.py tests/test_war.lua          # war model, supply, war clock: 37 checks
-python tools/run_lua.py tests/test_ops.lua          # every mission type, fog gating, radars and AWACS: 83 checks
+python tools/run_lua.py tests/test_ops.lua          # every mission type, fog gating, radars, AWACS, victory bonus: 89 checks
 python tools/run_lua.py tests/test_dcs_bridge.lua   # bridge, convoys, airlifts, warehouses: 49 checks
 python tools/run_lua.py tests/test_dcs_ops.lua      # flying every mission type against a fake DCS: 60 checks
 python tools/run_lua.py tests/test_dcs_intel.lua    # fog of war: each map shows only what that side detected: 40 checks
 python tools/run_lua.py tests/test_dcs_radar.lua    # EWR, AWACS, HVAA, recon photos: 34 checks
 python tools/run_lua.py tests/test_theaters.lua     # all four maps: connected, depots, war runs: 28 checks
-python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended: 28 checks
+python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended, bonus paid: 31 checks
 
 python tools/run_lua.py tools/sim.lua 4320 2026 docs/sim_history.json   # simulate 15 days
 DCC_THEATER=Syria python tools/run_lua.py tools/sim.lua 4320               # ...on another map

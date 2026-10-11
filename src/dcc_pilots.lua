@@ -19,6 +19,8 @@ DCC.Pilots = Pilots
 Pilots.POINTS = {
   kills_air = 10, kills_ground = 3, kills_convoy = 2, kills_sam = 8, kills_structure = 5,
   missions = 20, rescues = 25, deaths = -10, captured = -5,
+  wins_conquest = 150,   -- flew for the side that conquered the whole map
+  wins_clock = 50,       -- flew for the side that was ahead when the war clock ran out
 }
 
 Pilots.RANKS = {
@@ -33,7 +35,8 @@ function Pilots.new(data)
 end
 
 local FIELDS = { "sorties", "flightMinutes", "kills_air", "kills_ground", "kills_convoy", "kills_sam",
-                 "kills_structure", "missions", "rescues", "deaths", "ejections", "captured", "saved" }
+                 "kills_structure", "missions", "rescues", "deaths", "ejections", "captured", "saved",
+                 "wins_conquest", "wins_clock" }
 
 function Pilots:get(key, name)
   local p = self.data.pilots[key]
@@ -66,6 +69,22 @@ function Pilots:sortie(key, side, theater, name)
   p.wars[theater] = true
 end
 
+-- War won: every pilot who flew at least one sortie for the winner in this war.
+-- roster = war.state.roster ({ [key] = { name, blue = sorties, red = sorties } }).
+-- Returns the names that got the bonus.
+function Pilots:warWon(roster, winner, how)
+  local field = (how == "conquest") and "wins_conquest" or "wins_clock"
+  local names = {}
+  for _, key in ipairs(U.sortedKeys(roster or {})) do
+    local r = roster[key]
+    if (r[winner] or 0) >= 1 then
+      self:add(key, field, 1, r.name)
+      names[#names + 1] = r.name or key
+    end
+  end
+  return names, Pilots.POINTS[field]
+end
+
 function Pilots:score(key)
   local p = self.data.pilots[key]
   if not p then return 0 end
@@ -95,6 +114,7 @@ function Pilots:summary(key)
     string.format("Missions %d%s", p.missions, #types > 0 and (" (" .. table.concat(types, ", ") .. ")") or ""),
     string.format("Rescues flown %d, rescued %d times, ejections %d, deaths %d, captured %d",
       p.rescues, p.saved, p.ejections, p.deaths, p.captured),
+    string.format("Wars won: %d by conquest, %d on the war clock", p.wins_conquest or 0, p.wins_clock or 0),
     "Theaters: " .. (#wars > 0 and table.concat(wars, ", ") or "-"),
   }, "\n")
 end
