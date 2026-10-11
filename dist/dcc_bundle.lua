@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.1.0-phase1 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.2.0-phase2 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.1.0-phase1",
+  version         = "0.2.0-phase2",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -50,7 +50,32 @@ DCC.config = {
   defenderBonus    = { airbase = 1.5, town = 1.3, depot = 2.0 },
   battleLossRate   = 0.15,  -- share of enemy power taken as damage per tick
   destroyedBelow   = 0.25,  -- platoon health below this = platoon destroyed
-  isolationAttrition = 0.01, -- health lost per tick by garrisons cut off from every depot (~6 h to collapse)
+
+  -- Supply (phase 2). One supply unit (SU) = fuel, ammo and spares together.
+  supply = {
+    cap              = { town = 60, airbase = 80, depot = 300 }, -- normal stock limit per node
+    overfillFactor   = 2.5,   -- deliveries may fill a node up to cap x this (staging areas)
+    startFraction    = 0.5,   -- every node starts half full
+    depotPerTick     = 6,     -- SU a depot produces per tick (x the same factor as platoons)
+    upkeepPerPlatoon = 0.05,  -- SU each platoon uses per tick (an 18-platoon town: ~11 SU/h)
+    outOfSupplyAttrition = 0.005, -- health lost per tick at 0 supply (~12 h to collapse)
+    assaultCostPerPlatoon = 2, -- SU paid at the start node for each attacking platoon
+    assaultCarryShare = 0.5,  -- share of that cost the attackers carry into a captured node
+    keepHours        = 3,     -- every node wants at least this many hours of upkeep in stock
+    stagingFactor    = 2,     -- nodes facing the main effort want cap x this
+    depotReserve     = 40,    -- SU a depot keeps before sending convoys
+    rearKeep         = 10,    -- SU a rear node keeps before passing supply on
+    convoyCapacity   = 30,    -- SU per truck convoy
+    convoyMin        = 8,     -- smallest load worth sending
+    convoysPerNode   = 3,     -- convoys a node may have on the road at once
+    airliftCapacity  = 30,    -- SU per airlift
+    airliftSpeedKmh  = 350,
+    airliftMinKm     = 80,    -- airlifts only for longer hops (or cut-off airbases)
+    maxAirlifts      = 2,     -- per side at once
+    captureShare     = 0.5,   -- share of a captured node's stores the attacker keeps
+    airRestockTicks  = 12,    -- every hour each airbase may replace one lost aircraft...
+    airRestockCost   = 5,     -- ...for this much supply
+  },
 
   -- Live bubble (what gets spawned as real DCS units) -----------------------
   liveRadiusKm     = 40,    -- nodes within this distance of a player are live
@@ -395,8 +420,10 @@ do
 --   node     : a place that can be owned (airbase, town, depot)
 --   platoon  : the unit of force; has a side, a role and a health 0..1
 --   garrison : the platoons sitting in a node
---   move     : platoons travelling along a road edge. kind = "reinforce"
---              (to a friendly node) or "assault" (to an enemy node)
+--   move     : something travelling. kind = "reinforce" (platoons to a
+--              friendly node), "assault" (platoons to an enemy node),
+--              "convoy" (supply by road) or "airlift" (supply by air).
+--              Supply lives in dcc_supply.lua, which adds methods to War.
 --   battle   : an assault that has arrived; status = "fighting"
 --   live     : a node or move the bridge has spawned as DCS units. The model
 --              does not roll dice for live fights - DCS does the fighting.
@@ -476,6 +503,7 @@ function War.new(theater, catalog, cfg, seed)
       self:newPlatoon(tn.startSide, self:pickRole("garrison"), id)
     end
   end
+  self:initAllSupply()
   self:log("start", nil, "War begins on " .. theater.name)
   return self
 end
@@ -505,12 +533,13 @@ function War.restore(theater, catalog, cfg, state)
     end
   end
   for mid, mv in pairs(state.moves) do
+    mv.platoons = mv.platoons or {}
     if not (self.T.nodes[mv.from] and self.T.nodes[mv.to]) then
       for _, pid in ipairs(mv.platoons) do state.platoons[pid] = nil end
       state.moves[mid] = nil
     end
-    mv.platoons = mv.platoons or {}
   end
+  self:initAllSupply()   -- a phase-1 save gets supply and aircraft stock added
   return self
 end
 
@@ -586,7 +615,10 @@ function War:depotsOpen(attacker)
 end
 
 function War:isNodeLive(id) return self.liveFn ~= nil and self.liveFn(id) == true end
-function War:isMoveLive(mv) return self:isNodeLive(mv.from) or self:isNodeLive(mv.to) end
+function War:isMoveLive(mv)
+  if mv.kind == "airlift" then return self.airLive == true end
+  return self:isNodeLive(mv.from) or self:isNodeLive(mv.to)
+end
 
 -- Steps from each node to the nearest enemy-held node (breadth-first search
 -- over the road graph). 1 = on the front, 2 = one step behind, and so on.
@@ -690,17 +722,21 @@ function War:startCount(side)
   return math.max(n, 1)
 end
 
+-- Each node gained (or lost) since the start moves the rate by the same
+-- amount for both sides, whatever their starting size.
+function War:productionFactor(side)
+  local gained = self:countNodes(side) - self:startCount(side)
+  local factor = 1 + self.cfg.productionPerNode * gained
+  factor = U.clamp(factor, self.cfg.productionMinFactor, self.cfg.productionMaxFactor)
+  return factor * (self.balance[side] or 1)   -- per-theater balance knob
+end
+
 function War:produce()
   self.state.prodPoints = self.state.prodPoints or {}
   for _, id in ipairs(self.T.order) do
     local tn, ns = self.T.nodes[id], self.state.nodes[id]
     if tn.depot then
-      -- Each node gained (or lost) since the start moves the rate by the same
-      -- amount for both sides, whatever their starting size.
-      local gained = self:countNodes(ns.side) - self:startCount(ns.side)
-      local factor = 1 + self.cfg.productionPerNode * gained
-      factor = U.clamp(factor, self.cfg.productionMinFactor, self.cfg.productionMaxFactor)
-      factor = factor * (self.balance[ns.side] or 1)   -- per-theater balance knob
+      local factor = self:productionFactor(ns.side)
       local pts = (self.state.prodPoints[id] or 0) + factor / self.cfg.depotProductionEveryTicks
       while pts >= 1 and #ns.platoons < self.cfg.garrisonMax.depot do
         self:newPlatoon(ns.side, self:pickRole("garrison"), id)
@@ -713,6 +749,7 @@ function War:produce()
 end
 
 function War:arrive(mv)
+  if mv.cargo then return self:deliver(mv) end
   local ns = self.state.nodes[mv.to]
   if ns.side == mv.side then
     self:joinGarrison(mv)
@@ -724,25 +761,28 @@ end
 
 function War:advanceMoves()
   local kmPerTick = self.cfg.groundSpeedKmh * self.cfg.tickSeconds / 3600
+  local airKmPerTick = self.cfg.supply.airliftSpeedKmh * self.cfg.tickSeconds / 3600
   for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
     local mv = self.state.moves[mid]
     if mv and mv.status == "moving" then
-      if #mv.platoons == 0 then
+      if #mv.platoons == 0 and not mv.cargo then
         self.state.moves[mid] = nil
       else
         -- Live moves are advanced by the bridge from real unit positions.
-        if not self:isMoveLive(mv) then mv.progress = mv.progress + kmPerTick / mv.km end
+        local step = (mv.kind == "airlift") and airKmPerTick or kmPerTick
+        if not self:isMoveLive(mv) then mv.progress = mv.progress + step / math.max(mv.km, 0.1) end
         if mv.progress >= 1 then self:arrive(mv) end
       end
     end
   end
 end
 
-function War:capture(mv)
+function War:capture(mv, carried)
   local ns = self.state.nodes[mv.to]
   local old = ns.side
   ns.side = mv.side
   self:joinGarrison(mv)
+  self:onCaptureSupply(mv.to, carried)
   self.state.stats.captures[mv.side] = self.state.stats.captures[mv.side] + 1
   self:log("capture", mv.side, string.format("%s captured %s from %s",
     mv.side:upper(), self:nodeName(mv.to), old:upper()))
@@ -756,7 +796,7 @@ function War:abstractRound(target, attackers)
   for _, mv in ipairs(attackers) do
     for _, pid in ipairs(mv.platoons) do combined[#combined + 1] = pid end
   end
-  local bonus = self.cfg.defenderBonus[self:classOf(target)]
+  local bonus = self:bonusOf(target)
   local A = self:power(combined)
   local D = self:power(ns.platoons) * bonus
   local rate = self.cfg.battleLossRate
@@ -806,7 +846,9 @@ function War:resolveBattles()
         self:log("repulsed", ns.side, string.format("%s held %s against a %s assault",
           ns.side:upper(), self:nodeName(target), attackers[1].side:upper()))
       elseif #ns.platoons == 0 then
-        self:capture(alive[1])
+        local carried = 0
+        for _, mv in ipairs(alive) do carried = carried + (mv.carried or 0) end
+        self:capture(alive[1], carried)
         for i = 2, #alive do self:joinGarrison(alive[i]) end
       end
     end
@@ -814,8 +856,8 @@ function War:resolveBattles()
 end
 
 -- ---------------------------------------------------------------------------
--- Planning: the simple phase-1 commander for each side.
--- Phase 2 replaces this with the budget-driven commander.
+-- Planning: each side's commander. Phase 2 gates it on supply: an attack
+-- costs supply at the node it starts from (see dcc_supply.lua).
 -- ---------------------------------------------------------------------------
 function War:sortedGarrison(id, forAssault)
   local list = {}
@@ -844,7 +886,8 @@ function War:planAssaults(side, dist, focus)
 
   local function offer(nodeId, isFocus)
     local ns = self.state.nodes[nodeId]
-    local available = #ns.platoons - self.cfg.frontKeep
+    -- Platoons that can attack: spare ones, and only as many as the node can supply.
+    local available = math.min(#ns.platoons - self.cfg.frontKeep, self:assaultAffordable(nodeId))
     if available <= 0 or used[nodeId] or #self:movesFrom(nodeId, "assault") > 0 then return nil end
     -- The main effort commits everything it staged; other attacks are capped.
     local limit = isFocus and available or math.min(self.cfg.assaultMax, available)
@@ -905,7 +948,9 @@ function War:planAssaults(side, dist, focus)
 
     if not best or best.score < 1 then break end
     for _, g in ipairs(best.groups) do
-      self:startMove("assault", side, g.from, best.target, g.pids)
+      local carried = self:payAssault(g.from, #g.pids)
+      local mv = self:startMove("assault", side, g.from, best.target, g.pids)
+      mv.carried = carried
       used[g.from] = true
     end
     self:log("assault", side, string.format("%s launches %d platoons from %d node(s) toward %s (odds %.1f)",
@@ -923,7 +968,7 @@ function War:defenceOf(target)
   local ns = self.state.nodes[target]
   local d = self:power(ns.platoons)
   for _, rmv in ipairs(self:movesTo(target, ns.side, "reinforce")) do d = d + self:power(rmv.platoons) end
-  return d * self.cfg.defenderBonus[self:classOf(target)]
+  return d * self:bonusOf(target)
 end
 
 -- Nodes a side can supply: reachable from one of its depots over its own nodes.
@@ -1061,34 +1106,6 @@ function War:planReinforcements(side, dist, focus)
   end
 end
 
--- Encirclement: platoons in nodes cut off from every friendly depot run out
--- of fuel and ammunition. They lose health each tick until relieved or gone,
--- which turns a breakthrough into a collapse instead of a stalemate.
-function War:isolationAttrition()
-  local rate = self.cfg.isolationAttrition
-  if not rate or rate <= 0 then return end
-  for _, side in ipairs(SIDES) do
-    local supplied = self:supplied(side)
-    for _, id in ipairs(self.T.order) do
-      local ns = self.state.nodes[id]
-      if ns.side == side and not supplied[id] and #ns.platoons > 0 then
-        if not ns.cutOff then
-          ns.cutOff = true
-          self:log("cutoff", side, string.format("%s garrison at %s is cut off", side:upper(), self:nodeName(id)))
-        end
-        for i = #ns.platoons, 1, -1 do
-          local pid = ns.platoons[i]
-          local pl = self.state.platoons[pid]
-          pl.health = pl.health - rate
-          if pl.health < self.cfg.destroyedBelow then self:destroyPlatoon(pid) end
-        end
-      elseif supplied[id] then
-        ns.cutOff = nil
-      end
-    end
-  end
-end
-
 function War:checkVictory()
   if self.state.winner then return end
   for _, side in ipairs(SIDES) do
@@ -1114,9 +1131,11 @@ function War:tick()
   if self.state.winner then return self.newEvents end
   self.state.tick = self.state.tick + 1
   self:produce()
+  self:produceSupply()
   self:advanceMoves()
   self:resolveBattles()
-  self:isolationAttrition()
+  self:upkeep()
+  self:restockAircraft()
   self:checkVictory()
   if not self.state.winner then
     -- Alternate which side plans first so neither always gets first pick.
@@ -1126,6 +1145,8 @@ function War:tick()
       local focus = self:chooseFocus(side)
       self:planAssaults(side, dist, focus)
       self:planReinforcements(side, dist, focus)
+      self:planConvoys(side, dist, focus)
+      self:planAirlifts(side, dist, focus)
     end
   end
   return self.newEvents
@@ -1153,6 +1174,361 @@ function War:summary()
   local s = { blue = { nodes = 0, platoons = 0 }, red = { nodes = 0, platoons = 0 } }
   for _, ns in pairs(self.state.nodes) do s[ns.side].nodes = s[ns.side].nodes + 1 end
   for _, pl in pairs(self.state.platoons) do s[pl.side].platoons = s[pl.side].platoons + 1 end
+  return s
+end
+
+end
+
+-- >>> src/dcc_supply.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - supply economy (phase 2, pure Lua 5.1)
+-- ----------------------------------------------------------------------------
+-- Adds supply to the war model. Load after dcc_war.lua.
+--
+-- Concepts
+--   supply (SU) : one number per node - fuel, ammunition and spares together.
+--   depot       : produces supply every tick (scaled like platoon production).
+--   upkeep      : every platoon uses a little supply each tick where it sits.
+--                 A node at 0 supply is OUT OF SUPPLY: its platoons lose
+--                 health every tick and it defends without its bonus.
+--                 (This replaces phase 1's "cut off" rule: a pocket that no
+--                 convoy can reach simply runs dry.)
+--   assault     : launching an attack costs supply per platoon at the node it
+--                 starts from. No supply at the front = no attack.
+--   convoy      : trucks carrying supply one road edge at a time, from nodes
+--                 with surplus toward the front and the main effort. Near
+--                 players they are real DCS trucks - kill them and the cargo
+--                 never arrives.
+--   airlift     : a transport aircraft carrying supply between two friendly
+--                 airbases, any distance. Feeds cut-off airbases. Always a
+--                 real aircraft in DCS, so it can be intercepted anywhere.
+--   aircraft    : player aircraft stock per airbase (dynamic spawn). The
+--                 bridge mirrors it into the DCS warehouse. Lost aircraft
+--                 are replaced over time, paid for in supply - only at a
+--                 supplied base.
+-- ============================================================================
+
+DCC = DCC or {}
+local U = DCC.util
+local War = DCC.War
+local SIDES = { "blue", "red" }
+
+local function S(self) return self.cfg.supply end
+
+-- ---------------------------------------------------------------------------
+-- Node supply helpers
+-- ---------------------------------------------------------------------------
+function War:supplyCap(id)
+  return S(self).cap[self:classOf(id)]
+end
+
+function War:hasSupply(id)
+  return (self.state.nodes[id].supply or 0) > 0
+end
+
+-- Defender bonus only counts for a node that still has supply.
+function War:bonusOf(id)
+  if not self:hasSupply(id) then return 1 end
+  return self.cfg.defenderBonus[self:classOf(id)]
+end
+
+function War:incomingSupply(id, side)
+  local n = 0
+  for _, mv in pairs(self.state.moves) do
+    if mv.to == id and mv.side == side and mv.cargo then n = n + mv.cargo * (mv.health or 1) end
+  end
+  return n
+end
+
+-- Owner's player aircraft types (from the catalog), as a flat list.
+function War:aircraftTypes(side)
+  local air = self.cat.aircraft and self.cat.aircraft[side]
+  local list = {}
+  if air then
+    for _, t in ipairs(air.planes or {}) do list[#list + 1] = t end
+    for _, t in ipairs(air.helicopters or {}) do list[#list + 1] = t end
+  end
+  return list
+end
+
+function War:airTarget(id)
+  local st = self.cat.aircraftStock or { airbase = 4, depot = 8 }
+  return self.T.nodes[id].depot and st.depot or st.airbase
+end
+
+-- Fresh stock for a node: full at war start, empty after a capture.
+function War:initNodeSupply(id, fresh)
+  local ns, tn = self.state.nodes[id], self.T.nodes[id]
+  if ns.supply == nil then ns.supply = self:supplyCap(id) * S(self).startFraction end
+  if tn.kind == "airbase" and (ns.air == nil or fresh ~= nil) then
+    ns.air = {}
+    local n = (fresh == "empty") and 0 or self:airTarget(id)
+    for _, t in ipairs(self:aircraftTypes(ns.side)) do ns.air[t] = n end
+  end
+end
+
+function War:initAllSupply()
+  for _, id in ipairs(self.T.order) do self:initNodeSupply(id) end
+  self.state.stats.delivered = self.state.stats.delivered or { blue = 0, red = 0 }
+  self.state.stats.cargoLost = self.state.stats.cargoLost or { blue = 0, red = 0 }
+end
+
+-- ---------------------------------------------------------------------------
+-- Production and upkeep
+-- ---------------------------------------------------------------------------
+function War:produceSupply()
+  local cfg = S(self)
+  for _, id in ipairs(self.T.order) do
+    local tn, ns = self.T.nodes[id], self.state.nodes[id]
+    if tn.depot then
+      ns.supply = math.min(self:supplyCap(id), ns.supply + cfg.depotPerTick * self:productionFactor(ns.side))
+    end
+  end
+end
+
+function War:upkeep()
+  local cfg = S(self)
+  for _, id in ipairs(self.T.order) do
+    local ns = self.state.nodes[id]
+    local need = #ns.platoons * cfg.upkeepPerPlatoon
+    if need > 0 then
+      if ns.supply >= need then
+        ns.supply = ns.supply - need
+        ns.outOfSupply = nil
+      else
+        ns.supply = 0
+        if not ns.outOfSupply then
+          ns.outOfSupply = true
+          self:log("nosupply", ns.side, string.format("%s garrison at %s is out of supply",
+            ns.side:upper(), self:nodeName(id)))
+        end
+        for i = #ns.platoons, 1, -1 do
+          local pid = ns.platoons[i]
+          local pl = self.state.platoons[pid]
+          pl.health = pl.health - cfg.outOfSupplyAttrition
+          if pl.health < self.cfg.destroyedBelow then self:destroyPlatoon(pid) end
+        end
+      end
+    end
+  end
+end
+
+-- Lost player aircraft come back one at a time, paid for in supply.
+function War:restockAircraft()
+  local cfg = S(self)
+  if self.state.tick % cfg.airRestockTicks ~= 0 then return end
+  for _, id in ipairs(self.T.order) do
+    local ns = self.state.nodes[id]
+    if ns.air and ns.supply >= cfg.airRestockCost then
+      local target, lowest, lowType = self:airTarget(id), nil, nil
+      for _, t in ipairs(self:aircraftTypes(ns.side)) do
+        local n = ns.air[t] or 0
+        if n < target and (not lowest or n < lowest) then lowest, lowType = n, t end
+      end
+      if lowType then
+        ns.air[lowType] = (ns.air[lowType] or 0) + 1
+        ns.supply = ns.supply - cfg.airRestockCost
+      end
+    end
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- Cargo moves (convoys and airlifts)
+-- ---------------------------------------------------------------------------
+function War:startCargo(kind, side, from, to, amount)
+  local ns = self.state.nodes[from]
+  amount = math.min(amount, ns.supply)
+  if amount <= 0 then return nil end
+  ns.supply = ns.supply - amount
+  local km = self.T.nodes[from].nb[to] or U.distKm(self.T.nodes[from], self.T.nodes[to])
+  local mid = self:newId(kind == "airlift" and "a" or "c")
+  local mv = { id = mid, kind = kind, side = side, from = from, to = to, platoons = {},
+               cargo = amount, health = 1, progress = 0, km = km, status = "moving" }
+  self.state.moves[mid] = mv
+  return mv
+end
+
+-- A cargo move arrives: friendly destination gets it, anything else loses it.
+function War:deliver(mv)
+  local ns = self.state.nodes[mv.to]
+  local amount = mv.cargo * (mv.health or 1)
+  if ns.side == mv.side then
+    ns.supply = math.min(self:supplyCap(mv.to) * S(self).overfillFactor, ns.supply + amount)
+    self.state.stats.delivered[mv.side] = self.state.stats.delivered[mv.side] + amount
+    if mv.kind == "airlift" then
+      self:log("airlift_in", mv.side, string.format("%s airlift landed at %s with %d supply",
+        mv.side:upper(), self:nodeName(mv.to), math.floor(amount + 0.5)))
+    end
+  else
+    self.state.stats.cargoLost[mv.side] = self.state.stats.cargoLost[mv.side] + amount
+    self:log("cargo_lost", mv.side, string.format("%s %s to %s lost: the destination fell",
+      mv.side:upper(), mv.kind, self:nodeName(mv.to)))
+  end
+  self.state.moves[mv.id] = nil
+end
+
+-- A convoy or airlift destroyed (by players, or by the bridge on total loss).
+function War:destroyCargo(mid, reason)
+  local mv = self.state.moves[mid]
+  if not mv or not mv.cargo then return end
+  self.state.stats.cargoLost[mv.side] = self.state.stats.cargoLost[mv.side] + mv.cargo * (mv.health or 1)
+  self.state.moves[mid] = nil
+  self:log(mv.kind == "airlift" and "airlift_lost" or "convoy_lost", mv.side,
+    string.format("%s %s from %s to %s destroyed%s", mv.side:upper(), mv.kind,
+      self:nodeName(mv.from), self:nodeName(mv.to), reason and (" (" .. reason .. ")") or ""))
+end
+
+-- Share of a live convoy's trucks (or airlift aircraft) still alive.
+function War:setCargoHealth(mid, health)
+  local mv = self.state.moves[mid]
+  if not mv or not mv.cargo then return end
+  mv.health = math.min(mv.health or 1, health)
+  if mv.health <= 0 then self:destroyCargo(mid, "all vehicles lost") end
+end
+
+-- ---------------------------------------------------------------------------
+-- Planning
+-- ---------------------------------------------------------------------------
+-- Supply a node holds before it passes any on (same idea as keepLevel).
+-- Never less than keepHours of upkeep for the platoons actually there.
+function War:supplyKeep(id, dist, sdist)
+  local cfg, tn = S(self), self.T.nodes[id]
+  local cap = self:supplyCap(id)
+  local level
+  if sdist[id] == 0 then level = cap * cfg.stagingFactor
+  elseif dist[id] == 1 then level = cap
+  elseif tn.depot then level = cfg.depotReserve
+  else level = cfg.rearKeep end
+  local ticks = cfg.keepHours * 3600 / self.cfg.tickSeconds
+  local upkeep = #self.state.nodes[id].platoons * cfg.upkeepPerPlatoon * ticks
+  return math.max(level, upkeep)
+end
+
+-- Convoys: each node sends at most one convoy per tick, carrying what it
+-- holds above its keep level, to the neighbour that needs it most, nearer
+-- the front (or nearer the main effort when the front is full).
+function War:planConvoys(side, dist, focus)
+  local cfg = S(self)
+  local sdist = self:stagingDistance(side, focus)
+  for _, id in ipairs(self.T.order) do
+    local ns, tn = self.state.nodes[id], self.T.nodes[id]
+    local d, sd = dist[id], sdist[id]
+    local out = 0
+    for _, mv in pairs(self.state.moves) do if mv.from == id and mv.kind == "convoy" then out = out + 1 end end
+    if ns.side == side and sd ~= 0 and out < cfg.convoysPerNode then
+      local surplus = ns.supply - self:supplyKeep(id, dist, sdist)
+      if surplus >= cfg.convoyMin then
+        local best, bestKey
+        for _, nb in ipairs(U.sortedKeys(tn.nb)) do
+          if self.state.nodes[nb].side == side then
+            local held = self.state.nodes[nb].supply + self:incomingSupply(nb, side)
+            local keep = self:supplyKeep(nb, dist, sdist)
+            if d and dist[nb] and dist[nb] < d and held < keep then
+              local key = dist[nb] * 1000 - (keep - held)
+              if not bestKey or key < bestKey then best, bestKey = { id = nb, room = keep - held }, key end
+            end
+            if not best and sd and sdist[nb] and sdist[nb] < sd then
+              local room = keep + cfg.convoyCapacity * 2 - held
+              if room > 0 then
+                local key = 100000 + sdist[nb] * 1000 - room
+                if not bestKey or key < bestKey then best, bestKey = { id = nb, room = room }, key end
+              end
+            end
+          end
+        end
+        if best then
+          self:startCargo("convoy", side, id, best.id, math.min(surplus, best.room, cfg.convoyCapacity))
+        end
+      end
+    end
+  end
+end
+
+-- Airlifts: a few per side at a time. Source = the friendly airbase with the
+-- biggest surplus; destination = the friendly airbase with the biggest need,
+-- cut-off airbases first. Only worth flying beyond airliftMinKm.
+function War:planAirlifts(side, dist, focus)
+  local cfg = S(self)
+  local active = 0
+  for _, mv in pairs(self.state.moves) do
+    if mv.kind == "airlift" and mv.side == side then active = active + 1 end
+  end
+  if active >= cfg.maxAirlifts then return end
+  local sdist = self:stagingDistance(side, focus)
+  local supplied = self:supplied(side)
+
+  local src, srcSurplus
+  for _, id in ipairs(self.T.order) do
+    local ns, tn = self.state.nodes[id], self.T.nodes[id]
+    if ns.side == side and tn.kind == "airbase" then
+      local surplus = ns.supply - self:supplyKeep(id, dist, sdist)
+      if surplus >= cfg.airliftCapacity and (not srcSurplus or surplus > srcSurplus) then
+        src, srcSurplus = id, surplus
+      end
+    end
+  end
+  if not src then return end
+
+  local dst, dstKey
+  for _, id in ipairs(self.T.order) do
+    local ns, tn = self.state.nodes[id], self.T.nodes[id]
+    if id ~= src and ns.side == side and tn.kind == "airbase" then
+      local need = self:supplyKeep(id, dist, sdist) - ns.supply - self:incomingSupply(id, side)
+      local km = U.distKm(self.T.nodes[src], tn)
+      local cutOff = not supplied[id]
+      if need >= cfg.airliftCapacity * 0.5 and (cutOff or km >= cfg.airliftMinKm) then
+        local key = (cutOff and 0 or 1) * 100000 - need
+        if not dstKey or key < dstKey then dst, dstKey = id, key end
+      end
+    end
+  end
+  if not dst then return end
+  local mv = self:startCargo("airlift", side, src, dst, cfg.airliftCapacity)
+  if mv then
+    self:log("airlift", side, string.format("%s airlift departs %s for %s", side:upper(),
+      self:nodeName(src), self:nodeName(dst)))
+  end
+end
+
+-- What a node can afford to send into an assault.
+-- Only supply above a reserve for the garrison that stays behind can be
+-- spent, so an attack never leaves its start node out of supply.
+function War:assaultAffordable(id)
+  local cfg, ns = S(self), self.state.nodes[id]
+  local ticks = cfg.keepHours * 3600 / self.cfg.tickSeconds
+  local reserve = self.cfg.frontKeep * cfg.upkeepPerPlatoon * ticks
+  return math.max(0, math.floor(((ns.supply or 0) - reserve) / cfg.assaultCostPerPlatoon))
+end
+
+-- Returns the supply the attackers carry with them (dropped into the node
+-- they capture, so a fresh conquest is not instantly out of supply).
+function War:payAssault(id, count)
+  local ns, cfg = self.state.nodes[id], S(self)
+  local cost = count * cfg.assaultCostPerPlatoon
+  ns.supply = math.max(0, ns.supply - cost)
+  return cost * cfg.assaultCarryShare
+end
+
+-- On capture: the new owner seizes part of the stores; airbase stock is lost.
+function War:onCaptureSupply(id, carried)
+  local ns = self.state.nodes[id]
+  ns.supply = ns.supply * S(self).captureShare + (carried or 0)
+  ns.outOfSupply = nil
+  self:initNodeSupply(id, "empty")
+end
+
+-- Bridge API: aircraft count at an airbase as read from the DCS warehouse.
+function War:setAircraft(id, typeName, count)
+  local ns = self.state.nodes[id]
+  if ns and ns.air and ns.air[typeName] ~= nil then ns.air[typeName] = math.max(0, count) end
+end
+
+-- Totals per side (for status messages and the plot).
+function War:supplySummary()
+  local s = { blue = 0, red = 0 }
+  for _, ns in pairs(self.state.nodes) do s[ns.side] = s[ns.side] + (ns.supply or 0) end
   return s
 end
 
@@ -1396,6 +1772,7 @@ function B.init(war, theater, catalog)
     B.nodePos[id] = pos
   end
   war.liveFn = function(id) return B.liveNodes[id] == true end
+  war.airLive = true          -- airlifts are always real aircraft while DCS runs
   B.syncAirbases()
 end
 
@@ -1614,13 +1991,16 @@ function B.liveCheck()
   for pid, rec in pairs(B.spawned) do
     if B.war.state.platoons[pid] then B.pollOne(pid, rec) end
   end
+  if B.pollAllCargo then B.pollAllCargo() end
   B.updateLive()
   B.reconcile()
+  if B.reconcileCargo then B.reconcileCargo() end
 end
 
 -- Remove every spawned group (used when a war ends).
 function B.despawnAll()
   for pid, rec in pairs(B.spawned) do B.despawn(pid, rec) end
+  for mid, rec in pairs(B.cargo or {}) do B.despawnCargo(mid, rec) end
 end
 
 -- ---------------------------------------------------------------------------
@@ -1652,8 +2032,10 @@ function B.draw()
     trigger.action.circleToAll(-1, newMark(), pos, radius, col, alpha(col, 0.15), tn.depot and 2 or 1, true)
     trigger.action.textToAll(-1, newMark(), { x = pos.x + radius + 600, y = pos.y, z = pos.z - 2000 },
       col, { 0, 0, 0, 0 }, 12, true, tn.name .. (tn.depot and " (depot)" or ""))
+    local label = string.format("%d plt | %d SU", #ns.platoons, math.floor((ns.supply or 0) + 0.5))
+    if ns.outOfSupply then label = label .. " | NO SUPPLY" end
     trigger.action.textToAll(COAL[ns.side], newMark(), { x = pos.x - radius - 600, y = pos.y, z = pos.z - 2000 },
-      col, { 0, 0, 0, 0.35 }, 11, true, string.format("%d plt", #ns.platoons))
+      col, { 0, 0, 0, 0.35 }, 11, true, label)
   end
 
   -- Own assaults in progress: arrows only the attacking side sees.
@@ -1664,6 +2046,10 @@ function B.draw()
       local e = { x = a.x + (b.x - a.x) * 0.8, y = b.y, z = a.z + (b.z - a.z) * 0.8 }
       local col = cfg.colours[mv.side]
       trigger.action.arrowToAll(COAL[mv.side], newMark(), s, e, col, alpha(col, 0.35), 1, true)
+    elseif mv.kind == "airlift" then
+      -- Own airlifts: a dashed line origin -> destination, own side only.
+      trigger.action.lineToAll(COAL[mv.side], newMark(), B.nodePos[mv.from], B.nodePos[mv.to],
+        alpha(cfg.colours[mv.side], 0.6), 2, true)
     end
   end
 end
@@ -1677,7 +2063,10 @@ function B.announce(events)
       trigger.action.outText(ev.text, ev.kind == "victory" and 60 or 20)
     elseif ev.kind == "repulsed" then
       trigger.action.outText(ev.text, 15)
-    elseif (ev.kind == "focus" or ev.kind == "assault") and ev.side then
+    elseif ev.kind == "convoy_lost" or ev.kind == "airlift_lost" then
+      trigger.action.outText(ev.text, 15)            -- both sides: the kill mattered
+    elseif (ev.kind == "focus" or ev.kind == "assault" or ev.kind == "airlift" or ev.kind == "airlift_in"
+            or ev.kind == "nosupply" or ev.kind == "cargo_lost") and ev.side then
       trigger.action.outTextForCoalition(COAL[ev.side], "Command: " .. ev.text, 12)
     end
   end
@@ -1693,12 +2082,14 @@ function B.showStatus(side)
   }
   local f = war.state.focus and war.state.focus[side]
   if f then lines[#lines + 1] = "Main effort: " .. war:nodeName(f.target) end
+  if B.supplyLines then for _, l in ipairs(B.supplyLines(side)) do lines[#lines + 1] = l end end
   lines[#lines + 1] = "Recent:"
   local evs = war.state.events
   local shown = 0
   for i = #evs, 1, -1 do
     local ev = evs[i]
-    if ev.kind == "capture" or ev.kind == "repulsed" or ev.kind == "victory" then
+    if ev.kind == "capture" or ev.kind == "repulsed" or ev.kind == "victory"
+       or ev.kind == "convoy_lost" or ev.kind == "airlift_lost" then
       lines[#lines + 1] = "  " .. ev.text
       shown = shown + 1
       if shown >= 5 then break end
@@ -1712,6 +2103,288 @@ function B.addMenus()
     local root = missionCommands.addSubMenuForCoalition(c, "Campaign")
     missionCommands.addCommandForCoalition(c, "Campaign status", root, B.showStatus, side)
   end
+end
+
+end
+
+-- >>> src/dcc_dcs_supply.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - DCS bridge, phase 2: logistics and warehouses
+-- ----------------------------------------------------------------------------
+-- Load after dcc_dcs.lua. Adds to DCC.dcs:
+--
+--   * Convoys  - a supply convoy on a road touching a live node is spawned as
+--                real trucks (catalog.convoy). Every 30 s the trucks are
+--                polled: dead trucks shrink the cargo, a dead convoy delivers
+--                nothing. Its lead truck's position is its progress.
+--   * Airlifts - always spawned as a real transport aircraft (catalog.transport)
+--                in the air over its origin, flying to land at its destination.
+--                Shot down = cargo lost. Landed = cargo delivered.
+--   * Warehouses (dynamic spawn) - each airbase's DCS warehouse holds the
+--                OWNER's player aircraft at the model's counts and 0 of the
+--                enemy's. Read before each tick (players took or brought
+--                aircraft), written after (captures, restocks).
+--   * Slot guard - a player who spawns at a base their side does not own is
+--                removed with a message (protects fixed slots after a capture).
+-- ============================================================================
+
+DCC = DCC or {}
+local U = DCC.util
+local B = DCC.dcs
+B.cargo = {}           -- move id -> { group, size, base, kind, failed, born }
+
+local function dist2D(a, b)
+  local dx, dz = a.x - b.x, a.z - b.z
+  return math.sqrt(dx * dx + dz * dz)
+end
+
+local function wp(x, z, action, speed, extra)
+  local p = { x = x, y = z, type = "Turning Point", action = action, speed = speed,
+              speed_locked = true, ETA = 0, ETA_locked = false, formation_template = "" }
+  if extra then for k, v in pairs(extra) do p[k] = v end end
+  return p
+end
+
+local function roadPoint(x, z)
+  local ok, rx, rz = pcall(land.getClosestPointOnRoads, "roads", x, z)
+  if ok and rx and rz then return rx, rz end
+  return x, z
+end
+
+-- ---------------------------------------------------------------------------
+-- Which cargo moves should exist in DCS
+-- ---------------------------------------------------------------------------
+function B.desiredCargo()
+  local want = {}
+  for mid, mv in pairs(B.war.state.moves) do
+    if mv.cargo then
+      if mv.kind == "airlift" then want[mid] = mv
+      elseif B.liveNodes[mv.from] or B.liveNodes[mv.to] then want[mid] = mv end
+    end
+  end
+  return want
+end
+
+-- ---------------------------------------------------------------------------
+-- Spawning
+-- ---------------------------------------------------------------------------
+function B.convoyTypes(side)
+  local entry = B.catalog.convoy[side]
+  for _, t in ipairs(entry.units) do
+    if not B.validType(t) then return entry.fallback end
+  end
+  return entry.units
+end
+
+function B.spawnConvoy(mv)
+  local types = B.convoyTypes(mv.side)
+  local n = math.max(1, math.ceil(#types * (mv.health or 1) - 1e-6))
+  local a, b = B.nodePos[mv.from], B.nodePos[mv.to]
+  local start = { x = a.x + (b.x - a.x) * mv.progress, z = a.z + (b.z - a.z) * mv.progress }
+  local s = DCC.config.liveSpeedMps * 0.8      -- loaded trucks are a bit slower
+  local r1x, r1z = roadPoint(start.x, start.z)
+  local r2x, r2z = roadPoint(b.x, b.z)
+  local gname = "DCC_" .. mv.id
+  local units = {}
+  for i = 1, n do
+    units[i] = { name = gname .. "_" .. i, type = types[i], skill = "Average",
+                 x = start.x + (i - 1) * 25, y = start.z, heading = 0, playerCanDrive = false }
+  end
+  local data = { name = gname, task = "Ground Nothing", units = units, route = { points = {
+    wp(start.x, start.z, "Off Road", s), wp(r1x, r1z, "On Road", s),
+    wp(r2x, r2z, "On Road", s), wp(b.x, b.z, "Off Road", s) } } }
+  local ok, err = pcall(coalition.addGroup, B.countryId(mv.side), Group.Category.GROUND, data)
+  B.cargo[mv.id] = { group = gname, size = n, base = mv.health or 1, kind = "convoy",
+                     failed = not ok, born = timer.getTime() }
+  if not ok then U.log("convoy spawn %s failed: %s", mv.id, tostring(err)) end
+end
+
+function B.transportType(side)
+  local entry = B.catalog.transport[side]
+  if B.validType(entry.type) then return entry.type end
+  return entry.fallback
+end
+
+function B.spawnAirlift(mv)
+  local t = B.transportType(mv.side)
+  local a, b = B.nodePos[mv.from], B.nodePos[mv.to]
+  local p = U.clamp(mv.progress, 0, 0.95)
+  local x, z = a.x + (b.x - a.x) * p, a.z + (b.z - a.z) * p
+  local alt = math.max(a.y, b.y) + 2500
+  local speed = DCC.config.supply.airliftSpeedKmh / 3.6
+  local fuel = 10000
+  local ok, desc = pcall(Unit.getDescByName, t)
+  if ok and type(desc) == "table" and desc.fuelMassMax then fuel = desc.fuelMassMax end
+  local abName = B.airbases[mv.to]
+  local ab = abName and Airbase.getByName(abName)
+  local landing = { type = "Land", action = "Landing", alt = 0, alt_type = "RADIO" }
+  if ab then landing.airdromeId = ab:getID() end
+  local gname = "DCC_" .. mv.id
+  local heading = math.atan2(b.z - z, b.x - x)
+  local data = {
+    name = gname, task = "Transport",
+    units = { { name = gname .. "_1", type = t, skill = "High", x = x, y = z, alt = alt, alt_type = "BARO",
+                speed = speed, heading = heading, payload = { fuel = fuel, flare = 60, chaff = 60, gun = 100 },
+                callsign = { 1, 1, 1, ["name"] = "Ford11" }, onboard_num = "010" } },
+    route = { points = {
+      wp(x, z, "Turning Point", speed, { alt = alt, alt_type = "BARO" }),
+      wp(b.x, b.z, "Landing", speed, landing),
+    } },
+  }
+  local okAdd, err = pcall(coalition.addGroup, B.countryId(mv.side), Group.Category.AIRPLANE, data)
+  B.cargo[mv.id] = { group = gname, size = 1, base = mv.health or 1, kind = "airlift",
+                     failed = not okAdd, born = timer.getTime() }
+  if not okAdd then U.log("airlift spawn %s failed: %s", mv.id, tostring(err)) end
+end
+
+function B.despawnCargo(mid, rec)
+  local g = Group.getByName(rec.group)
+  if g and g:isExist() then g:destroy() end
+  B.cargo[mid] = nil
+end
+
+-- ---------------------------------------------------------------------------
+-- Read-back
+-- ---------------------------------------------------------------------------
+function B.pollCargo(mid, rec)
+  local war = B.war
+  local mv = war.state.moves[mid]
+  if not mv or rec.failed then return end
+  local g = Group.getByName(rec.group)
+  local alive, lead = 0, nil
+  if g and g:isExist() then
+    for _, u in ipairs(g:getUnits() or {}) do
+      if u:isExist() and u:getLife() >= 1 then alive = alive + 1; lead = lead or u end
+    end
+  end
+  war:setCargoHealth(mid, rec.base * alive / rec.size)
+  mv = war.state.moves[mid]
+  if not mv or not lead then return end
+
+  local a, b = B.nodePos[mv.from], B.nodePos[mv.to]
+  local d = dist2D(lead:getPoint(), b)
+  local total = math.max(dist2D(a, b), 1)
+  local p = 1 - d / total
+  if rec.kind == "airlift" then
+    -- Delivered once the transport is down near the destination.
+    local landed = lead.inAir and not lead:inAir()
+    if landed and d < 6000 then p = 1 else p = math.min(p, 0.97) end
+    -- Safety: a transport circling for 3x its flight time delivers anyway.
+    local expect = total / (DCC.config.supply.airliftSpeedKmh / 3.6)
+    if timer.getTime() - rec.born > 3 * expect + 600 then p = 1 end
+  elseif d <= DCC.config.captureRadiusKm * 1000 then
+    p = 1
+  end
+  war:setProgress(mid, p)
+end
+
+function B.reconcileCargo()
+  local want = B.desiredCargo()
+  for mid, rec in pairs(B.cargo) do
+    if not want[mid] then
+      if B.war.state.moves[mid] then B.pollCargo(mid, rec) end   -- keep its losses
+      B.despawnCargo(mid, rec)
+    end
+  end
+  for mid, mv in pairs(want) do
+    if not B.cargo[mid] and B.war.state.moves[mid] then
+      if mv.kind == "airlift" then B.spawnAirlift(mv) else B.spawnConvoy(mv) end
+    end
+  end
+end
+
+function B.pollAllCargo()
+  for mid, rec in pairs(B.cargo) do B.pollCargo(mid, rec) end
+end
+
+-- ---------------------------------------------------------------------------
+-- Warehouses: player aircraft per airbase follow the owner
+-- ---------------------------------------------------------------------------
+local function warehouseOf(id)
+  local name = B.airbases[id]
+  local ab = name and Airbase.getByName(name)
+  if not ab or not ab.getWarehouse then return nil end
+  local ok, w = pcall(ab.getWarehouse, ab)
+  return ok and w or nil
+end
+
+-- DCS -> model: what players took off with or landed.
+function B.readWarehouses()
+  local war = B.war
+  for id in pairs(B.airbases) do
+    local ns, w = war.state.nodes[id], warehouseOf(id)
+    if w and ns.air then
+      for t in pairs(ns.air) do
+        local ok, n = pcall(w.getItemCount, w, t)
+        if ok and type(n) == "number" then war:setAircraft(id, t, n) end
+      end
+    end
+  end
+end
+
+-- model -> DCS: owner's types at the model's counts, enemy's types at 0.
+function B.writeWarehouses()
+  local war = B.war
+  for id in pairs(B.airbases) do
+    local ns, w = war.state.nodes[id], warehouseOf(id)
+    if w and ns.air then
+      local enemy = U.otherSide(ns.side)
+      for _, t in ipairs(war:aircraftTypes(enemy)) do
+        if ns.air[t] == nil then pcall(w.setItem, w, t, 0) end   -- shared types stay
+      end
+      for t, n in pairs(ns.air) do pcall(w.setItem, w, t, n) end
+    end
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- Slot guard
+-- ---------------------------------------------------------------------------
+function B.nearestNode(pos, maxM)
+  local best, bestD
+  for id, p in pairs(B.nodePos) do
+    local d = dist2D(pos, p)
+    if d <= maxM and (not bestD or d < bestD) then best, bestD = id, d end
+  end
+  return best
+end
+
+function B.onBirth(unit)
+  if not unit or not unit.getPlayerName then return end
+  local ok, pname = pcall(unit.getPlayerName, unit)
+  if not ok or not pname then return end
+  local id = B.nearestNode(unit:getPoint(), 5000)
+  if not id then return end
+  local side = (unit:getCoalition() == B.COAL.blue) and "blue" or "red"
+  if B.war.state.nodes[id].side ~= side then
+    trigger.action.outTextForUnit(unit:getID(), string.format(
+      "%s is held by %s. Pick a slot at a base your side owns.", B.war:nodeName(id),
+      B.war.state.nodes[id].side:upper()), 20)
+    pcall(function() unit:destroy() end)
+    U.log("slot guard: removed %s at enemy-held %s", tostring(pname), id)
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- Status text extensions
+-- ---------------------------------------------------------------------------
+function B.supplyLines(side)
+  local war = B.war
+  local lines = {}
+  lines[#lines + 1] = string.format("Your supply: %d SU in stock", math.floor(war:supplySummary()[side]))
+  local convoys, lifts, dry = 0, 0, {}
+  for _, mv in pairs(war.state.moves) do
+    if mv.side == side and mv.kind == "convoy" then convoys = convoys + 1 end
+    if mv.side == side and mv.kind == "airlift" then lifts = lifts + 1 end
+  end
+  for _, id in ipairs(war.T.order) do
+    local ns = war.state.nodes[id]
+    if ns.side == side and ns.outOfSupply then dry[#dry + 1] = war:nodeName(id) end
+  end
+  lines[#lines + 1] = string.format("On the move: %d convoys, %d airlifts", convoys, lifts)
+  if #dry > 0 then lines[#lines + 1] = "OUT OF SUPPLY: " .. table.concat(dry, ", ") end
+  return lines
 end
 
 end
@@ -1763,10 +2436,13 @@ end
 -- One war step.
 function DCC.onTick()
   local war = DCC.warObj
+  DCC.dcs.readWarehouses()          -- aircraft players took off with or landed
   local events = war:tick()
   DCC.dcs.announce(events)
   DCC.dcs.syncAirbases()
+  DCC.dcs.writeWarehouses()         -- captures and restocks
   DCC.dcs.reconcile()
+  DCC.dcs.reconcileCargo()
   DCC.dcs.draw()
   DCC.save()
 
@@ -1805,14 +2481,19 @@ function DCC.start()
   DCC.started = true
 
   DCC.dcs.init(war, theater, catalog)
+  DCC.dcs.writeWarehouses()         -- enemy aircraft off every base before anyone slots
   DCC.dcs.addMenus()
   DCC.dcs.updateLive()
   DCC.dcs.reconcile()
+  DCC.dcs.reconcileCargo()
   DCC.dcs.draw()
 
-  -- Save when the mission ends (server stop or restart).
+  -- Save when the mission ends; guard player slots at enemy-held bases.
   world.addEventHandler({ onEvent = function(_, e)
-    if e.id == world.event.S_EVENT_MISSION_END then safe("save", DCC.save)() end
+    if e.id == world.event.S_EVENT_MISSION_END then safe("save", DCC.save)()
+    elseif e.id == world.event.S_EVENT_BIRTH and e.initiator then
+      safe("slotGuard", DCC.dcs.onBirth)(e.initiator)
+    end
   end })
 
   local cfg = DCC.config
@@ -1842,11 +2523,19 @@ do
 -- This file maps each role to real DCS type names per side. A new era is a new
 -- catalog file with the same role names - no engine change.
 --
---   units    : the vehicles one platoon of that role spawns as
---   fallback : base-game types used if a listed type is missing (mods)
---
--- Phase 1 uses ground roles only. Air, logistics and IADS roles arrive in
--- later phases.
+--   roles     : ground platoons. units = what one platoon spawns as,
+--               fallback = base-game types used if a listed type is missing
+--   convoy    : the trucks of one supply convoy (phase 2)
+--   transport : AI cargo aircraft for airlifts (phase 2)
+--   aircraft  : PLAYER aircraft per side. Used twice:
+--                 1. tools/make_mission.py puts these in every airbase
+--                    warehouse (dynamic spawn) and as fixed slots at depots
+--                 2. the engine stocks each airbase with its OWNER's list and
+--                    sets the enemy's types to 0, so slots follow captures
+--               Type names are DCS type names (as in the Mission Editor).
+--   fixedSlots: which player types also get a fixed client slot at depots
+--               (fixed slots work in single player too; dynamic spawn needs
+--               multiplayer)
 -- ============================================================================
 
 DCC_CATALOGS = DCC_CATALOGS or {}
@@ -1880,6 +2569,36 @@ DCC_CATALOGS.modern = {
     garrison = { MECH_PLT = 5, ARMOR_PLT = 3, SHORAD = 2 },
     assault  = { ARMOR_PLT = 6, MECH_PLT = 4 },
   },
+
+  -- Supply convoy: the trucks spawned for one convoy, plus its escort vehicle.
+  convoy = {
+    blue = { units = { "M1043 HMMWV Armament", "M 818", "M 818", "M 818", "M 818" },
+             fallback = { "Hummer", "M 818", "M 818", "M 818", "M 818" } },
+    red  = { units = { "BRDM-2", "Ural-375", "Ural-375", "KAMAZ Truck", "KAMAZ Truck" },
+             fallback = { "BRDM-2", "Ural-375", "Ural-375", "Ural-375", "Ural-375" } },
+  },
+
+  -- AI cargo aircraft for airlifts between friendly airbases.
+  transport = {
+    blue = { type = "C-130", fallback = "C-130" },
+    red  = { type = "IL-76MD", fallback = "An-26B" },
+  },
+
+  -- Player aircraft (dynamic spawn stock per airbase, and fixed depot slots).
+  aircraft = {
+    blue = {
+      planes      = { "FA-18C_hornet", "F-16C_50", "F-15ESE", "A-10C_2", "F-14B", "AV8BNA", "F-4E-45MC", "Su-25T" },
+      helicopters = { "AH-64D_BLK_II", "UH-1H", "OH58D", "CH-47Fbl1", "SA342M" },
+    },
+    red = {
+      planes      = { "Su-27", "Su-33", "MiG-29S", "J-11A", "JF-17", "Su-25", "Su-25T", "MiG-21Bis" },
+      helicopters = { "Ka-50_3", "Mi-24P", "Mi-8MT" },
+    },
+  },
+
+  -- Stock of each player type at an airbase. Depots hold more. The supply
+  -- system (phase 2) restocks lost aircraft only while the base is supplied.
+  aircraftStock = { airbase = 4, depot = 8 },
 }
 
 end

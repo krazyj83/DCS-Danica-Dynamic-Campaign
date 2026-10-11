@@ -96,6 +96,7 @@ function B.init(war, theater, catalog)
     B.nodePos[id] = pos
   end
   war.liveFn = function(id) return B.liveNodes[id] == true end
+  war.airLive = true          -- airlifts are always real aircraft while DCS runs
   B.syncAirbases()
 end
 
@@ -314,13 +315,16 @@ function B.liveCheck()
   for pid, rec in pairs(B.spawned) do
     if B.war.state.platoons[pid] then B.pollOne(pid, rec) end
   end
+  if B.pollAllCargo then B.pollAllCargo() end
   B.updateLive()
   B.reconcile()
+  if B.reconcileCargo then B.reconcileCargo() end
 end
 
 -- Remove every spawned group (used when a war ends).
 function B.despawnAll()
   for pid, rec in pairs(B.spawned) do B.despawn(pid, rec) end
+  for mid, rec in pairs(B.cargo or {}) do B.despawnCargo(mid, rec) end
 end
 
 -- ---------------------------------------------------------------------------
@@ -352,8 +356,10 @@ function B.draw()
     trigger.action.circleToAll(-1, newMark(), pos, radius, col, alpha(col, 0.15), tn.depot and 2 or 1, true)
     trigger.action.textToAll(-1, newMark(), { x = pos.x + radius + 600, y = pos.y, z = pos.z - 2000 },
       col, { 0, 0, 0, 0 }, 12, true, tn.name .. (tn.depot and " (depot)" or ""))
+    local label = string.format("%d plt | %d SU", #ns.platoons, math.floor((ns.supply or 0) + 0.5))
+    if ns.outOfSupply then label = label .. " | NO SUPPLY" end
     trigger.action.textToAll(COAL[ns.side], newMark(), { x = pos.x - radius - 600, y = pos.y, z = pos.z - 2000 },
-      col, { 0, 0, 0, 0.35 }, 11, true, string.format("%d plt", #ns.platoons))
+      col, { 0, 0, 0, 0.35 }, 11, true, label)
   end
 
   -- Own assaults in progress: arrows only the attacking side sees.
@@ -364,6 +370,10 @@ function B.draw()
       local e = { x = a.x + (b.x - a.x) * 0.8, y = b.y, z = a.z + (b.z - a.z) * 0.8 }
       local col = cfg.colours[mv.side]
       trigger.action.arrowToAll(COAL[mv.side], newMark(), s, e, col, alpha(col, 0.35), 1, true)
+    elseif mv.kind == "airlift" then
+      -- Own airlifts: a dashed line origin -> destination, own side only.
+      trigger.action.lineToAll(COAL[mv.side], newMark(), B.nodePos[mv.from], B.nodePos[mv.to],
+        alpha(cfg.colours[mv.side], 0.6), 2, true)
     end
   end
 end
@@ -377,7 +387,10 @@ function B.announce(events)
       trigger.action.outText(ev.text, ev.kind == "victory" and 60 or 20)
     elseif ev.kind == "repulsed" then
       trigger.action.outText(ev.text, 15)
-    elseif (ev.kind == "focus" or ev.kind == "assault") and ev.side then
+    elseif ev.kind == "convoy_lost" or ev.kind == "airlift_lost" then
+      trigger.action.outText(ev.text, 15)            -- both sides: the kill mattered
+    elseif (ev.kind == "focus" or ev.kind == "assault" or ev.kind == "airlift" or ev.kind == "airlift_in"
+            or ev.kind == "nosupply" or ev.kind == "cargo_lost") and ev.side then
       trigger.action.outTextForCoalition(COAL[ev.side], "Command: " .. ev.text, 12)
     end
   end
@@ -393,12 +406,14 @@ function B.showStatus(side)
   }
   local f = war.state.focus and war.state.focus[side]
   if f then lines[#lines + 1] = "Main effort: " .. war:nodeName(f.target) end
+  if B.supplyLines then for _, l in ipairs(B.supplyLines(side)) do lines[#lines + 1] = l end end
   lines[#lines + 1] = "Recent:"
   local evs = war.state.events
   local shown = 0
   for i = #evs, 1, -1 do
     local ev = evs[i]
-    if ev.kind == "capture" or ev.kind == "repulsed" or ev.kind == "victory" then
+    if ev.kind == "capture" or ev.kind == "repulsed" or ev.kind == "victory"
+       or ev.kind == "convoy_lost" or ev.kind == "airlift_lost" then
       lines[#lines + 1] = "  " .. ev.text
       shown = shown + 1
       if shown >= 5 then break end

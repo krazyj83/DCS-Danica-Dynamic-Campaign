@@ -133,5 +133,57 @@ do
   check("setHealth(0) destroys the platoon", w.state.platoons[pid] == nil)
 end
 
+print("Supply (phase 2)")
+do
+  local w = DCC.War.new(T, C, cfg, 4)
+  check("every node starts with supply", (function()
+    for _, ns in pairs(w.state.nodes) do if not ns.supply or ns.supply <= 0 then return false end end
+    return true end)())
+  check("airbases start with their owner's aircraft", w.state.nodes.kutaisi.air["FA-18C_hornet"] == 4
+    and w.state.nodes.kutaisi.air["Su-27"] == nil)
+  local convoys, airlifts = 0, 0
+  for _ = 1, 400 do
+    w:tick()
+    for _, mv in pairs(w.state.moves) do
+      if mv.kind == "convoy" then convoys = convoys + 1 elseif mv.kind == "airlift" then airlifts = airlifts + 1 end
+    end
+  end
+  check("convoys run", convoys > 0, convoys)
+  check("airlifts fly", airlifts > 0, airlifts)
+  check("supply gets delivered", w.state.stats.delivered.blue > 0 and w.state.stats.delivered.red > 0)
+  check("invariants with cargo moves", invariants(w))
+
+  -- An assault cannot be launched from a node with no supply.
+  local w2 = DCC.War.new(T, C, cfg, 4)
+  for _, ns in pairs(w2.state.nodes) do if ns.side == "blue" then ns.supply = 0 end end
+  check("no supply, no attack", w2:assaultAffordable("zugdidi") == 0)
+  check("out of supply removes the defender bonus", w2:bonusOf("zugdidi") == 1)
+
+  -- Killing the convoys that feed BLUE's main effort weakens BLUE's offensive.
+  local base = DCC.War.new(T, C, cfg, 303)
+  for _ = 1, 300 do base:tick() end
+  local text = J.encode(base:snapshot())
+  local function offensive(interdict)
+    local wx = DCC.War.restore(T, C, cfg, J.decode(text))
+    local sent = 0
+    for _ = 1, 288 do
+      if interdict then
+        local f = wx.state.focus and wx.state.focus.blue
+        for mid, mv in pairs(wx.state.moves) do
+          if f and mv.kind == "convoy" and mv.side == "blue" and wx.T.nodes[f.target].nb[mv.to] then
+            wx:destroyCargo(mid, "test")
+          end
+        end
+      end
+      for _, ev in ipairs(wx:tick()) do
+        if ev.kind == "assault" and ev.side == "blue" then sent = sent + tonumber(ev.text:match("launches (%d+)")) end
+      end
+    end
+    return sent
+  end
+  local normal, cut = offensive(false), offensive(true)
+  check("killing convoys delays the assault they feed", cut < normal, cut .. " vs " .. normal)
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 DCC_EXIT_CODE = failed == 0 and 0 or 1

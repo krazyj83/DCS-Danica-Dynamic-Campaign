@@ -12,8 +12,10 @@
 --   node     : a place that can be owned (airbase, town, depot)
 --   platoon  : the unit of force; has a side, a role and a health 0..1
 --   garrison : the platoons sitting in a node
---   move     : platoons travelling along a road edge. kind = "reinforce"
---              (to a friendly node) or "assault" (to an enemy node)
+--   move     : something travelling. kind = "reinforce" (platoons to a
+--              friendly node), "assault" (platoons to an enemy node),
+--              "convoy" (supply by road) or "airlift" (supply by air).
+--              Supply lives in dcc_supply.lua, which adds methods to War.
 --   battle   : an assault that has arrived; status = "fighting"
 --   live     : a node or move the bridge has spawned as DCS units. The model
 --              does not roll dice for live fights - DCS does the fighting.
@@ -93,6 +95,7 @@ function War.new(theater, catalog, cfg, seed)
       self:newPlatoon(tn.startSide, self:pickRole("garrison"), id)
     end
   end
+  self:initAllSupply()
   self:log("start", nil, "War begins on " .. theater.name)
   return self
 end
@@ -122,12 +125,13 @@ function War.restore(theater, catalog, cfg, state)
     end
   end
   for mid, mv in pairs(state.moves) do
+    mv.platoons = mv.platoons or {}
     if not (self.T.nodes[mv.from] and self.T.nodes[mv.to]) then
       for _, pid in ipairs(mv.platoons) do state.platoons[pid] = nil end
       state.moves[mid] = nil
     end
-    mv.platoons = mv.platoons or {}
   end
+  self:initAllSupply()   -- a phase-1 save gets supply and aircraft stock added
   return self
 end
 
@@ -203,7 +207,10 @@ function War:depotsOpen(attacker)
 end
 
 function War:isNodeLive(id) return self.liveFn ~= nil and self.liveFn(id) == true end
-function War:isMoveLive(mv) return self:isNodeLive(mv.from) or self:isNodeLive(mv.to) end
+function War:isMoveLive(mv)
+  if mv.kind == "airlift" then return self.airLive == true end
+  return self:isNodeLive(mv.from) or self:isNodeLive(mv.to)
+end
 
 -- Steps from each node to the nearest enemy-held node (breadth-first search
 -- over the road graph). 1 = on the front, 2 = one step behind, and so on.
@@ -307,17 +314,21 @@ function War:startCount(side)
   return math.max(n, 1)
 end
 
+-- Each node gained (or lost) since the start moves the rate by the same
+-- amount for both sides, whatever their starting size.
+function War:productionFactor(side)
+  local gained = self:countNodes(side) - self:startCount(side)
+  local factor = 1 + self.cfg.productionPerNode * gained
+  factor = U.clamp(factor, self.cfg.productionMinFactor, self.cfg.productionMaxFactor)
+  return factor * (self.balance[side] or 1)   -- per-theater balance knob
+end
+
 function War:produce()
   self.state.prodPoints = self.state.prodPoints or {}
   for _, id in ipairs(self.T.order) do
     local tn, ns = self.T.nodes[id], self.state.nodes[id]
     if tn.depot then
-      -- Each node gained (or lost) since the start moves the rate by the same
-      -- amount for both sides, whatever their starting size.
-      local gained = self:countNodes(ns.side) - self:startCount(ns.side)
-      local factor = 1 + self.cfg.productionPerNode * gained
-      factor = U.clamp(factor, self.cfg.productionMinFactor, self.cfg.productionMaxFactor)
-      factor = factor * (self.balance[ns.side] or 1)   -- per-theater balance knob
+      local factor = self:productionFactor(ns.side)
       local pts = (self.state.prodPoints[id] or 0) + factor / self.cfg.depotProductionEveryTicks
       while pts >= 1 and #ns.platoons < self.cfg.garrisonMax.depot do
         self:newPlatoon(ns.side, self:pickRole("garrison"), id)
@@ -330,6 +341,7 @@ function War:produce()
 end
 
 function War:arrive(mv)
+  if mv.cargo then return self:deliver(mv) end
   local ns = self.state.nodes[mv.to]
   if ns.side == mv.side then
     self:joinGarrison(mv)
@@ -341,25 +353,28 @@ end
 
 function War:advanceMoves()
   local kmPerTick = self.cfg.groundSpeedKmh * self.cfg.tickSeconds / 3600
+  local airKmPerTick = self.cfg.supply.airliftSpeedKmh * self.cfg.tickSeconds / 3600
   for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
     local mv = self.state.moves[mid]
     if mv and mv.status == "moving" then
-      if #mv.platoons == 0 then
+      if #mv.platoons == 0 and not mv.cargo then
         self.state.moves[mid] = nil
       else
         -- Live moves are advanced by the bridge from real unit positions.
-        if not self:isMoveLive(mv) then mv.progress = mv.progress + kmPerTick / mv.km end
+        local step = (mv.kind == "airlift") and airKmPerTick or kmPerTick
+        if not self:isMoveLive(mv) then mv.progress = mv.progress + step / math.max(mv.km, 0.1) end
         if mv.progress >= 1 then self:arrive(mv) end
       end
     end
   end
 end
 
-function War:capture(mv)
+function War:capture(mv, carried)
   local ns = self.state.nodes[mv.to]
   local old = ns.side
   ns.side = mv.side
   self:joinGarrison(mv)
+  self:onCaptureSupply(mv.to, carried)
   self.state.stats.captures[mv.side] = self.state.stats.captures[mv.side] + 1
   self:log("capture", mv.side, string.format("%s captured %s from %s",
     mv.side:upper(), self:nodeName(mv.to), old:upper()))
@@ -373,7 +388,7 @@ function War:abstractRound(target, attackers)
   for _, mv in ipairs(attackers) do
     for _, pid in ipairs(mv.platoons) do combined[#combined + 1] = pid end
   end
-  local bonus = self.cfg.defenderBonus[self:classOf(target)]
+  local bonus = self:bonusOf(target)
   local A = self:power(combined)
   local D = self:power(ns.platoons) * bonus
   local rate = self.cfg.battleLossRate
@@ -423,7 +438,9 @@ function War:resolveBattles()
         self:log("repulsed", ns.side, string.format("%s held %s against a %s assault",
           ns.side:upper(), self:nodeName(target), attackers[1].side:upper()))
       elseif #ns.platoons == 0 then
-        self:capture(alive[1])
+        local carried = 0
+        for _, mv in ipairs(alive) do carried = carried + (mv.carried or 0) end
+        self:capture(alive[1], carried)
         for i = 2, #alive do self:joinGarrison(alive[i]) end
       end
     end
@@ -431,8 +448,8 @@ function War:resolveBattles()
 end
 
 -- ---------------------------------------------------------------------------
--- Planning: the simple phase-1 commander for each side.
--- Phase 2 replaces this with the budget-driven commander.
+-- Planning: each side's commander. Phase 2 gates it on supply: an attack
+-- costs supply at the node it starts from (see dcc_supply.lua).
 -- ---------------------------------------------------------------------------
 function War:sortedGarrison(id, forAssault)
   local list = {}
@@ -461,7 +478,8 @@ function War:planAssaults(side, dist, focus)
 
   local function offer(nodeId, isFocus)
     local ns = self.state.nodes[nodeId]
-    local available = #ns.platoons - self.cfg.frontKeep
+    -- Platoons that can attack: spare ones, and only as many as the node can supply.
+    local available = math.min(#ns.platoons - self.cfg.frontKeep, self:assaultAffordable(nodeId))
     if available <= 0 or used[nodeId] or #self:movesFrom(nodeId, "assault") > 0 then return nil end
     -- The main effort commits everything it staged; other attacks are capped.
     local limit = isFocus and available or math.min(self.cfg.assaultMax, available)
@@ -522,7 +540,9 @@ function War:planAssaults(side, dist, focus)
 
     if not best or best.score < 1 then break end
     for _, g in ipairs(best.groups) do
-      self:startMove("assault", side, g.from, best.target, g.pids)
+      local carried = self:payAssault(g.from, #g.pids)
+      local mv = self:startMove("assault", side, g.from, best.target, g.pids)
+      mv.carried = carried
       used[g.from] = true
     end
     self:log("assault", side, string.format("%s launches %d platoons from %d node(s) toward %s (odds %.1f)",
@@ -540,7 +560,7 @@ function War:defenceOf(target)
   local ns = self.state.nodes[target]
   local d = self:power(ns.platoons)
   for _, rmv in ipairs(self:movesTo(target, ns.side, "reinforce")) do d = d + self:power(rmv.platoons) end
-  return d * self.cfg.defenderBonus[self:classOf(target)]
+  return d * self:bonusOf(target)
 end
 
 -- Nodes a side can supply: reachable from one of its depots over its own nodes.
@@ -678,34 +698,6 @@ function War:planReinforcements(side, dist, focus)
   end
 end
 
--- Encirclement: platoons in nodes cut off from every friendly depot run out
--- of fuel and ammunition. They lose health each tick until relieved or gone,
--- which turns a breakthrough into a collapse instead of a stalemate.
-function War:isolationAttrition()
-  local rate = self.cfg.isolationAttrition
-  if not rate or rate <= 0 then return end
-  for _, side in ipairs(SIDES) do
-    local supplied = self:supplied(side)
-    for _, id in ipairs(self.T.order) do
-      local ns = self.state.nodes[id]
-      if ns.side == side and not supplied[id] and #ns.platoons > 0 then
-        if not ns.cutOff then
-          ns.cutOff = true
-          self:log("cutoff", side, string.format("%s garrison at %s is cut off", side:upper(), self:nodeName(id)))
-        end
-        for i = #ns.platoons, 1, -1 do
-          local pid = ns.platoons[i]
-          local pl = self.state.platoons[pid]
-          pl.health = pl.health - rate
-          if pl.health < self.cfg.destroyedBelow then self:destroyPlatoon(pid) end
-        end
-      elseif supplied[id] then
-        ns.cutOff = nil
-      end
-    end
-  end
-end
-
 function War:checkVictory()
   if self.state.winner then return end
   for _, side in ipairs(SIDES) do
@@ -731,9 +723,11 @@ function War:tick()
   if self.state.winner then return self.newEvents end
   self.state.tick = self.state.tick + 1
   self:produce()
+  self:produceSupply()
   self:advanceMoves()
   self:resolveBattles()
-  self:isolationAttrition()
+  self:upkeep()
+  self:restockAircraft()
   self:checkVictory()
   if not self.state.winner then
     -- Alternate which side plans first so neither always gets first pick.
@@ -743,6 +737,8 @@ function War:tick()
       local focus = self:chooseFocus(side)
       self:planAssaults(side, dist, focus)
       self:planReinforcements(side, dist, focus)
+      self:planConvoys(side, dist, focus)
+      self:planAirlifts(side, dist, focus)
     end
   end
   return self.newEvents

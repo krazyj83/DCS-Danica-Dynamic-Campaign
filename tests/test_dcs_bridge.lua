@@ -17,6 +17,7 @@ MOCK.missingTypes["M1126 Stryker ICV"] = true   -- pretend a type is missing: fa
 
 dofile(DCC_ROOT .. "/src/dcc_persist.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_supply.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
 local B = DCC.dcs
@@ -34,6 +35,23 @@ check("renamed airbase found by position", B.airbases.minvody == "Mineralnye Vod
 check("front line drawn", MOCK.countMarks("line") >= 4, MOCK.countMarks("line"))
 check("node circles drawn", MOCK.countMarks("circle") == #DCC_THEATERS.Caucasus.nodes)
 check("status menu added for both sides", #MOCK.menus == 2)
+
+print("Warehouses (dynamic spawn)")
+local kut = MOCK.airbases["Kutaisi"].wh
+check("BLUE base: BLUE aircraft stocked", kut:getItemCount("FA-18C_hornet") == 4, kut:getItemCount("FA-18C_hornet"))
+check("BLUE base: RED-only aircraft removed", kut:getItemCount("Su-27") == 0)
+check("type flown by both sides stays", kut:getItemCount("Su-25T") == 4, kut:getItemCount("Su-25T"))
+local bat = MOCK.airbases["Batumi"].wh
+check("depot holds more", bat:getItemCount("F-16C_50") == 8, bat:getItemCount("F-16C_50"))
+local soc = MOCK.airbases["Sochi-Adler"].wh
+check("RED base: BLUE aircraft removed", soc:getItemCount("FA-18C_hornet") == 0)
+
+print("Slot guard")
+local sochi = B.nodePos.sochi
+local intruder = MOCK.playerBirth(2, sochi.x + 300, sochi.z)
+check("BLUE player at RED Sochi removed", intruder.destroyed == true)
+local ok = MOCK.playerBirth(2, B.nodePos.batumi.x + 300, B.nodePos.batumi.z)
+check("BLUE player at BLUE Batumi kept", ok.destroyed ~= true)
 
 print("Live bubble")
 check("Gori is live", B.liveNodes.gori == true)
@@ -68,6 +86,43 @@ check("Gori groups removed after players leave", MOCK.groups["DCC_" .. hurt] == 
 check("damage kept in the model", war.state.platoons[hurt] and war.state.platoons[hurt].health == h)
 check("Anapa now live instead", B.liveNodes.anapa == true)
 
+print("Convoys")
+player.x, player.z = gori.x, gori.z
+B.liveCheck()
+-- Put a BLUE convoy on the road Tbilisi -> Gori (both ends near the player).
+war.state.nodes.tbilisi.supply = 200
+local cv = war:startCargo("convoy", "blue", "tbilisi", "gori", 30)
+B.reconcileCargo()
+local cg = MOCK.groups["DCC_" .. cv.id]
+check("convoy spawned as trucks", cg ~= nil and #cg.units >= 3, cg and #cg.units)
+cg.units[2].alive = false
+B.pollAllCargo()
+check("lost truck shrinks the cargo", war.state.moves[cv.id] and war.state.moves[cv.id].health < 1)
+MOCK.killGroup("DCC_" .. cv.id)
+B.pollAllCargo()
+check("destroyed convoy delivers nothing", war.state.moves[cv.id] == nil)
+local lostMsg = false
+for _, ev in ipairs(war.newEvents) do if ev.kind == "convoy_lost" then lostMsg = true end end
+check("convoy loss reported", lostMsg)
+B.reconcileCargo()
+check("dead convoy group cleaned up", MOCK.groups["DCC_" .. cv.id] == nil)
+
+print("Airlift")
+war.state.nodes.batumi.supply = 200
+local before = war.state.nodes.vaziani.supply
+local al = war:startCargo("airlift", "blue", "batumi", "vaziani", 30)
+B.reconcileCargo()
+local ag = MOCK.groups["DCC_" .. al.id]
+check("airlift spawned as an aircraft even far from players", ag ~= nil and ag.category == Group.Category.AIRPLANE)
+local delivered = false
+for _ = 1, 40 do
+  MOCK.advance(300)
+  if not war.state.moves[al.id] then delivered = true; break end
+end
+check("airlift lands and delivers", delivered and war.state.nodes.vaziani.supply > before - 5,
+  string.format("%.1f -> %.1f", before, war.state.nodes.vaziani.supply))
+check("landed transport removed", MOCK.groups["DCC_" .. al.id] == nil)
+
 print("Running the war with players present")
 player.x, player.z = gori.x, gori.z
 local errors = 0
@@ -83,6 +138,12 @@ check("war advanced ~576 ticks", war.state.tick >= 570, war.state.tick)
 local liveGroups = MOCK.countGroups()
 check("spawned group count within budget", liveGroups <= DCC.config.maxLivePlatoons, liveGroups)
 check("assault arrows drawn for own side", MOCK.countMarks("arrow") >= 0)
+local supplyText = false
+for _, m in pairs(MOCK.marks) do
+  if m.kind == "text" and tostring(m.args[#m.args]):find("SU") then supplyText = true end
+end
+check("node labels show supply to the owner", supplyText)
+check("convoys moved during the run", (war.state.stats.delivered.blue + war.state.stats.delivered.red) > 0)
 
 print("Save and restore")
 local f = io.open(MOCK.writedir .. "DCC\\Caucasus_war.json", "r")
@@ -117,6 +178,17 @@ check("campaign-over flag set for the server", MOCK.flags[DCC.config.campaignOve
 local announced = false
 for _, t in ipairs(MOCK.texts) do if t:find("Next theater: Syria") then announced = true end end
 check("next map in rotation announced", announced)
+
+print("Capture flips the warehouse")
+-- Fresh war: hand Kutaisi to RED and run one tick of the main loop.
+local w2 = DCC.warObj
+w2.state.winner = nil
+w2.state.nodes.kutaisi.side = "red"
+w2:onCaptureSupply("kutaisi")
+DCC.dcs.writeWarehouses()
+check("captured base: BLUE aircraft gone", kut:getItemCount("FA-18C_hornet") == 0)
+check("captured base: RED types listed (empty until resupplied)", kut:getItemCount("Su-27") == 0
+  and w2.state.nodes.kutaisi.air["Su-27"] == 0)
 
 print(string.format("\n%d passed, %d failed", passed, failed))
 DCC_EXIT_CODE = failed == 0 and 0 or 1

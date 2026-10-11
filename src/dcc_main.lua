@@ -43,10 +43,13 @@ end
 -- One war step.
 function DCC.onTick()
   local war = DCC.warObj
+  DCC.dcs.readWarehouses()          -- aircraft players took off with or landed
   local events = war:tick()
   DCC.dcs.announce(events)
   DCC.dcs.syncAirbases()
+  DCC.dcs.writeWarehouses()         -- captures and restocks
   DCC.dcs.reconcile()
+  DCC.dcs.reconcileCargo()
   DCC.dcs.draw()
   DCC.save()
 
@@ -85,14 +88,19 @@ function DCC.start()
   DCC.started = true
 
   DCC.dcs.init(war, theater, catalog)
+  DCC.dcs.writeWarehouses()         -- enemy aircraft off every base before anyone slots
   DCC.dcs.addMenus()
   DCC.dcs.updateLive()
   DCC.dcs.reconcile()
+  DCC.dcs.reconcileCargo()
   DCC.dcs.draw()
 
-  -- Save when the mission ends (server stop or restart).
+  -- Save when the mission ends; guard player slots at enemy-held bases.
   world.addEventHandler({ onEvent = function(_, e)
-    if e.id == world.event.S_EVENT_MISSION_END then safe("save", DCC.save)() end
+    if e.id == world.event.S_EVENT_MISSION_END then safe("save", DCC.save)()
+    elseif e.id == world.event.S_EVENT_BIRTH and e.initiator then
+      safe("slotGuard", DCC.dcs.onBirth)(e.initiator)
+    end
   end })
 
   local cfg = DCC.config

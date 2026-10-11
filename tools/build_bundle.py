@@ -19,9 +19,11 @@ ENGINE = [
     "src/dcc_util.lua",
     "src/dcc_json.lua",
     "src/dcc_war.lua",
+    "src/dcc_supply.lua",
     "src/dcc_front.lua",
     "src/dcc_persist.lua",
     "src/dcc_dcs.lua",
+    "src/dcc_dcs_supply.lua",
     "src/dcc_main.lua",
 ]
 

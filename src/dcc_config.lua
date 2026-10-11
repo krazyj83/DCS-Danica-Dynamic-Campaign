@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.1.0-phase1",
+  version         = "0.2.0-phase2",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -46,7 +46,32 @@ DCC.config = {
   defenderBonus    = { airbase = 1.5, town = 1.3, depot = 2.0 },
   battleLossRate   = 0.15,  -- share of enemy power taken as damage per tick
   destroyedBelow   = 0.25,  -- platoon health below this = platoon destroyed
-  isolationAttrition = 0.01, -- health lost per tick by garrisons cut off from every depot (~6 h to collapse)
+
+  -- Supply (phase 2). One supply unit (SU) = fuel, ammo and spares together.
+  supply = {
+    cap              = { town = 60, airbase = 80, depot = 300 }, -- normal stock limit per node
+    overfillFactor   = 2.5,   -- deliveries may fill a node up to cap x this (staging areas)
+    startFraction    = 0.5,   -- every node starts half full
+    depotPerTick     = 6,     -- SU a depot produces per tick (x the same factor as platoons)
+    upkeepPerPlatoon = 0.05,  -- SU each platoon uses per tick (an 18-platoon town: ~11 SU/h)
+    outOfSupplyAttrition = 0.005, -- health lost per tick at 0 supply (~12 h to collapse)
+    assaultCostPerPlatoon = 2, -- SU paid at the start node for each attacking platoon
+    assaultCarryShare = 0.5,  -- share of that cost the attackers carry into a captured node
+    keepHours        = 3,     -- every node wants at least this many hours of upkeep in stock
+    stagingFactor    = 2,     -- nodes facing the main effort want cap x this
+    depotReserve     = 40,    -- SU a depot keeps before sending convoys
+    rearKeep         = 10,    -- SU a rear node keeps before passing supply on
+    convoyCapacity   = 30,    -- SU per truck convoy
+    convoyMin        = 8,     -- smallest load worth sending
+    convoysPerNode   = 3,     -- convoys a node may have on the road at once
+    airliftCapacity  = 30,    -- SU per airlift
+    airliftSpeedKmh  = 350,
+    airliftMinKm     = 80,    -- airlifts only for longer hops (or cut-off airbases)
+    maxAirlifts      = 2,     -- per side at once
+    captureShare     = 0.5,   -- share of a captured node's stores the attacker keeps
+    airRestockTicks  = 12,    -- every hour each airbase may replace one lost aircraft...
+    airRestockCost   = 5,     -- ...for this much supply
+  },
 
   -- Live bubble (what gets spawned as real DCS units) -----------------------
   liveRadiusKm     = 40,    -- nodes within this distance of a player are live

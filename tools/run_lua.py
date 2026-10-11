@@ -21,6 +21,7 @@ PURE_MODULES = [
     "src/dcc_util.lua",
     "src/dcc_json.lua",
     "src/dcc_war.lua",
+    "src/dcc_supply.lua",
     "src/dcc_front.lua",
     "catalogs/modern.lua",
     "theaters/caucasus.lua",

@@ -32,8 +32,12 @@ local function snapshot()
     garrisons[id] = #war.state.nodes[id].platoons
   end
   local s = war:summary()
+  local sup = war:supplySummary()
+  local supplies = {}
+  for _, id in ipairs(war.T.order) do supplies[id] = math.floor(war.state.nodes[id].supply + 0.5) end
   history.snapshots[#history.snapshots + 1] = {
-    tick = war.state.tick, owners = owners, garrisons = garrisons,
+    tick = war.state.tick, owners = owners, garrisons = garrisons, supplies = supplies,
+    blueSupply = math.floor(sup.blue), redSupply = math.floor(sup.red),
     blueNodes = s.blue.nodes, redNodes = s.red.nodes,
     bluePlatoons = s.blue.platoons, redPlatoons = s.red.platoons,
   }
@@ -41,9 +45,12 @@ end
 
 snapshot()
 local lastTick = 0
+local kinds = {}
 for _ = 1, ticks do
   local evs = war:tick()
   for _, ev in ipairs(evs) do
+    local k = ev.kind .. ":" .. tostring(ev.side)
+    kinds[k] = (kinds[k] or 0) + 1
     if ev.kind == "capture" or ev.kind == "victory" then
       history.events[#history.events + 1] = ev
       print(string.format("[tick %5d, day %5.1f] %s", ev.tick, ev.tick * 5 / 1440, ev.text))
@@ -60,6 +67,12 @@ print(string.format("Ran %d ticks (%.1f days). Winner: %s", lastTick, lastTick *
 print(string.format("Captures  blue %d / red %d", st.captures.blue, st.captures.red))
 print(string.format("Produced  blue %d / red %d", st.produced.blue, st.produced.red))
 print(string.format("Lost      blue %d / red %d", st.lost.blue, st.lost.red))
+if st.delivered then
+  print(string.format("Supply delivered blue %d / red %d, cargo lost blue %d / red %d",
+    st.delivered.blue, st.delivered.red, st.cargoLost.blue, st.cargoLost.red))
+end
+for _, k in ipairs(DCC.util.sortedKeys(kinds)) do io.write(k, "=", kinds[k], "  ") end
+print()
 
 local f = assert(io.open(out, "w"))
 f:write(DCC.json.encode(history))
