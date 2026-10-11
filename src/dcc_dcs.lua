@@ -387,7 +387,7 @@ end
 -- ---------------------------------------------------------------------------
 function B.announce(events)
   for _, ev in ipairs(events) do
-    if ev.kind == "capture" or ev.kind == "victory" then
+    if ev.kind == "capture" or ev.kind == "victory" or ev.kind == "clock" then
       trigger.action.outText(ev.text, ev.kind == "victory" and 60 or 20)
     elseif ev.kind == "repulsed" then
       trigger.action.outText(ev.text, 15)
@@ -417,6 +417,12 @@ function B.showStatus(side)
   local f = war.state.focus and war.state.focus[side]
   if f then lines[#lines + 1] = "Main effort: " .. war:nodeName(f.target) end
   if B.supplyLines then for _, l in ipairs(B.supplyLines(side)) do lines[#lines + 1] = l end end
+  local left = war:clockTicksLeft()
+  if left then
+    local h = math.max(0, left) * DCC.config.tickSeconds / 3600
+    lines[#lines + 1] = string.format("War clock: %dd %02dh left - %s holds the most bases", math.floor(h / 24),
+      math.floor(h % 24), war:clockLeader():upper())
+  end
   if B.opsStatusLines then for _, l in ipairs(B.opsStatusLines(side)) do lines[#lines + 1] = l end end
   if B.intelStatusLines then for _, l in ipairs(B.intelStatusLines(side)) do lines[#lines + 1] = l end end
   lines[#lines + 1] = "Recent:"

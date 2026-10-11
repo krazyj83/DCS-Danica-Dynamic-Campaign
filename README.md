@@ -96,6 +96,11 @@ on their map unless they have eyes on you.
 ```
 
 - The rotation is fixed: Caucasus → Syria → Persian Gulf → Cold War Germany → Caucasus.
+- **War clock: every war ends after 7 days** of server time, even on an empty server. If nobody has
+  conquered the map by then, the side holding **more bases** wins (a tie goes to the stronger army,
+  then to the bigger supply stock). Everyone gets a warning 24 h, 6 h and 1 h before the end, naming
+  the side that is ahead; **Campaign status** shows the time left. A win on the clock rotates the
+  map exactly like a conquest. A save from before the clock existed gets a fresh 7 days.
 - **Pilots carry over** (`pilots.json`); each map keeps its own war save, and a finished war is archived.
 - **Restarts are safe:** if the server comes back on the wrong DCC mission (the mission list still starts
   on Caucasus), that mission does not start a war; the hook loads the right map within 10 seconds.
@@ -382,6 +387,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `liveRadiusKm` | 40 | How close a player must be for units to spawn |
 | `maxLivePlatoons` | 120 | Hard cap on spawned platoons (~500 vehicles) — lower it if the server struggles |
 | `battleLossRate` | 0.15 | How fast dice battles bleed; higher = faster wars |
+| `warClockDays` | 7 | A war ends after this many days of server time; most bases wins. 0 = no clock |
 | `defenderBonus` | town 1.3, airbase 1.5, depot 2.0 | How hard each node class is to take (only while supplied) |
 
 Phase 3 settings are in `ops` (SAM repair times and costs, structures, AI air pools, air
@@ -403,7 +409,7 @@ Measured with the offline simulator, no players online:
 
 - **The code is side-neutral.** With the start map mirrored, the Georgia side still won, so any bias comes from geography; red's depots were moved to Beslan and Sochi-Adler to even the start.
 - **Wars stay alive.** In 14 wars of 42 days each, the front changed hands 500–800 times per war and swung both ways; starvation is about 8 % of losses, mostly freshly captured towns.
-- **AI-only wars do not end on their own.** With supply, the two commanders are evenly matched, so none of the 14 finished. Players decide wars — every convoy, airlift and garrison you kill shifts the balance. If you want wars to end even on an empty server, a "war clock" is easy to add.
+- **AI-only wars rarely end on their own** — hence the 7-day war clock. With supply, the two commanders are evenly matched, so none of the 14 finished. Players decide wars — every convoy, airlift and garrison you kill shifts the balance. If you want wars to end even on an empty server, a "war clock" is easy to add.
 
 ---
 
@@ -415,14 +421,14 @@ under Python via `lupa`:
 ```bash
 pip install lupa matplotlib
 
-python tools/run_lua.py tests/test_war.lua          # war model + supply: 29 checks
+python tools/run_lua.py tests/test_war.lua          # war model, supply, war clock: 37 checks
 python tools/run_lua.py tests/test_ops.lua          # every mission type, fog gating, radars and AWACS: 83 checks
 python tools/run_lua.py tests/test_dcs_bridge.lua   # bridge, convoys, airlifts, warehouses: 49 checks
 python tools/run_lua.py tests/test_dcs_ops.lua      # flying every mission type against a fake DCS: 60 checks
 python tools/run_lua.py tests/test_dcs_intel.lua    # fog of war: each map shows only what that side detected: 40 checks
 python tools/run_lua.py tests/test_dcs_radar.lua    # EWR, AWACS, HVAA, recon photos: 34 checks
 python tools/run_lua.py tests/test_theaters.lua     # all four maps: connected, depots, war runs: 28 checks
-python tools/run_lua.py tests/test_rotation.lua     # a win loads the next map unattended (mission + hook): 24 checks
+python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended: 28 checks
 
 python tools/run_lua.py tools/sim.lua 4320 2026 docs/sim_history.json   # simulate 15 days
 DCC_THEATER=Syria python tools/run_lua.py tools/sim.lua 4320               # ...on another map

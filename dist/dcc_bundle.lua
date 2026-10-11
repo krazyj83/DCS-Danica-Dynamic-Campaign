@@ -157,6 +157,7 @@ DCC.config = {
   -- Persistence ---------------------------------------------------------------
   saveFolder       = "DCC", -- under Saved Games\DCS\ (lfs.writedir())
   saveSlots        = 24,    -- rotating backups kept
+  warClockDays     = 7,     -- a war ends after this many days of server time; most bases wins (0 = off)
   campaignOverFlag = 9900,  -- user flag set to 1 when a war ends (DCSServerBot watches it)
   rotation         = { "Caucasus", "Syria", "PersianGulf", "GermanyCW" }, -- fixed map order
   rotationEnforce  = true,  -- a mission for the wrong map waits for the hook instead of starting a war
@@ -1211,23 +1212,61 @@ function War:planReinforcements(side, dist, focus)
   end
 end
 
+-- End the war: the loser's stray units are removed so one lost truck cannot stall the end.
+function War:declareWinner(winner, how)
+  local loser = U.otherSide(winner)
+  self.state.winner, self.state.winBy = winner, how
+  if how == "conquest" then
+    for pid, pl in pairs(self.state.platoons) do
+      if pl.side == loser then self:destroyPlatoon(pid) end
+    end
+    for mid, mv in pairs(self.state.moves) do
+      if mv.side == loser then self.state.moves[mid] = nil end
+    end
+  end
+  local s = self:summary()
+  local days = (self.state.tick - (self.state.clockStart or 0)) * self.cfg.tickSeconds / 86400
+  self:log("victory", winner, string.format("%s wins the war on %s %s after %.1f days (BLUE %d bases, RED %d bases)",
+    winner:upper(), self.T.name, how == "conquest" and "by conquest" or "on the war clock", days,
+    s.blue.nodes, s.red.nodes))
+end
+
+-- War clock: the war ends after cfg.warClockDays. The side holding more bases
+-- wins; a tie goes to the stronger army, then to the larger stock of supply.
+function War:clockTicksLeft()
+  local days = self.cfg.warClockDays
+  if not days or days <= 0 then return nil end
+  local limit = math.floor(days * 86400 / self.cfg.tickSeconds + 0.5)
+  return limit - (self.state.tick - (self.state.clockStart or 0))
+end
+
+function War:clockLeader()
+  local s, power, sup = self:summary(), { blue = 0, red = 0 }, self:supplySummary()
+  for _, pl in pairs(self.state.platoons) do power[pl.side] = power[pl.side] + pl.health end
+  if s.blue.nodes ~= s.red.nodes then return s.blue.nodes > s.red.nodes and "blue" or "red" end
+  if math.abs(power.blue - power.red) > 1e-6 then return power.blue > power.red and "blue" or "red" end
+  return sup.blue >= sup.red and "blue" or "red"
+end
+
+local CLOCK_WARNINGS = { { 24, "24 hours" }, { 6, "6 hours" }, { 1, "1 hour" } }
+
 function War:checkVictory()
   if self.state.winner then return end
   for _, side in ipairs(SIDES) do
-    if self:countNodes(side) == 0 then
-      local winner = U.otherSide(side)
-      self.state.winner = winner
-      -- Stray units of the loser are removed so one lost truck cannot stall the end.
-      for pid, pl in pairs(self.state.platoons) do
-        if pl.side == side then self:destroyPlatoon(pid) end
-      end
-      for mid, mv in pairs(self.state.moves) do
-        if mv.side == side then self.state.moves[mid] = nil end
-      end
-      self:log("victory", winner, string.format("%s wins the war on %s after %d ticks",
-        winner:upper(), self.T.name, self.state.tick))
+    if self:countNodes(side) == 0 then self:declareWinner(U.otherSide(side), "conquest"); return end
+  end
+  local left = self:clockTicksLeft()
+  if not left then return end
+  local perHour = 3600 / self.cfg.tickSeconds
+  for _, w in ipairs(CLOCK_WARNINGS) do
+    local text = w[2]
+    if left == math.floor(w[1] * perHour + 0.5) then
+      local lead = self:clockLeader()
+      self:log("clock", nil, string.format("War clock: %s left on %s. %s holds the most bases and wins if it stays that way.",
+        text, self.T.name, lead:upper()))
     end
   end
+  if left <= 0 then self:declareWinner(self:clockLeader(), "clock") end
 end
 
 -- One war step. Returns the events that happened in it, plus any logged
@@ -1235,6 +1274,7 @@ end
 -- can be judged on them.
 function War:tick()
   if self.state.winner then self.newEvents = {}; return {} end
+  self.state.clockStart = self.state.clockStart or (self.state.tick > 0 and self.state.tick or 0)  -- older saves start their clock now
   self.state.tick = self.state.tick + 1
   self:produce()
   self:produceSupply()
@@ -3492,7 +3532,7 @@ end
 -- ---------------------------------------------------------------------------
 function B.announce(events)
   for _, ev in ipairs(events) do
-    if ev.kind == "capture" or ev.kind == "victory" then
+    if ev.kind == "capture" or ev.kind == "victory" or ev.kind == "clock" then
       trigger.action.outText(ev.text, ev.kind == "victory" and 60 or 20)
     elseif ev.kind == "repulsed" then
       trigger.action.outText(ev.text, 15)
@@ -3522,6 +3562,12 @@ function B.showStatus(side)
   local f = war.state.focus and war.state.focus[side]
   if f then lines[#lines + 1] = "Main effort: " .. war:nodeName(f.target) end
   if B.supplyLines then for _, l in ipairs(B.supplyLines(side)) do lines[#lines + 1] = l end end
+  local left = war:clockTicksLeft()
+  if left then
+    local h = math.max(0, left) * DCC.config.tickSeconds / 3600
+    lines[#lines + 1] = string.format("War clock: %dd %02dh left - %s holds the most bases", math.floor(h / 24),
+      math.floor(h % 24), war:clockLeader():upper())
+  end
   if B.opsStatusLines then for _, l in ipairs(B.opsStatusLines(side)) do lines[#lines + 1] = l end end
   if B.intelStatusLines then for _, l in ipairs(B.intelStatusLines(side)) do lines[#lines + 1] = l end end
   lines[#lines + 1] = "Recent:"

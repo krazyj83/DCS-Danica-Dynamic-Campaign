@@ -138,6 +138,23 @@ for _, map in ipairs({ "PersianGulf", "GermanyCW" }) do
   local okT, err = pcall(function() for _ = 1, 12 do DCC.onTick() end end)
   check(map .. ": an hour of war in DCS", okT, err)
 end
+print("War clock ends a war and rotates too")
+do
+  DCC.persist.writeRotation({ current = "Syria", state = "running" })
+  MOCK.airbases = {}
+  MOCK.buildAirbases(DCC_THEATERS.Syria)
+  DCC.started, DCC.ended = false, false
+  env.mission.theatre = "Syria"
+  DCC.start()
+  local w = DCC.warObj
+  w.state.clockStart = w.state.tick - w:clockTicksLeft() - (w.state.tick - (w.state.clockStart or 0)) + 1
+  check("one tick left on the clock", w:clockTicksLeft() == 1, w:clockTicksLeft())
+  DCC.onTick()
+  check("clock victory", w.state.winner ~= nil and w.state.winBy == "clock")
+  local r = DCC.persist.readRotation()
+  check("rotation: ended on Syria, next Persian Gulf", r.state == "ended" and r.finished == "Syria" and r.next == "PersianGulf")
+  check("flag 9900 set", MOCK.flags[DCC.config.campaignOverFlag] == 1)
+end
 check("no script errors", errors == 0, errors)
 
 print(string.format("\n%d passed, %d failed", passed, failed))

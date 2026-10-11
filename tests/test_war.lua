@@ -189,5 +189,46 @@ do
   check("killing convoys delays the assault they feed", cut < normal, cut .. " vs " .. normal)
 end
 
+print("War clock")
+do
+  local w = DCC.War.new(T, C, cfg, 4242)
+  local warnings, ended = {}, nil
+  local limit = math.floor(cfg.warClockDays * 86400 / cfg.tickSeconds + 0.5)
+  for t = 1, limit + 5 do
+    for _, ev in ipairs(w:tick()) do
+      if ev.kind == "clock" then warnings[#warnings + 1] = ev.text end
+      if ev.kind == "victory" then ended = { tick = w.state.tick, text = ev.text } end
+    end
+    if w.state.winner then break end
+  end
+  check("war ends within " .. cfg.warClockDays .. " days", w.state.winner ~= nil and ended and ended.tick <= limit)
+  if w.state.winBy == "clock" then
+    check("clock ends it exactly on time", ended.tick == limit, ended.tick)
+    check("three warnings: 24 h, 6 h, 1 h", #warnings == 3 and warnings[1]:find("24 hours") and warnings[3]:find("1 hour"),
+      #warnings)
+    local s = w:summary()
+    check("the side with more bases wins", (s.blue.nodes >= s.red.nodes) == (w.state.winner == "blue")
+      or s.blue.nodes == s.red.nodes, s.blue.nodes .. "/" .. s.red.nodes)
+    check("victory message says war clock", ended.text:find("war clock", 1, true) ~= nil, ended.text)
+  else
+    check("(ended by conquest before the clock)", true)
+  end
+  local frozen = w.state.tick
+  w:tick()
+  check("a finished war stays finished", w.state.tick == frozen)
+
+  -- an older save restored deep into a war gets a fresh clock
+  local old = DCC.War.new(T, C, cfg, 4243)
+  old.state.tick = limit * 3
+  local r = DCC.War.restore(T, C, cfg, J.decode(J.encode(old:snapshot())))
+  r:tick()
+  check("restored older save gets a full clock", r.state.winner == nil and r:clockTicksLeft() == limit - 1, r:clockTicksLeft())
+
+  -- clock off
+  local cfg2 = setmetatable({ warClockDays = 0 }, { __index = cfg })
+  local off = DCC.War.new(T, C, cfg2, 4244)
+  check("warClockDays = 0 turns it off", off:clockTicksLeft() == nil)
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 DCC_EXIT_CODE = failed == 0 and 0 or 1
