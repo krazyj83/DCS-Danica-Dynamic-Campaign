@@ -26,6 +26,7 @@ local files = {
   [[src\dcc_radar.lua]],
   [[src\dcc_world.lua]],
   [[src\dcc_front.lua]],
+  [[src\dcc_territory.lua]],
   [[src\dcc_persist.lua]],
   [[src\dcc_dcs.lua]],
   [[src\dcc_dcs_supply.lua]],

@@ -29,6 +29,7 @@ PURE_MODULES = [
     "src/dcc_radar.lua",
     "src/dcc_world.lua",
     "src/dcc_front.lua",
+    "src/dcc_territory.lua",
     "catalogs/modern.lua",
     "theaters/caucasus.lua",
     "theaters/syria.lua",

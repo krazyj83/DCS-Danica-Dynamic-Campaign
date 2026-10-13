@@ -53,8 +53,18 @@ function B.publicState()
     out.nodes[#out.nodes + 1] = { id = id, name = tn.name, lat = tn.lat, lon = tn.lon, kind = tn.kind,
       depot = tn.depot, side = ns.side, farp = war:farpAt(id) or nil }
   end
-  for _, seg in ipairs(DCC.front.segments(war)) do
-    out.front[#out.front + 1] = { { seg.a.lat, seg.a.lon }, { seg.b.lat, seg.b.lon } }
+  local terr = DCC.territory.compute(war)
+  local function r5(v) return math.floor(v * 1e5 + 0.5) / 1e5 end
+  for _, line in ipairs(terr.front) do
+    local pl = {}
+    for _, p in ipairs(line) do pl[#pl + 1] = { r5(p.lat), r5(p.lon) } end
+    out.front[#out.front + 1] = pl
+  end
+  out.territory = {}
+  for _, cell in ipairs(terr.territory) do
+    local pl = {}
+    for _, p in ipairs(cell.poly) do pl[#pl + 1] = { r5(p.lat), r5(p.lon) } end
+    out.territory[#out.territory + 1] = { side = cell.side, poly = pl }
   end
   local evs = st.events
   for i = #evs, 1, -1 do

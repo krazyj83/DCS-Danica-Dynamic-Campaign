@@ -38,6 +38,29 @@ for _, name in ipairs(DCC.config.rotation) do
     check(name .. ": 600 ticks (2 days) of war", ok, err)
     local caps = war.state.stats.captures
     check(name .. ": the front moves", caps.blue + caps.red > 0, caps.blue .. "/" .. caps.red)
+    -- territory: one cell per base; every front point halfway between a BLUE and a RED base
+    local terr = DCC.territory.compute(war)
+    check(name .. ": a territory cell for every base", #terr.territory == #war.T.order, #terr.territory)
+    local worst, pts = 0, 0
+    for _, line in ipairs(terr.front) do
+      for _, p in ipairs(line) do
+        local db, dr = math.huge, math.huge
+        for _, id in ipairs(war.T.order) do
+          local d = DCC.util.distKm(p, war.T.nodes[id])
+          if war.state.nodes[id].side == "blue" then db = math.min(db, d) else dr = math.min(dr, d) end
+        end
+        worst, pts = math.max(worst, math.abs(db - dr)), pts + 1
+      end
+    end
+    check(name .. ": front lies halfway between the sides", pts > 0 and worst < 0.5, string.format("%d pts, worst %.2f km", pts, worst))
+    local cached = DCC.territory.compute(war)
+    check(name .. ": territory cached until a base changes hands", cached == terr)
+    local flip
+    for _, id in ipairs(war.T.order) do if war.state.nodes[id].side == "red" then flip = id; break end end
+    war.state.nodes[flip].side = "blue"
+    check(name .. ": recomputed after a capture", DCC.territory.compute(war) ~= terr)
+    war.state.nodes[flip].side = "red"
+
     -- sea crossings never spawn
     local seaMoves, live = 0, 0
     for _, mv in pairs(war.state.moves) do

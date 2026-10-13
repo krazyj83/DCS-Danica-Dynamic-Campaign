@@ -244,7 +244,9 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 function draw(d){
   layer.clearLayers();
   const pts=[];
-  for(const f of d.front||[]){L.polyline(f,{color:css('--front'),weight:5,opacity:.9}).addTo(layer)}
+  for(const t of d.territory||[]){const c=t.side==='blue'?css('--blue'):css('--red');
+    L.polygon(t.poly,{stroke:false,fillColor:c,fillOpacity:.16,interactive:false}).addTo(layer)}
+  for(const f of d.front||[]){L.polyline(f,{color:css('--front'),weight:4,opacity:.95,interactive:false}).addTo(layer)}
   for(const n of d.nodes||[]){
     const c=n.side==='blue'?css('--blue'):css('--red');pts.push([n.lat,n.lon]);
     L.circleMarker([n.lat,n.lon],{radius:n.depot?9:(n.kind==='airbase'?7:5),color:'#000',weight:1,

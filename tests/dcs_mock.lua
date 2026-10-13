@@ -341,6 +341,7 @@ trigger = {
     setUserFlag = function(f, v) MOCK.flags[f] = v end,
     removeMark = function(id) MOCK.marks[id] = nil end,
     lineToAll = addMark("line"),
+    markupToAll = function(shape, coal, id, ...) MOCK.marks[id] = { kind = "markup" .. shape, coal = coal, args = { ... } } end,
     circleToAll = addMark("circle"),
     textToAll = addMark("text"),
     arrowToAll = addMark("arrow"),

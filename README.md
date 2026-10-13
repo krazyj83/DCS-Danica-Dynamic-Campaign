@@ -9,7 +9,8 @@ assaults and capture bases. Every base runs on supply that trucks and transport 
 forward. Each side has a **mission board** — CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy
 escort, recon, CSAR and helicopter logistics — and every mission writes its effect into the war.
 AI fighters and attack aircraft fly for both sides, and **pilot records** follow players across
-wars and maps. The front line is drawn on the F10 map and the whole war is saved across restarts.
+wars and maps. **Territory and the front line** are drawn on the F10 map (and the web map) from
+Voronoi cells around every base, and the whole war is saved across restarts.
 **Fog of war:** each side's map shows only the enemy it has actually detected — by eye, by AI
 sensors, by radar, by ELINT or by recon — and contacts fade and expire. **Early-warning radars and
 AWACS** give each side an air picture (and are targets), and **recon brings back photos** of every
@@ -311,6 +312,7 @@ Spectators see only the front line and who owns each base.
 | **Threat** | Per side, per road: how much that side has lost there recently. Drives AI escorts, re-routing and CAP. |
 | **FARP** | A town where players delivered 3 crates: helicopter spawn, rearm, refuel. |
 | **public.json / feed.jsonl** | Public status and the event feed for the web map and Discord (written by the mission, read by `server/dcc_companion.py`). |
+| **Territory** | The ground each base holds: its Voronoi cell (closer to it than to any other base, at most 75 km). A side's territory is the union of its cells; the front is where BLUE and RED cells meet. |
 | **Theater pack** | A data file per map (`theaters/*.lua`): nodes with lat/lon, roads, start owners. No map is named in engine code. |
 | **Era catalog** | A data file per era (`catalogs/*.lua`) mapping roles to DCS unit types per side, plus convoy trucks, transports and player aircraft. |
 
@@ -466,7 +468,12 @@ The offline tests use a fake DCS API, so these need a real server to confirm:
 
 ## What players see
 
-- **Front line** — yellow segments across every road whose two ends belong to different sides.
+- **Territory and front line** — each side's ground is shaded in its colour and the front is a continuous
+  yellow line between them, pockets and enclaves included. Every base owns the ground closer to it than
+  to any other base (its *Voronoi cell*, capped at 75 km so territory does not run out over the sea); the
+  front is wherever a BLUE cell meets a RED cell. Redrawn when a base changes hands. The idea comes from
+  [rurounijones/frontline](https://github.com/rurounijones/frontline) (C#, AGPL); this is an independent
+  Lua implementation that runs inside the mission (`src/dcc_territory.lua`).
 - **Nodes** — circles in the owner's colour (depots larger, dashed outline) with the name for everyone. The owner also sees `platoons | SU`, and `NO SUPPLY` when a base has run dry.
 - **Enemy contacts** (fog of war) — SAM threat rings (with an ELINT error circle when the fix is rough), columns where they were seen, garrisons seen at bases, recon reports, *est. light/medium/heavy* on enemy front bases, enemy aircraft seen in the last 2 minutes. Faded = stale. Refreshed every minute. F10 → status also lists how many fresh contacts your side holds.
 - **Own assaults** — arrows from staging node to target; **own airlifts** — a line origin → destination. Only your side sees them.
@@ -538,7 +545,7 @@ python tools/run_lua.py tests/test_dcs_bridge.lua   # bridge, convoys, airlifts,
 python tools/run_lua.py tests/test_dcs_ops.lua      # flying every mission type against a fake DCS: 60 checks
 python tools/run_lua.py tests/test_dcs_intel.lua    # fog of war: each map shows only what that side detected: 40 checks
 python tools/run_lua.py tests/test_dcs_radar.lua    # EWR, AWACS, HVAA, recon photos: 34 checks
-python tools/run_lua.py tests/test_theaters.lua     # all four maps: connected, depots, war runs: 28 checks
+python tools/run_lua.py tests/test_theaters.lua     # all four maps: connected, depots, war runs, territory and front: 44 checks
 python tools/run_lua.py tests/test_dcs_world.lua    # weather, night, AI escorts and CAP, FARPs, JTAC, carrier, public files: 46 checks
 python tests/test_companion.py                      # web map and Discord feed (with a fake Discord): 7 tests
 python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended, bonus and report: 33 checks
@@ -571,7 +578,8 @@ src/
   dcc_intel.lua       contacts per side: aging, troops in contact, front estimates, SAM knowledge
   dcc_radar.lua       EWR sites, AWACS pool, EWR and HVAA missions, recon photos
   dcc_world.lua       weather, night, road threat (AI adaptation), FARPs, ships, ANTISHIP and FARP missions
-  dcc_front.lua       front-line geometry from ownership
+  dcc_front.lua       front crossings on contested roads (kept for the AI and tests)
+  dcc_territory.lua   territory and front line from Voronoi cells (drawn on F10 and the web map)
   dcc_persist.lua     save / load / backups (the only file access)
   dcc_dcs.lua         DCS bridge: live bubble, spawning, read-back, F10 drawing, menus
   dcc_dcs_supply.lua  DCS bridge: convoys, airlifts, warehouses, slot guard

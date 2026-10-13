@@ -39,6 +39,15 @@ check("Sukhumi airbase set to RED", MOCK.airbases["Sukhumi-Babushara"].coalition
 check("auto-capture switched off", MOCK.airbases["Kutaisi"].auto == false)
 check("renamed airbase found by position", B.airbases.minvody == "Mineralnye Vody Airport", B.airbases.minvody)
 check("front line drawn", MOCK.countMarks("line") >= 4, MOCK.countMarks("line"))
+check("territory shaded: one polygon per base", MOCK.countMarks("markup7") == #DCC_THEATERS.Caucasus.nodes, MOCK.countMarks("markup7"))
+local blueFill = 0
+for _, m in pairs(MOCK.marks) do
+  if m.kind == "markup7" and m.coal == -1 then
+    local fill = m.args[#m.args - 2]
+    if fill[3] > fill[1] then blueFill = blueFill + 1 end
+  end
+end
+check("territory polygons coloured by owner", blueFill > 0 and blueFill < #DCC_THEATERS.Caucasus.nodes)
 check("node circles drawn (plus own SAM rings)", MOCK.countMarks("circle") >= #DCC_THEATERS.Caucasus.nodes)
 check("status menu added for both sides", #MOCK.menus == 2)
 

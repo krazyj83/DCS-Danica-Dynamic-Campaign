@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.6.0",
+  version         = "0.6.1",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -180,6 +180,14 @@ DCC.config = {
   rotation         = { "Caucasus", "Syria", "PersianGulf", "GermanyCW" }, -- fixed map order
   rotationEnforce  = true,  -- a mission for the wrong map waits for the hook instead of starting a war
                             -- (delete Saved Games\DCS\DCC\rotation.json to pick a map by hand)
+
+  -- Territory and front line (Voronoi cells around every base)
+  territory = {
+    reachKm   = 75,     -- a base claims ground at most this far (keeps territory off open sea)
+    capSides  = 24,     -- polygon used for that limit
+    fillAlpha = 0.12,   -- territory shading on the F10 map
+    lineWidth = 3,      -- front line thickness style
+  },
 
   -- Drawing (F10 map) -----------------------------------------------------------
   markIdBase       = 7000000,  -- F10 mark ids used by the engine start here

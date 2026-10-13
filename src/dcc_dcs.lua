@@ -345,9 +345,23 @@ function B.draw()
   for _, id in ipairs(B.marks) do trigger.action.removeMark(id) end
   B.marks = {}
 
-  -- Front line: visible to everyone.
-  for _, seg in ipairs(DCC.front.segments(war)) do
-    trigger.action.lineToAll(-1, newMark(), toVec3(seg.a), toVec3(seg.b), cfg.colours.front, 1, true)
+  -- Territory and front line (Voronoi cells, dcc_territory.lua): visible to everyone.
+  local terr = DCC.territory.compute(war)
+  local fillA = cfg.territory.fillAlpha
+  for _, cell in ipairs(terr.territory) do
+    local col = cfg.colours[cell.side]
+    local args = { 7, -1, newMark() }
+    for _, p in ipairs(cell.poly) do args[#args + 1] = toVec3(p) end
+    args[#args + 1] = { col[1], col[2], col[3], 0 }          -- no outline: cells of one side merge
+    args[#args + 1] = { col[1], col[2], col[3], fillA }
+    args[#args + 1] = 0
+    args[#args + 1] = true
+    pcall(trigger.action.markupToAll, unpack(args))
+  end
+  for _, line in ipairs(terr.front) do
+    for i = 2, #line do
+      trigger.action.lineToAll(-1, newMark(), toVec3(line[i - 1]), toVec3(line[i]), cfg.colours.front, 1, true)
+    end
   end
 
   -- Nodes: everyone sees who owns what; only the owner sees the strength.
