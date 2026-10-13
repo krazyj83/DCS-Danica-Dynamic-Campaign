@@ -26,6 +26,8 @@ dofile(DCC_ROOT .. "/src/dcc_dcs_radar.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_world.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_jtac.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_public.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_air.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_ground.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
 local errors = 0
@@ -181,6 +183,34 @@ do
   check("war report saved as a text file", f ~= nil)
   if f then f:close() end
   check("bonus saved in pilots.json", key and DCC.persist.loadPilots().pilots[key].wins_clock == 1)
+end
+print("A server without file access (io/lfs sanitized)")
+do
+  local realLfs = lfs
+  lfs = nil
+  MOCK.airbases = {}
+  MOCK.buildAirbases(DCC_THEATERS.Caucasus)
+  DCC.started, DCC.ended = false, false
+  env.mission.theatre = "Caucasus"
+  DCC.start()
+  local w = DCC.warObj
+  check("campaign still starts", DCC.started and w.T.name == "Caucasus")
+  check("knows it cannot save", w.noSave == true)
+  check("war clock shortened to warClockDaysNoSave", w:clockTicksLeft() ==
+    math.floor(DCC.config.warClockDaysNoSave * 86400 / DCC.config.tickSeconds + 0.5))
+  local said = false
+  for _, t in ipairs(MOCK.texts) do if t:find("cannot save the campaign", 1, true) then said = true end end
+  check("players are told", said)
+  for _, ns in pairs(w.state.nodes) do ns.side = "red" end
+  for mid, mv in pairs(w.state.moves) do if mv.side == "blue" then w.state.moves[mid] = nil end end
+  MOCK.flags[DCC.config.endMissionFlag] = nil
+  DCC.onTick()
+  check("RED wins", w.state.winner == "red")
+  MOCK.advance(60)
+  check("mission not ended before 2 min", MOCK.flags[DCC.config.endMissionFlag] == nil)
+  MOCK.advance(65)
+  check("end-mission flag set: the server loads the next mission in its list", MOCK.flags[DCC.config.endMissionFlag] == 1)
+  lfs = realLfs
 end
 check("no script errors", errors == 0, errors)
 

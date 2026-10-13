@@ -148,14 +148,16 @@ function MOCK.addTemplates()
     end
     return { name = name, lateActivation = true, groupId = 999, task = "CAP", units = units, route = { points = {} } }
   end
-  env.mission.coalition = {
-    blue = { country = { { id = 80, plane = { group = { tpl("DCC_TPL_blue_fighter", "F-16C_50"),
-                                                        tpl("DCC_TPL_blue_attack", "A-10C"),
-                                                        tpl("DCC_TPL_blue_awacs", "E-3A", 1) } } } } },
-    red  = { country = { { id = 81, plane = { group = { tpl("DCC_TPL_red_fighter", "MiG-29S"),
-                                                        tpl("DCC_TPL_red_attack", "Su-25"),
-                                                        tpl("DCC_TPL_red_awacs", "A-50", 1) } } } } },
-  }
+  local coal = {}
+  for side, cid in pairs({ blue = 80, red = 81 }) do
+    local planes, helos = {}, {}
+    for role, spec in pairs(DCC_CATALOGS.modern.aiAir[side]) do
+      local list = spec.helicopter and helos or planes
+      list[#list + 1] = tpl("DCC_TPL_" .. side .. "_" .. role, spec.type, spec.size or 2)
+    end
+    coal[side] = { country = { { id = cid, plane = { group = planes }, helicopter = { group = helos } } } }
+  end
+  env.mission.coalition = coal
 end
 
 -- ---------------------------------------------------------------------------
@@ -203,6 +205,7 @@ function GroupMT:getController()
     setOption = function(_, id, v) g.options = g.options or {}; g.options[id] = v end,
     setCommand = function(_, c) g.commands = g.commands or {}; g.commands[c.id] = c.params and c.params.value end,
     setTask = function(_, t) g.lastTask = t end,
+    pushTask = function(_, t) g.pushed = g.pushed or {}; table.insert(g.pushed, t) end,
     getDetectedTargets = function()
       local out = {}
       for _, u in ipairs(g.detected or {}) do out[#out + 1] = { object = u, visible = true } end
@@ -232,7 +235,8 @@ end
 
 function coalition.addGroup(countryId, category, data)
   assert(type(countryId) == "number", "addGroup: country id must be a number")
-  assert(category == Group.Category.GROUND or category == Group.Category.AIRPLANE or category == Group.Category.SHIP,
+  assert(category == Group.Category.GROUND or category == Group.Category.AIRPLANE or category == Group.Category.SHIP
+    or category == Group.Category.HELICOPTER,
     "addGroup: bad category")
   assert(data.name and data.units and #data.units > 0, "addGroup: bad group data")
   assert(MOCK.groups[data.name] == nil, "addGroup: duplicate group name " .. data.name)
@@ -248,7 +252,8 @@ function coalition.addGroup(countryId, category, data)
       assert(u.alt and u.payload and u.payload.fuel, "addGroup: aircraft need alt and payload.fuel")
     end
     g.units[i] = setmetatable({ name = u.name, type = u.type, x = u.x, z = u.y, alive = true, group = g,
-                                coal = coal, air = (category == Group.Category.AIRPLANE) }, UnitMT)
+                                coal = coal, air = (category == Group.Category.AIRPLANE or category == Group.Category.HELICOPTER),
+                                alt = u.alt }, UnitMT)
   end
   MOCK.groups[data.name] = g
   return g
@@ -470,4 +475,26 @@ function MOCK.addShipGroup(name, coal, x, z, types)
   end
   MOCK.groups[name] = g
   return g
+end
+
+-- Scenery (bridges): MOCK.scenery = { obj, ... } with getTypeName/getPoint/isExist/getLife
+Object.Category.SCENERY = 5
+world.VolumeType = { SPHERE = 2 }
+function world.searchObjects(cat, vol, fn)
+  for _, o in ipairs(MOCK.scenery or {}) do
+    local p, c = o:getPoint(), vol.params.point
+    if (p.x - c.x) ^ 2 + (p.z - c.z) ^ 2 <= vol.params.radius ^ 2 then
+      if fn(o) == false then break end
+    end
+  end
+end
+function MOCK.addBridge(x, z)
+  MOCK.scenery = MOCK.scenery or {}
+  local b = { x = x, z = z, alive = true }
+  function b:getTypeName() return "Bridge_Concrete" end
+  function b:getPoint() return { x = self.x, y = 0, z = self.z } end
+  function b:isExist() return self.alive end
+  function b:getLife() return self.alive and 100 or 0 end
+  table.insert(MOCK.scenery, b)
+  return b
 end

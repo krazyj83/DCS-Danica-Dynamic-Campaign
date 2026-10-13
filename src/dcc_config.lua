@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.6.1",
+  version         = "0.7.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -82,9 +82,9 @@ DCC.config = {
     infraPerNode     = { airbase = 4, depot = 6 }, -- strike targets per node
     infraSupplyHit   = 25,    -- SU burned with each destroyed building
     infraRepairTicks = 36,  infraRepairCost = 15, -- one building repaired every 3 h
-    airPoolStart     = { fighter = 8,  attack = 8 },
-    airPoolMax       = { fighter = 12, attack = 12 },
-    airPoolRestockTicks = 24, airPoolRestockCost = 15, -- one AI aircraft bought every 2 h
+    airPoolStart     = { fighter = 16, attack = 16 },  -- packages, CAPs and escorts all draw on these
+    airPoolMax       = { fighter = 24, attack = 24 },
+    airPoolRestockTicks = 12, airPoolRestockCost = 10, -- one AI aircraft bought every hour
     airCoverTicks    = 12,    -- CAP gives 1 h of air superiority over its area
     intelFreshTicks  = 72,    -- recon older than 6 h is stale
     convoyAmbushChance = 0.15, convoyAmbushLoss = 0.5, -- unescorted last leg to the front
@@ -95,7 +95,8 @@ DCC.config = {
   -- Mission board (phase 3)
   missions = {
     perType = { CAS = 2, BAI = 3, STRIKE = 2, SEAD = 2, CAP = 1, ESCORT = 2,
-                CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1, ANTISHIP = 1, FARP = 2 },
+                CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1, ANTISHIP = 1, FARP = 2,
+                INTERCEPT = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2 },
     capMinutes      = 20,     -- CAP: time on station that completes the mission
     capRadiusKm     = 40,
     reconRadiusKm   = 8,      -- recon: overfly within this distance...
@@ -161,6 +162,37 @@ DCC.config = {
     antishipChance = 0.4,     -- chance per hour of an AI strike on a known enemy ship
   },
   jtac = { laserCode = 1688, searchKm = 6, standoffKm = 4 },
+
+  -- Air war additions
+  air = {
+    assetPoolStart    = { tanker = 2, drone = 2 },
+    assetPoolMax      = { tanker = 2, drone = 3 },
+    assetRestockTicks = { tanker = 72, drone = 24 },   -- one bought every 6 h / 2 h at most
+    assetRestockCost  = { tanker = 30, drone = 10 },
+    packageMinutes    = 45,     -- each side launches a strike package about this often (players online)
+    airAssaultMinutes = 75,     -- ...and an AI helicopter assault about this often
+    airAssaultKm      = 70,     -- helicopter assault range
+    airAssaultMaxDefenders = 2, -- only bases this weak are targets
+    forwardCap        = true,   -- CAP over the own base the enemy is about to attack
+    creditOnLanding   = true,   -- mission points count once the pilot lands at a friendly base
+    cooldownDeaths    = 2,      -- pilot deaths...
+    cooldownWindowMin = 60,     -- ...within this many minutes...
+    cooldownMin       = 15,     -- ...ground the pilot from fast jets this long (helicopters still OK)
+    samCueKm          = 25,     -- a SAM without radar cueing (EWR/AWACS) only wakes up this close
+  },
+
+  -- Ground war additions
+  ground = {
+    batteries      = 2,      -- artillery batteries per side
+    artyFactor     = 1.3,    -- a supporting battery makes the enemy lose 30 % more per round
+    batteryRebuildTicks = 72, batteryRebuildCost = 30,
+    fortMax = 3, fortTicks = 72, fortCost = 10, fortBonus = 0.1,  -- dig in: +10 % per level every 6 h
+    moraleNoSupply = 0.7, moraleCutOff = 0.8, surrenderAt = 2,
+    bridgeTicks    = 72,     -- a destroyed bridge closes its road for 6 h
+    skirmishes     = true,   -- small fights always running on the front (for CAS)
+    skirmishPerSide = 2,     -- vehicles per side per skirmish
+    skirmishMax    = 8,      -- most skirmishes at once
+  },
   public = { events = 40, everySeconds = 60 },   -- DCC\public.json for the web map / Discord
 
   -- Live bubble (what gets spawned as real DCS units) -----------------------
@@ -175,7 +207,10 @@ DCC.config = {
   saveFolder       = "DCC", -- under Saved Games\DCS\ (lfs.writedir())
   saveSlots        = 24,    -- rotating backups kept
   victoryMinSorties = 3,    -- victory bonus needs this many sorties for the winner (or one completed mission)
-  warClockDays     = 7,     -- a war ends after this many days of server time; most ground gained wins (0 = off)
+  warClockDays     = 7,
+  warClockDaysNoSave = 1,   -- on a server that cannot save (io/lfs off) a war lasts this long instead
+  endMissionFlag   = 9901,  -- set 2 min after a win: the mission's END MISSION trigger fires and the
+                            -- server loads the next mission in its list (map rotation without hooks)     -- a war ends after this many days of server time; most ground gained wins (0 = off)
   campaignOverFlag = 9900,  -- user flag set to 1 when a war ends (DCSServerBot watches it)
   rotation         = { "Caucasus", "Syria", "PersianGulf", "GermanyCW" }, -- fixed map order
   rotationEnforce  = true,  -- a mission for the wrong map waits for the hook instead of starting a war

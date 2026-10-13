@@ -34,7 +34,9 @@ from lupa import lua51
 
 import dcs
 from dcs import countries, helicopters, planes
-from dcs.action import DoScriptFile
+from dcs.action import DoScriptFile, EndMission
+from dcs.condition import FlagEquals
+from dcs.triggers import TriggerOnce
 from dcs.coalition import Coalition
 from dcs.forcedoptions import ForcedOptions
 from dcs.mission import StartType
@@ -307,6 +309,13 @@ def build(theater_name, era, out, bundle):
     trig = TriggerStart(comment="DCC start")
     trig.add_action(DoScriptFile(key))
     m.triggerrules.triggers.append(trig)
+
+    # Map rotation without hooks: 2 min after a win the engine sets flag 9901;
+    # this ends the mission and the server loads the next mission in its list.
+    end = TriggerOnce(comment="DCC war over - next map")
+    end.add_condition(FlagEquals(9901, 1))
+    end.add_action(EndMission(text=m.string("The war is over - loading the next map.")))
+    m.triggerrules.triggers.append(end)
 
     # Options.
     # "Allies only": the F10 map shows own units only; enemies appear only through the

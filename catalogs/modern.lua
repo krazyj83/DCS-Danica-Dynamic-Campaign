@@ -131,11 +131,19 @@ DCC_CATALOGS.modern = {
       fighter = { type = "F-16C_50", loadout = { { "AIM-120C", 4 }, { "AIM-9X", 2 } } },
       attack  = { type = "A-10C",    loadout = { { "AGM-65D", 2 }, { "Mk-82 - 500lb", 6 }, { "LAU-105 - 2 x AIM-9M", 1 } } },
       awacs   = { type = "E-3A",     loadout = {}, size = 1 },
+      sead    = { type = "F-16C_50", loadout = { { "AGM-88C", 2 }, { "AIM-120C", 2 } } },
+      tanker  = { type = "KC135MPRS", loadout = {}, size = 1 },   -- drogue: F/A-18, F-14, AV-8B
+      drone   = { type = "MQ-9 Reaper", loadout = {}, size = 1 },
+      airmobile = { type = "UH-60A", loadout = {}, size = 2, helicopter = true },
     },
     red = {
       fighter = { type = "MiG-29S",  loadout = { { "R-77", 4 }, { "R-73", 2 } } },
       attack  = { type = "Su-25",    loadout = { { "S-8KOM", 4 }, { "OFAB-250", 4 }, { "R-60M", 2 } } },
       awacs   = { type = "A-50",     loadout = {}, size = 1 },
+      sead    = { type = "Su-24M",   loadout = { { "Kh-31P", 2 }, { "R-60M", 2 } } },
+      tanker  = { type = "IL-78M",   loadout = {}, size = 1 },
+      drone   = { type = "WingLoong-I", loadout = {}, size = 1 },
+      airmobile = { type = "Mi-8MT", loadout = {}, size = 2, helicopter = true },
       antiship = { type = "Su-34",   loadout = { { "Kh-31A", 4 }, { "R-73", 2 } } },  -- only used against ships
     },
   },
@@ -144,6 +152,8 @@ DCC_CATALOGS.modern = {
   -- FARP ground crew (fuel and ammo trucks so the FARP can rearm and refuel).
   escortAD = { blue = { "M1097 Avenger", "Vulcan" }, red = { "Strela-10M3", "ZSU-23-4 Shilka" } },
   jtac     = { blue = { "Hummer", "M1043 HMMWV Armament" }, red = { "UAZ-469", "Tigr_233036" } },
+  artillery = { blue = { "M-109", "M-109", "M 818" }, red = { "SAU Msta", "SAU Msta", "Ural-375" } },
+  fortifications = { "Sandbox", "Bunker", "Sandbox" },   -- static types, one per fortification level
   farpCrew = { blue = { "M978 HEMTT Tanker", "M 818", "Hummer" }, red = { "ATZ-10", "Ural-375", "UAZ-469" } },
 
   -- Early-warning radar sites (phase 5). The first type that exists in this DCS install is used.
@@ -155,9 +165,10 @@ DCC_CATALOGS.modern = {
   -- Air-defence site at airbases and depots: radars, launchers, support.
   sam = {
     blue = { radars = { "Hawk sr", "Hawk tr" }, launchers = { "Hawk ln", "Hawk ln", "Hawk ln" },
-             support = { "Hawk pcp" } },
+             support = { "Hawk pcp" }, pointDefence = { "M1097 Avenger", "M1097 Avenger" } },
     red  = { radars = { "SA-11 Buk SR 9S18M1" }, launchers = { "SA-11 Buk LN 9A310M1", "SA-11 Buk LN 9A310M1",
-             "SA-11 Buk LN 9A310M1" }, support = { "SA-11 Buk CC 9S470M1" } },
+             "SA-11 Buk LN 9A310M1" }, support = { "SA-11 Buk CC 9S470M1" },
+             pointDefence = { "Tor 9A331" } },
   },
 
   -- Strike targets at depots and airbases (static objects), in build order.

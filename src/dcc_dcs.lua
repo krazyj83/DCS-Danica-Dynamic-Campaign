@@ -408,7 +408,10 @@ function B.announce(events)
     elseif ev.kind == "convoy_lost" or ev.kind == "airlift_lost" then
       trigger.action.outText(ev.text, 15)            -- both sides: the kill mattered
     elseif ev.kind == "sam_destroyed" or ev.kind == "sam_suppressed" or ev.kind == "infra_hit"
-           or ev.kind == "ewr_destroyed" or ev.kind == "awacs_lost"
+           or ev.kind == "ewr_destroyed" or ev.kind == "awacs_lost" or ev.kind == "tanker_lost"
+           or ev.kind == "drone_lost" or ev.kind == "strike_hit" or ev.kind == "package_down"
+           or ev.kind == "arty_destroyed" or ev.kind == "fort_hit" or ev.kind == "bridge_down"
+           or ev.kind == "bridge_up" or ev.kind == "surrender" or ev.kind == "farp_lost"
            or ev.kind == "rescued" or ev.kind == "captured" or ev.kind == "airassault" then
       trigger.action.outText(ev.text, 15)
     elseif (ev.kind == "focus" or ev.kind == "assault" or ev.kind == "airlift" or ev.kind == "airlift_in"
@@ -435,7 +438,8 @@ function B.showStatus(side)
   if left then
     local h = math.max(0, left) * DCC.config.tickSeconds / 3600
     local gb = war:groundGained("blue")
-    lines[#lines + 1] = string.format("War clock: %dd %02dh left - %s", math.floor(h / 24), math.floor(h % 24),
+    lines[#lines + 1] = string.format("War clock%s: %dd %02dh left - %s", war.noSave and " (no saving on this server)" or "",
+      math.floor(h / 24), math.floor(h % 24),
       gb == 0 and "even: no ground gained yet" or string.format("%s is ahead (%+d bases since the start)",
         gb > 0 and "BLUE" or "RED", math.abs(gb)))
   end

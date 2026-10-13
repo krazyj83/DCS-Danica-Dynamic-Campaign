@@ -25,6 +25,21 @@ wins, a server hook loads the next map by itself. Ready-to-fly missions are gene
 
 ## Quick start
 
+**Only access to the missions folder and the server's web UI** (a hosted server)? That works:
+
+1. Upload the four `dist/DCC_*.miz` files.
+2. In the server UI, put them in the mission list in this order: Caucasus, Syria, PersianGulf,
+   GermanyCW, and switch on looping the list.
+3. Start the server. Each war runs for **24 hours** (or until you stop the server); when it is won —
+   by conquest or on the clock — the mission ends after two minutes and the server loads the next map.
+
+Without file access the war **cannot be saved**: stopping the server starts that map's war over, and pilot
+records last one session. Players are told so at the start. If the host ever enables `io`/`lfs` (step 1
+below), saving, the 7-day war clock, persistent pilots and the companion tools switch on by themselves —
+nothing to change in the missions.
+
+**Full access to the server PC:**
+
 1. **Server: allow saving** — see [step 1](#1-allow-the-campaign-to-save) below.
 2. **Copy the four missions** `dist/DCC_*.miz` to `Saved Games\DCS\Missions\DCC\` and put
    `DCC_Caucasus.miz` in the server's mission list.
@@ -99,6 +114,32 @@ Victory bonus (+50 points, war clock) for 5 RED pilots: ...
 ```
 
 Points in the report are those scored in that war only.
+
+## Air war
+
+| Feature | What happens | Your mission |
+| --- | --- | --- |
+| **Strike packages** | About every 45 min each side sends a raid at a real target: 2 strikers, 2 escorts, and 2 SEAD aircraft (HARM / Kh-31P) when the target has a SAM. If the strikers get within 6 km, the target is hit: a store burns, the SAM radar or EWR goes down, or the FARP is gone. | **INTERCEPT** (once detected) — kill the strikers before they arrive |
+| **Helicopter assaults** | About every 75 min a side flies a platoon in two UH-60 / Mi-8 to a weak enemy base (≤2 platoons) within 70 km. If they land, the troops attack; if they are shot down, the platoon is lost. | **INTERCEPT** — the same mission, on helicopters |
+| **Tankers** | BLUE KC-135MPRS (drogue, TACAN 51X), RED IL-78M (52X), orbiting behind the AWACS while anyone is online. | **TANKER** — shoot down the enemy's |
+| **Recon drones** | MQ-9 / Wing Loong over the base a side is attacking; it spots ground units within 8 km for its side's map. | Shoot it down to blind them |
+| **Forward CAP** | The AI covers its own base the enemy is massing against. | — |
+| **Layered air defence** | A SAM site only lights up at 60 km when its side's early-warning radar or AWACS is tracking you; on its own it waits until 25 km. Every site has point defence (Avenger / Tor) that stays on when the main radar goes dark. Kill the EWRs first. | EWR, SEAD |
+| **Credit on landing** | Mission points are logged when you land at a friendly base or your carrier. Die or eject on the way home and they are lost (the damage to the enemy still counts). | — |
+| **Cooldown** | Two deaths within an hour ground a pilot from fast jets for 15 min. Helicopters are always allowed. | — |
+
+The AI air forces are bigger to carry all of this: 16 fighters and 16 attack aircraft per side to start,
+one more bought every hour (max 24).
+
+## Ground war
+
+| Feature | What happens | Your mission |
+| --- | --- | --- |
+| **Artillery** | 2 batteries per side (M109 / 2S19) move up behind the main effort and next to bases under attack. A battery next to a battle makes the enemy lose 30 % more; near players it is a real battery shelling the fight. Firing gives it away. | **ARTY** — destroy the battery (rebuilt after 6 h) |
+| **Front skirmishes** | Small fights (2 vehicles each side) always run on up to 8 front roads, even far from players, so there is always something for CAS. They follow the front and come back 30 min after being wiped out. | CAS anywhere on the front |
+| **Fortifications** | A base nobody attacks digs in: one level every 6 h (10 supply), up to 3, +10 % defence each. Bunkers appear when you are near. | **FORT** — destroy bunkers before an assault |
+| **Bridges** | Real DCS bridges on the roads are found at mission start. A destroyed bridge closes its road for 6 h: columns on it stop and the AI routes around it. | **BRIDGE** — on enemy supply roads |
+| **Morale** | A base out of supply defends at 70 %, one cut off from every depot at 80 %. Cut off, out of supply and down to 2 platoons, it surrenders. | Encircle and starve |
 
 ## Radars, AWACS and recon photos
 
@@ -462,6 +503,12 @@ The offline tests use a fake DCS API, so these need a real server to confirm:
 - [ ] **Carrier (Gulf):** the F/A-18C / F-14B slots spawn on the deck; TACAN 74X and ICLS 4 work; the group turns around at the end of its leg.
 - [ ] **Weather:** in a storm (status says so) fog closes in (DCS 2.9.10+).
 - [ ] **Companion:** the web map shows the front; a capture shows up in Discord within a minute.
+- [ ] **Hosted server without file access:** the start message says the war cannot be saved; after a win the mission ends after 2 min and the next mission in the list loads.
+- [ ] A RED strike package ("Command: RED STRIKE sortie airborne") shows up as INTERCEPT on BLUE's board.
+- [ ] Tanker: TACAN 51X, refuelling from the KC-135MPRS works (drogue).
+- [ ] Near a battle, the artillery battery fires (shell splashes at the base).
+- [ ] Skirmishes: vehicles fighting on the front roads far from any player.
+- [ ] Destroying a bridge on a road between two bases reports "Bridge on the road … destroyed".
 - [ ] `dcs.log` has no `DCC: ERROR` lines (errors now include a stack traceback).
 
 ---
@@ -503,6 +550,8 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `maxLivePlatoons` | 120 | Hard cap on spawned platoons (~500 vehicles) — lower it if the server struggles |
 | `battleLossRate` | 0.15 | How fast dice battles bleed; higher = faster wars |
 | `warClockDays` | 7 | A war ends after this many days of server time; most ground gained wins. 0 = no clock |
+| `warClockDaysNoSave` | 1 | The same on a server that cannot save (hosted without file access) |
+| `air.*`, `ground.*` | | Package and assault rates, tanker/drone pools, IADS cue range, credit on landing, cooldown; artillery, fortification, morale, bridge and skirmish settings |
 | `victoryMinSorties` | 3 | Sorties for the winner needed for the victory bonus (or one completed mission) |
 | `world.*` | | Weather effects, night hours, fog, AI threat levels, FARP size, AI anti-ship rate |
 | `jtac.laserCode` | 1688 | JTAC laser code |
@@ -540,12 +589,13 @@ under Python via `lupa`:
 pip install lupa matplotlib
 
 python tools/run_lua.py tests/test_war.lua          # war model, supply, war clock: 38 checks
-python tools/run_lua.py tests/test_ops.lua          # every mission type, fog, radars, AWACS, bonus, weather, threat, FARPs, ships, squadrons: 118 checks
+python tools/run_lua.py tests/test_ops.lua          # every mission type and every war rule: 150 checks
 python tools/run_lua.py tests/test_dcs_bridge.lua   # bridge, convoys, airlifts, warehouses: 49 checks
 python tools/run_lua.py tests/test_dcs_ops.lua      # flying every mission type against a fake DCS: 60 checks
 python tools/run_lua.py tests/test_dcs_intel.lua    # fog of war: each map shows only what that side detected: 40 checks
 python tools/run_lua.py tests/test_dcs_radar.lua    # EWR, AWACS, HVAA, recon photos: 34 checks
 python tools/run_lua.py tests/test_theaters.lua     # all four maps: connected, depots, war runs, territory and front: 44 checks
+python tools/run_lua.py tests/test_dcs_airground.lua # packages, tankers, drones, IADS, cooldown, artillery, skirmishes, forts, bridges: 35 checks
 python tools/run_lua.py tests/test_dcs_world.lua    # weather, night, AI escorts and CAP, FARPs, JTAC, carrier, public files: 46 checks
 python tests/test_companion.py                      # web map and Discord feed (with a fake Discord): 7 tests
 python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended, bonus and report: 33 checks
@@ -578,6 +628,8 @@ src/
   dcc_intel.lua       contacts per side: aging, troops in contact, front estimates, SAM knowledge
   dcc_radar.lua       EWR sites, AWACS pool, EWR and HVAA missions, recon photos
   dcc_world.lua       weather, night, road threat (AI adaptation), FARPs, ships, ANTISHIP and FARP missions
+  dcc_air.lua         tankers, drones, strike packages and helicopter assaults, INTERCEPT and TANKER missions
+  dcc_ground.lua      artillery, fortifications, bridges and closed roads, morale and surrender
   dcc_front.lua       front crossings on contested roads (kept for the AI and tests)
   dcc_territory.lua   territory and front line from Voronoi cells (drawn on F10 and the web map)
   dcc_persist.lua     save / load / backups (the only file access)
@@ -589,6 +641,8 @@ src/
   dcc_dcs_world.lua   DCS bridge: night, fog, convoy escorts, road CAP, FARP stock and crews, ships
   dcc_dcs_jtac.lua    DCS bridge: JTAC teams, laser and IR pointer, smoke, menu
   dcc_dcs_public.lua  DCS bridge: public.json and feed.jsonl for the companion
+  dcc_dcs_air.lua     DCS bridge: tankers, drones, packages, IADS cueing, point defence, forward CAP, credit, cooldown
+  dcc_dcs_ground.lua  DCS bridge: artillery fire, front skirmishes, bunkers, bridge discovery
   dcc_main.lua        start-up and the 30 s / 5 min loops
   dcc_loader.lua      development loader
 theaters/*.lua          Caucasus (hand-made), Syria, Persian Gulf, Cold War Germany (generated)

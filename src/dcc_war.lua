@@ -786,7 +786,7 @@ end
 -- start), so a map where one side starts bigger stays fair. A tie goes to the
 -- stronger army, then to the larger stock of supply.
 function War:clockTicksLeft()
-  local days = self.cfg.warClockDays
+  local days = self.noSave and self.cfg.warClockDaysNoSave or self.cfg.warClockDays
   if not days or days <= 0 then return nil end
   local limit = math.floor(days * 86400 / self.cfg.tickSeconds + 0.5)
   return limit - (self.state.tick - (self.state.clockStart or 0))

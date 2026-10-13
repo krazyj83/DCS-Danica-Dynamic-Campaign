@@ -22,7 +22,8 @@ local U = DCC.util
 B.PUBLIC_KINDS = {
   capture = true, victory = true, clock = true, weather = true, ewr_destroyed = true, awacs_lost = true,
   sam_destroyed = true, convoy_lost = true, airlift_lost = true, farp_built = true, ship_sunk = true,
-  mission_done = true, rescued = true, report = true,
+  mission_done = true, rescued = true, report = true, tanker_lost = true, strike_hit = true, package_down = true,
+  arty_destroyed = true, bridge_down = true, bridge_up = true, surrender = true, farp_lost = true,
 }
 
 local function ll(p)

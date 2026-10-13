@@ -78,6 +78,11 @@ function DCC.onTick()
     -- the server hook sees this and loads the next map's mission
     DCC.persist.writeRotation({ current = nextMap, state = "ended", finished = DCC.theaterName,
                                 winner = war.state.winner, next = nextMap, tick = war.state.tick })
+    -- rotation without file access or hooks: end the mission after 2 minutes;
+    -- the server then loads the next mission in its list
+    timer.scheduleFunction(function()
+      trigger.action.setUserFlag(DCC.config.endMissionFlag, 1)
+    end, nil, timer.getTime() + 120)
     trigger.action.outText(string.format("The war on %s is over. %s wins.%s",
       DCC.theaterName, war.state.winner:upper(),
       nextMap and (" Next theater: " .. nextMap .. ".") or ""), 120)
@@ -182,6 +187,7 @@ function DCC.start()
   end
   DCC.warObj = war
   DCC.started = true
+  war.noSave = not DCC.persist.available()
   DCC.pilots = DCC.Pilots.new(DCC.persist.loadPilots())   -- kept across wars and maps
   war.onMissionDone = function(m, outcome) DCC.dcs.onMissionDone(m, outcome) end
 
@@ -238,4 +244,8 @@ function DCC.start()
   local s = war:summary()
   trigger.action.outText(string.format("Danica Dynamic Campaign %s - %s, war day %.1f. BLUE %d nodes, RED %d nodes.",
     cfg.version, DCC.theaterName, war.state.tick * cfg.tickSeconds / 86400, s.blue.nodes, s.red.nodes), 20)
+  if war.noSave then
+    trigger.action.outText(string.format("This server cannot save the campaign: the war on %s runs for %d h " ..
+      "(or until the server stops), then the next map loads.", DCC.theaterName, cfg.warClockDaysNoSave * 24), 30)
+  end
 end

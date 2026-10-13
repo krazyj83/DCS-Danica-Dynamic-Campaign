@@ -24,6 +24,8 @@ dofile(DCC_ROOT .. "/src/dcc_dcs_radar.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_world.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_jtac.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_public.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_air.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_ground.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
 local errors = 0
@@ -75,7 +77,13 @@ if sg then
   check("radar kill read back: SAM suppressed", war.state.nodes[samNode].sam.status == "suppressed")
   DCC.onTick()
   check("SEAD mission complete", war.state.missions[m.id].status == "done")
-  check("mission credited to the pilot", (DCC.pilots.data.pilots["Morten"].byType.SEAD or 0) == 1)
+  check("points wait while the pilot is airborne", (DCC.pilots.data.pilots["Morten"].byType.SEAD or 0) == 0)
+  -- fly home and land at Kutaisi
+  local kp2 = pos("kutaisi")
+  viper.x, viper.z, viper.air = kp2.x, kp2.z, false
+  MOCK.fire({ id = world.event.S_EVENT_LAND, initiator = viper })
+  check("mission credited to the pilot after landing", (DCC.pilots.data.pilots["Morten"].byType.SEAD or 0) == 1)
+  viper.air = true
 end
 
 print("STRIKE")
@@ -141,7 +149,9 @@ B.planAir()
 local airGroups = MOCK.countGroups("DCC_AIR_")
 check("AI sorties launched while players fly", airGroups >= 2, airGroups)
 local redCap
-for name, g in pairs(MOCK.groups) do if name:find("DCC_AIR_red_CAP", 1, true) then redCap = g end end
+for name, so in pairs(B.sorties) do                      -- a live RED CAP sortie (there may be several now)
+  if so.side == "red" and so.kind == "CAP" and MOCK.groups[name] then redCap = MOCK.groups[name] end
+end
 check("RED CAP cloned from its template", redCap ~= nil and redCap.units[1].type == "MiG-29S")
 check("cloned group keeps the template loadout", redCap and redCap.data.units[1].payload.pylons[1] ~= nil)
 local redFighterSorties = 0
@@ -154,8 +164,7 @@ redCap.units[1].alive = false
 B.pollSorties()
 check("AI loss read back", war.state.stats.airLost.red == 1)
 MOCK.advance(3700)
-check("sortie ends after its time and survivors return", MOCK.groups[redCap.name] == nil
-  and war.state.airPool.red.fighter >= before - 1)
+check("sortie ends after its time", MOCK.groups[redCap.name] == nil)   -- (the pool keeps changing: packages fly too)
 
 print("CSAR")
 local senaki = pos("senaki")

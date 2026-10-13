@@ -238,8 +238,14 @@ function B.scanSams()
     if ns.sam and ns.sam.status ~= "destroyed" then
       local pos, enemy = B.nodePos[id], otherSide(ns.side)
       local awake = false
+      -- IADS: with an own early-warning radar or AWACS tracking the aircraft the site
+      -- lights up at samWakeKm; on its own it only wakes when they are close (samCueKm)
+      local cueKm = (DCC.config.air and DCC.config.air.samCueKm) or cfg.samWakeKm
       for _, u in ipairs(air[enemy]) do
-        if dist2D(u:getPoint(), pos) <= cfg.samWakeKm * 1000 then awake = true; break end
+        local d = dist2D(u:getPoint(), pos)
+        if d <= cueKm * 1000 or (d <= cfg.samWakeKm * 1000 and (not B.cued or B.cued(ns.side, u))) then
+          awake = true; break
+        end
       end
       B.samAwake[id] = awake
       if B.sams[id] then setAlarm(id, B.samEmitting(id) and "red" or "green") else B.samAlarm[id] = nil end

@@ -532,7 +532,9 @@ function B.spawnSortie(side, role, kind, target, extra)
     u.speed, u.heading, u.skill = 220, hdg, "High"
   end
   local task
-  if kind == "CAP" then
+  if extra and extra.task then
+    task = combo(extra.task)
+  elseif kind == "CAP" then
     task = combo({ { id = "EngageTargets", key = "CAP", params = { targetTypes = { "Air" }, priority = 0, maxDist = 70000 } },
                    { id = "Orbit", params = { pattern = "Circle", altitude = alt, speed = 220 } } })
   elseif kind == "CAS" then
@@ -549,6 +551,7 @@ function B.spawnSortie(side, role, kind, target, extra)
   if not s then U.log("AI sortie spawn failed: %s", tostring(err)); return nil end
   B.war:airTake(side, role, #data.units)
   local life = (kind == "CAP") and 3600 or (kind == "CAS" and 2400 or 2700)
+  if extra and extra.life then life = extra.life end
   B.sorties[gname] = { side = side, role = role, kind = kind, born = timer.getTime(), life = life,
                        size = #data.units, alive = #data.units, node = extra and extra.node }
   trigger.action.outTextForCoalition(B.COAL[side], string.format("Command: %s %s sortie airborne%s", side:upper(),
@@ -866,7 +869,7 @@ function B.onKill(e)
   local field = "kills_ground"
   local category = ok(Object.getCategory, tgt)
   if category == Object.Category.STATIC then
-    if not tname:find("^DCC_INF") then return end
+    if not tname:find("^DCC_INF") and not tname:find("^DCC_FORT") then return end
     field = "kills_structure"
   else
     local desc = ok(tgt.getDesc, tgt)

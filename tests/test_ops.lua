@@ -47,7 +47,7 @@ check("BLUE board has SEAD, STRIKE, CAP, RECON", types.blueSEAD and types.blueST
 check("RED board has SEAD, STRIKE, CAP, RECON", types.redSEAD and types.redSTRIKE and types.redCAP and types.redRECON)
 check("SAM sites at airbases and depots", war.state.nodes.sochi.sam.status == "up" and war.state.nodes.gori.sam == nil)
 check("structures at depots and airbases", war.state.nodes.beslan.infra.total == 6 and war.state.nodes.senaki.infra.total == 4)
-check("air pools start stocked", war.state.airPool.red.fighter == 8 and war.state.airPool.blue.attack == 8)
+check("air pools start stocked", war.state.airPool.red.fighter == cfg.ops.airPoolStart.fighter and war.state.airPool.blue.attack == cfg.ops.airPoolStart.attack)
 
 print("SEAD / DEAD")
 local m = find(war, "blue", "SEAD")
@@ -230,7 +230,7 @@ local wa = DCC.War.new(T, C, cfg, 16)
 wa:airTake("red", "fighter", 2)
 wa:airLoss("red", "fighter", 1)
 wa:airReturn("red", "fighter", 1)
-check("sortie draws and returns aircraft", wa.state.airPool.red.fighter == 7)
+check("sortie draws and returns aircraft", wa.state.airPool.red.fighter == cfg.ops.airPoolStart.fighter - 1)
 wa.state.nodes.beslan.supply = 300
 for _ = 1, 24 do wa:tick() end
 check("depots buy replacements", wa.state.airPool.red.fighter + wa.state.airPool.red.attack >= 15)
@@ -519,6 +519,152 @@ do
   local sq = PS:squadrons()
   check("squadron board adds members up", sq[1].tag == "ZZ" and sq[1].score == 50 and sq[2].tag == "VKG"
     and sq[2].score == 40 and sq[2].members == 2)
+end
+
+print("Air: packages, tankers")
+do
+  local function findM(w, side, t, target)
+    for _, m in ipairs(w:openMissions(side)) do
+      if m.type == t and (target == nil or m.target == target) then return m end
+    end
+  end
+  local w = wire(DCC.War.new(T, C, cfg, 61))
+  w:tick(); w:tick()
+  local t = w:pickStrikeTarget("red")
+  check("RED picks a strike target near the front", t ~= nil and w.state.nodes[t.node].side == "blue")
+  -- force a stores target for a clean check
+  t = { node = "kutaisi", kind = "infra" }
+  local pk = w:packageLaunched("red", "strike", t)
+  w:tick()
+  local im = findM(w, "blue", "INTERCEPT", pk.id)
+  check("BLUE gets INTERCEPT on the inbound package", im ~= nil)
+  local lost = w:infraLost("kutaisi")
+  w:packageArrived(pk.id)
+  w:tick()
+  check("package that gets through destroys a building", w:infraLost("kutaisi") == lost + 1)
+  check("INTERCEPT failed when it got through", w.state.missions[im.id].status == "failed")
+  local pk2 = w:packageLaunched("red", "strike", { node = "kutaisi", kind = "infra" })
+  w:tick()
+  local im2 = findM(w, "blue", "INTERCEPT", pk2.id)
+  w:packageDestroyed(pk2.id)
+  w:tick()
+  check("shot down: INTERCEPT done, no damage", w.state.missions[im2.id].status == "done" and w:infraLost("kutaisi") == lost + 1)
+
+  -- helicopter assault on a weak base
+  local wa = DCC.War.new(T, C, cfg, 62)
+  wa:tick()
+  local target
+  for _, id in ipairs(wa.T.order) do
+    local ns = wa.state.nodes[id]
+    if ns.side == "blue" and not wa.T.nodes[id].depot then target = id; break end
+  end
+  for _, pid in ipairs(DCC.util.copy(wa.state.nodes[target].platoons)) do wa:destroyPlatoon(pid) end
+  local from
+  for _, id in ipairs(wa.T.order) do
+    if wa.state.nodes[id].side == "red" and #wa.state.nodes[id].platoons >= 3 then from = id; break end
+  end
+  local before = #wa.state.nodes[from].platoons
+  local am = wa:packageLaunched("red", "airmobile", target, from)
+  check("a platoon boards the helicopters", am and #wa.state.nodes[from].platoons == before - 1 and wa.state.carried[am.platoon])
+  wa:packageArrived(am.id)
+  wa:tick()
+  check("landing on an empty base takes it", wa.state.nodes[target].side == "red")
+  local am2 = wa:packageLaunched("red", "airmobile", target, from)
+  local lostBefore = wa.state.stats.lost.red
+  if am2 then wa:packageDestroyed(am2.id) end
+  check("shot down: the platoon is lost", am2 == nil or wa.state.stats.lost.red == lostBefore + 1)
+
+  -- tanker
+  w:setAsset("red", "tanker", true)
+  w:tick()
+  local tm = findM(w, "blue", "TANKER")
+  check("TANKER mission when the enemy tanker is up", tm ~= nil)
+  w:assetLost("red", "tanker")
+  w:tick()
+  check("tanker kill completes it", tm and w.state.missions[tm.id].status == "done")
+  check("asset pools start stocked", w.state.airPool.blue.tanker == cfg.air.assetPoolStart.tanker
+    and w.state.airPool.red.drone == cfg.air.assetPoolStart.drone)
+end
+
+print("Ground: artillery, fortifications, bridges, morale")
+do
+  local function findM(w, side, t, target)
+    for _, m in ipairs(w:openMissions(side)) do
+      if m.type == t and (target == nil or m.target == target) then return m end
+    end
+  end
+  -- artillery
+  local w = wire(DCC.War.new(T, C, cfg, 71))
+  w:tick(); w:tick()
+  local f = w.state.focus.blue
+  local placed = 0
+  for _, b in ipairs(w:batteries("blue")) do if b.node then placed = placed + 1 end end
+  check("batteries move up next to the main effort", f and placed > 0)
+  local b = w:batteries("blue")[1]
+  check("battery covers the target", b.node and #w:artyAt("blue", f.target) > 0)
+  check("artillery makes the enemy bleed faster", w:artyFactor("blue", f.target) > 1)
+  check("firing gives the battery away", w:contact("red", "arty:" .. b.id) ~= nil)
+  w:tick()
+  check("RED gets an ARTY mission on it", findM(w, "red", "ARTY", b.id) ~= nil)
+  w:batteryHit(b.id)
+  check("destroyed battery out of action", b.status == "destroyed" and b.node == nil)
+  w.state.nodes.batumi.supply = 300
+  for _ = 1, cfg.ground.batteryRebuildTicks + 2 do w:tick() end
+  check("rebuilt after 6 h for supply", b.status == "up")
+
+  -- fortifications
+  local wf = DCC.War.new(T, C, cfg, 72)
+  local quiet = "batumi"
+  local b0 = wf:bonusOf(quiet)
+  for _ = 1, cfg.ground.fortTicks + 1 do wf:tick() end
+  check("a quiet base digs in", wf.state.nodes[quiet].fort >= 1, wf.state.nodes[quiet].fort)
+  check("fortifications raise the defence", wf:bonusOf(quiet) > b0)
+  local lvl = wf.state.nodes[quiet].fort
+  wf:fortHit(quiet)
+  check("bunker destroyed: one level less", wf.state.nodes[quiet].fort == lvl - 1)
+  wf.state.nodes[quiet].fort = 2
+  wf:onCaptureOps(quiet)
+  check("captured base loses its fortifications", wf.state.nodes[quiet].fort == 0)
+
+  -- bridges
+  local wb = wire(DCC.War.new(T, C, cfg, 73))
+  wb.bridges = { { a = "kutaisi", b = "zestaponi", pos = { x = 0, z = 0 } } }
+  wb:tick(); wb:tick()
+  local bm = findM(wb, "red", "BRIDGE")
+  check("RED gets a BRIDGE mission on BLUE's supply road", bm ~= nil and bm.target == "kutaisi|zestaponi")
+  local mv = wb:startCargo("convoy", "blue", "kutaisi", "zestaponi", 10)
+  wb:bridgeDown("kutaisi", "zestaponi")
+  check("road closed: gone from the network", wb.T.nodes.kutaisi.nb.zestaponi == nil and wb:roadClosed("kutaisi", "zestaponi"))
+  local prog = mv.progress
+  wb:tick()
+  check("columns on it wait", wb.state.moves[mv.id] == nil or wb.state.moves[mv.id].progress == prog)
+  check("BRIDGE mission done", wb.state.missions[bm.id].status == "done")
+  local saved = J.decode(J.encode(wb:snapshot()))
+  local wr = DCC.War.restore(T, C, cfg, saved)
+  check("still closed after a restart", wr.T.nodes.kutaisi.nb.zestaponi == nil)
+  for _ = 1, cfg.ground.bridgeTicks + 1 do wb:tick() end
+  check("engineers reopen the road", not wb:roadClosed("kutaisi", "zestaponi") and wb.T.nodes.kutaisi.nb.zestaponi ~= nil)
+
+  -- morale and surrender
+  local wm = DCC.War.new(T, C, cfg, 74)
+  local pocket = "gali"                                   -- a RED town; cut it off
+  for nb in pairs(wm.T.nodes[pocket].nb) do wm.state.nodes[nb].side = "blue" end
+  wm._supTick = nil
+  check("cut off", wm:cutOff(pocket))
+  local fFull = wm:moraleFactor(pocket)
+  wm.state.nodes[pocket].outOfSupply = true
+  check("cut off and out of supply: worse morale", wm:moraleFactor(pocket) < fFull and fFull < 1)
+  for i, pid in ipairs(DCC.util.copy(wm.state.nodes[pocket].platoons)) do if i > 1 then wm:destroyPlatoon(pid) end end
+  for nb in pairs(wm.T.nodes[pocket].nb) do
+    if #wm.state.nodes[nb].platoons == 0 then
+      local pid = next(wm.state.platoons)
+    end
+  end
+  wm:surrenderTick()
+  check("the pocket surrenders", wm.state.nodes[pocket].side == "blue")
+  local said = false
+  for _, ev in ipairs(wm.state.events) do if ev.kind == "surrender" then said = true end end
+  check("surrender announced", said)
 end
 
 print("Long run with ops")
