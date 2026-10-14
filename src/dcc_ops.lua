@@ -255,7 +255,19 @@ function War:dropPlatoons(pids, id, side)
       self:nodeName(id)), { node = id })
     return "reinforced"
   end
-  -- Air assault: a move that has already arrived and is fighting.
+  -- Air assault: a move that has already arrived and is fighting. Several
+  -- helicopters landing at the same base fight as one assault.
+  for _, mv in pairs(self.state.moves) do
+    if mv.airAssault and mv.side == side and mv.to == id and mv.status == "fighting" then
+      for _, pid in ipairs(list) do
+        self.state.platoons[pid].move = mv.id
+        mv.platoons[#mv.platoons + 1] = pid
+      end
+      self:log("airassault", side, string.format("%s reinforces the air assault on %s", side:upper(),
+        self:nodeName(id)), { node = id })
+      return "assault"
+    end
+  end
   local mid = self:newId("m")
   local mv = { id = mid, kind = "assault", side = side, from = id, to = id, platoons = {},
                progress = 1, km = 1, status = "fighting", airAssault = true }

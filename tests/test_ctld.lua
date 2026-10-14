@@ -239,6 +239,38 @@ ed:publish("OnVehicleUnloaded", { dcsUnitObject = MOCK.groups["CTLD_VEH_test"].u
   position = { x = kp.x + 300, y = 0, z = kp.z + 300 } })
 check("a vehicle flown in whole joins the garrison too", #ns.platoons == npv + 1)
 
+print("Chinooks carry light recon vehicles only")
+local caps = ctld.gs("capabilitiesByType")["CH-47Fbl1"]
+local wv = DCC.config.ctld.wholeVehicles
+check("BLUE Chinook: only the recon Humvees", table.concat(caps.loadableVehiclesBLUE, ",") == table.concat(wv.blue, ","),
+  table.concat(caps.loadableVehiclesBLUE, ","))
+check("RED: BRDM-2 and Tigr, no BTR-D", table.concat(caps.loadableVehiclesRED, ",") == "BRDM-2,Tigr_233036")
+check("the Tigr is in CTLD's crate list for RED", cm:findDescriptorByTypeName("Tigr_233036") ~= nil)
+
+print("Vehicles into an air assault")
+local enemy2
+for _, id in ipairs(war.T.order) do
+  if war.state.nodes[id].side == "red" and war.T.nodes[id].kind == "town" and id ~= enemy then enemy2 = id; break end
+end
+local e2 = B.nodePos[enemy2]
+coalition.addGroup(80, Group.Category.GROUND, { name = "CTLD_VEH_raid", units = { { name = "CTLD_VEH_raid",
+  type = "M1043 HMMWV Armament", x = e2.x + 400, y = e2.z } } })
+ed:publish("OnVehicleUnloaded", { dcsUnitObject = MOCK.groups["CTLD_VEH_raid"].units[1], vehicleType = "M1043 HMMWV Armament",
+  position = { x = e2.x + 400, y = 0, z = e2.z } })
+local raid
+for _, mv in pairs(war.state.moves) do if mv.airAssault and mv.to == enemy2 and mv.side == "blue" then raid = mv end end
+check("a Humvee set down at an enemy town attacks it", raid ~= nil and #raid.platoons == 1)
+check("...and stays on the map to fight", MOCK.groups["CTLD_VEH_raid"] ~= nil)
+-- troops landed at the same town join the same assault
+local heli2 = MOCK.spawnPlayer(BLUE, "UH-1H", kp.x + 120, kp.z, "Rita", true)
+for _ = 1, 3 do war:newPlatoon("blue", "MECH_PLT", "kutaisi") end
+tm:embarkFromTroopZone(heli2, tz, std)
+heli2.x, heli2.z = e2.x + 300, e2.z
+tm:disembark(heli2)
+local n = 0
+for _, mv in pairs(war.state.moves) do if mv.airAssault and mv.to == enemy2 and mv.side == "blue" then n = n + 1 end end
+check("troops landed there fight in the same assault", n == 1 and raid and #raid.platoons == 2, raid and #raid.platoons)
+
 print("A day of war with CTLD")
 for _ = 1, 288 do MOCK.advance(300) end
 check("no DCC script errors", errors == 0, errors)

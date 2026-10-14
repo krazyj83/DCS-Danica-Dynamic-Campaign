@@ -290,6 +290,7 @@ the VEAF team), started and configured by the engine. Every helicopter type CTLD
 | Helicopter shot down with troops | Platoons lost. Leave the slot with troops on board: they walk home |
 | **FOB** built within 5 km of an own town | The town is a **FARP** (destroyed FOB = FARP gone) |
 | **AA system** set up within 3 km of an own base | Base digs in one level (max 3) |
+| **Light recon vehicle** flown in whole (Chinook, Mi-8: BLUE MG/TOW Humvee, RED BRDM-2/Tigr only — no APCs or tanks) and set down within 3 km of an **enemy** base | It joins the **air assault** on that base (with any troops landed there — one assault, not several) and fights where it stands |
 | **Vehicle** unpacked (or flown in whole and set down) within 3 km of an own base | Joins the garrison as a platoon, at the strength its crates paid for (crates × 10 SU ÷ 60: an Abrams, 4 crates, = 0.67 platoon). After a minute it leaves the map — the base spawns it with the garrison from then on |
 | **Howitzer / MLRS** unpacked at an own base | An artillery battery there (a destroyed one is rebuilt first; at most 2 extra per side) |
 | **Ammo / fuel truck** unpacked at an own base | Its load becomes supply (crates × 10 SU) |
@@ -304,7 +305,9 @@ from base garrisons only (no free troops at CTLD FOBs). Without CTLD in the miss
 Both sides fly **supply helicopters** (UH-60A / Mi-8MT pairs, 20 SU) on short hops to the front —
 towns too — from a base 15–120 km behind it. Bases that are cut off or behind a road the enemy keeps
 hitting come first. They are real aircraft, low and slow: **ESCORT** them (any aircraft, helicopters
-included — the mission is on the board while they fly), or hunt the enemy's. Shot down = the supply is
+included — the mission is on the board while they fly), or hunt the enemy's: once your side has
+detected them (radar, AWACS, eyes) you get an **INTERCEPT** mission on them — any aircraft, attack
+helicopters too. Enemy fixed-wing airlifts get an INTERCEPT (air-to-air) the same way. Shot down = the supply is
 lost. On landing they set their crates down, wait a few minutes and fly home. At most 2 per side at once;
 none in a storm.
 
@@ -630,11 +633,11 @@ python tools/run_lua.py tests/test_dcs_ops.lua      # flying every mission type 
 python tools/run_lua.py tests/test_dcs_intel.lua    # fog of war: each map shows only what that side detected: 40 checks
 python tools/run_lua.py tests/test_dcs_radar.lua    # EWR, AWACS, HVAA, recon photos: 34 checks
 python tools/run_lua.py tests/test_theaters.lua     # all four maps: connected, depots, war runs, territory and front: 44 checks
-python tools/run_lua.py tests/test_dcs_airground.lua # packages, tankers, drones, IADS, cooldown, artillery, skirmishes, forts, bridges, supply helicopters: 43 checks
+python tools/run_lua.py tests/test_dcs_airground.lua # packages, tankers, drones, IADS, cooldown, artillery, skirmishes, forts, bridges, supply helicopters and intercepting them: 47 checks
 python tools/run_lua.py tests/test_dcs_world.lua    # weather, night, AI escorts and CAP, FARPs, JTAC, carrier, public files: 46 checks
 python tests/test_companion.py                      # web map and Discord feed (with a fake Discord): 7 tests
 python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended, bonus and report: 40 checks
-python tools/run_lua.py tests/test_ctld.lua         # the real CTLD.lua on the fake DCS: zones, crates, troops, FOB, AA, vehicles joining bases: 49 checks
+python tools/run_lua.py tests/test_ctld.lua         # the real CTLD.lua on the fake DCS: zones, crates, troops, FOB, AA, vehicles joining bases or assaults, recon-only loads: 55 checks
 
 python tools/run_lua.py tools/sim.lua 4320 2026 docs/sim_history.json   # simulate 15 days
 DCC_THEATER=Syria python tools/run_lua.py tools/sim.lua 4320               # ...on another map

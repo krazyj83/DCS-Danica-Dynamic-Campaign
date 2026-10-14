@@ -308,3 +308,35 @@ function War:planHelilifts(side, dist, focus)
       self:nodeName(src), self:nodeName(dst)), { node = dst })
   end
 end
+
+-- ---------------------------------------------------------------------------
+-- INTERCEPT also for enemy airlifts and supply helicopters once detected
+-- (target = the move). Helicopters: any aircraft may take it; transports: A2A.
+--   shot down -> done, landed -> failed.
+-- ---------------------------------------------------------------------------
+local genIntercept = gen.INTERCEPT
+gen.INTERCEPT = function(self, side)
+  local out = genIntercept(self, side)
+  for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
+    local mv = self.state.moves[mid]
+    local seen = (not self.fogOfWar) or self:isFresh(side, "m:" .. mid)
+    if mv.kind == "airlift" and mv.side ~= side and mv.status == "moving" and seen then
+      out[#out + 1] = { type = "INTERCEPT", target = mid, node = mv.to, prio = mv.helo and 1 or 2,
+        needs = mv.helo and "ANY" or nil,
+        label = string.format("%s %s %s > %s", mv.side:upper(), mv.helo and "supply helicopters" or "airlift",
+          self:nodeName(mv.from), self:nodeName(mv.to)) }
+    end
+  end
+  return out
+end
+
+local baseOutcomeLift = War.missionOutcome
+function War:missionOutcome(m, events)
+  local st = self.state
+  if m.type == "INTERCEPT" and not st.packages[m.target] then
+    if st.moves[m.target] then return "open" end
+    if st.killedMoves and st.killedMoves[m.target] then return "done" end
+    if st.deliveredMoves and st.deliveredMoves[m.target] then return "failed" end
+  end
+  return baseOutcomeLift(self, m, events)
+end

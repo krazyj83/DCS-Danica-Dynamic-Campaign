@@ -86,10 +86,24 @@ function B.ctldConfigure()
     end
     if #keep > 0 then crates[cat] = keep end
   end
+  -- RED's light recon vehicle (BLUE has its Humvees already)
+  local cv = crates["Combat Vehicles"] or {}
+  local haveTigr = false
+  for _, c in ipairs(cv) do if c.unit == "Tigr_233036" then haveTigr = true end end
+  if not haveTigr then
+    cv[#cv + 1] = { unit = "Tigr_233036", desc = "Tigr - recon", weight = 1000.13, cratesRequired = 2, side = 1 }
+    crates["Combat Vehicles"] = cv
+  end
   -- the supply crate: never unpacked; unloaded at an own base it is supply
   crates["Supply"] = { { unit = "DCC_SUPPLY", desc = string.format("Supply crate (%d SU)", CC().supplyCrateSU),
                          weight = CC().supplyWeight, cratesRequired = 1, dccSupply = true } }
   set("spawnableCrates", crates)
+  -- whole vehicles in a helicopter or transport: light recon vehicles only (no APCs, no tanks)
+  local wv = CC().wholeVehicles or {}
+  for _, caps in pairs(ctld.gs("capabilitiesByType") or {}) do
+    if type(caps) == "table" and caps.loadableVehiclesBLUE then caps.loadableVehiclesBLUE = U.copy(wv.blue or {}) end
+    if type(caps) == "table" and caps.loadableVehiclesRED then caps.loadableVehiclesRED = U.copy(wv.red or {}) end
+  end
 end
 
 -- ===========================================================================
@@ -450,11 +464,25 @@ function B.ctldVehicleDown(desc, gname, side)
   local g = ok(Group.getByName, gname)
   local u1 = g and ok(function() return g:getUnits()[1] end)
   local pos = u1 and ok(u1.getPoint, u1)
-  local node = pos and B.nearestNodeOf(pos, side, CC().dropKm * 1000)
-  if not node then return end                          -- out in the field: stays a CTLD unit
-  local role = B.ctldRoleOf(desc, side)
-  if not role then return end
   local su = (desc.cratesRequired or 1) * CC().crateSU
+  local role = B.ctldRoleOf(desc, side)
+  local node = pos and B.nearestNodeOf(pos, side, CC().dropKm * 1000)
+  if not node then
+    -- set down at an ENEMY base: the vehicle attacks it (with any troops landed there)
+    local target = pos and B.nearestNodeOf(pos, nil, CC().dropKm * 1000)
+    if not target or war.state.nodes[target].side == side then return end
+    if role ~= "MECH_PLT" and role ~= "ARMOR_PLT" and role ~= "SHORAD" then return end
+    local home = B.nearestNodeOf(pos, side)
+    if not home then return end
+    local pid = war:newPlatoon(side, role, home)
+    war.state.platoons[pid].health = math.min(1, su / CC().platoonSU)
+    war:carryPlatoon(pid, "ctld:" .. gname)
+    war:dropPlatoons({ pid }, target, side)
+    trigger.action.outTextForCoalition(coalOf(side), string.format("%s joins the air assault on %s!",
+      tostring(desc.desc or desc.unit), war:nodeName(target)), 12)
+    return                                             -- it fights where it stands
+  end
+  if not role then return end
   local what
   if role == "SUPPLY" then
     war:deliverCrate(side, node, su)

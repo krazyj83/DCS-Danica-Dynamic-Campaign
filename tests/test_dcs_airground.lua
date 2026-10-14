@@ -247,6 +247,40 @@ if h2 and B.cargo[h2.id] then MOCK.killGroup(B.cargo[h2.id].group) end
 B.pollAllCargo()
 check("shot down: the supply is lost", h2 and war.state.moves[h2.id] == nil and war.state.killedMoves[h2.id] ~= nil)
 
+print("Intercept enemy supply helicopters")
+local rdist = war:frontDistance("red")
+local rfront
+for _, id in ipairs(war.T.order) do
+  if war.state.nodes[id].side == "red" and rdist[id] == 1 and war.T.nodes[id].kind ~= "carrier" then rfront = id; break end
+end
+for _, mv in pairs(war.state.moves) do if mv.helo then war.state.moves[mv.id] = nil end end
+war.state.nodes[rfront].supply = 0
+for _, id in ipairs(war.T.order) do
+  local ns = war.state.nodes[id]
+  if ns.side == "red" and rdist[id] and rdist[id] > 1 then ns.supply = 400 end
+end
+war:planHelilifts("red", rdist, nil)
+local rmv
+for _, mv in pairs(war.state.moves) do if mv.helo and mv.side == "red" then rmv = mv end end
+B.reconcileCargo()
+war.fogOfWar = true
+DCC.onTick()
+local seenIt = false
+for _, m in ipairs(war:openMissions("blue")) do if m.type == "INTERCEPT" and m.target == (rmv and rmv.id) then seenIt = true end end
+check("not detected yet: no INTERCEPT", rmv ~= nil and not seenIt)
+war:spotMove("blue", rmv.id, "radar")
+DCC.onTick()
+local im2
+for _, m in ipairs(war:openMissions("blue")) do if m.type == "INTERCEPT" and m.target == rmv.id then im2 = m end end
+check("detected: BLUE gets INTERCEPT on them, open to any aircraft", im2 and im2.needs == "ANY")
+local ip = im2 and B.missionPos(im2)
+local lead = B.cargo[rmv.id] and MOCK.groups[B.cargo[rmv.id].group].units[1]
+check("briefing points at the helicopters themselves", ip and lead and math.abs(ip.x - lead.x) < 1)
+MOCK.killGroup(B.cargo[rmv.id].group)
+B.pollAllCargo()
+DCC.onTick()
+check("shot down: INTERCEPT done", war.state.missions[im2.id].status == "done")
+
 print("A day of all of it")
 for _ = 1, 288 do MOCK.advance(300) end
 check("no script errors", errors == 0, errors)

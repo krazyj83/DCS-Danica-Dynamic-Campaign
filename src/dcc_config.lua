@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.9.0",
+  version         = "0.10.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -246,6 +246,11 @@ DCC.config = {
                                -- health (crates x crateSU) / platoonSU (an Abrams, 4 crates: 0.67)
     joinDelay        = 60,     -- seconds before the unpacked vehicle leaves the map (it is in the garrison)
     maxExtraBatteries = 2,     -- artillery crates can add this many batteries per side
+    -- whole vehicles a helicopter (Chinook, Mi-8) or transport aircraft may carry: light recon only
+    wholeVehicles = {
+      blue = { "M1043 HMMWV Armament", "M1045 HMMWV TOW" },
+      red  = { "BRDM-2", "Tigr_233036" },
+    },
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------

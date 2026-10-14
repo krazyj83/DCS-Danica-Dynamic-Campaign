@@ -507,6 +507,9 @@ function B.missionPos(m)
     local rec = B.packages[m.target]
     local u = rec and unitsOf(rec.strike)[1]
     if u then return u:getPoint() end
+    local crec = B.cargo[m.target]                      -- an enemy airlift / supply helicopters
+    u = crec and unitsOf(crec.group)[1]
+    if u then return u:getPoint() end
   elseif m.type == "TANKER" then
     local rec = B.assets[m.target] and B.assets[m.target].tanker
     local u = rec and unitsOf(rec.group)[1]
@@ -613,3 +616,6 @@ function B.heliCargoDown(side, pos, su)
   end, nil, timer.getTime() + DCC.config.supply.heliCargoMinutes * 60)
   return names
 end
+
+B.EFFECT.INTERCEPT = "Shoot them down before they get there. A package or air assault stopped does no harm; "
+  .. "an airlift or supply helicopters shot down lose their supply. \"My mission\" gives its latest position."

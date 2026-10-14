@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.9.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.10.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.9.0",
+  version         = "0.10.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -250,6 +250,11 @@ DCC.config = {
                                -- health (crates x crateSU) / platoonSU (an Abrams, 4 crates: 0.67)
     joinDelay        = 60,     -- seconds before the unpacked vehicle leaves the map (it is in the garrison)
     maxExtraBatteries = 2,     -- artillery crates can add this many batteries per side
+    -- whole vehicles a helicopter (Chinook, Mi-8) or transport aircraft may carry: light recon only
+    wholeVehicles = {
+      blue = { "M1043 HMMWV Armament", "M1045 HMMWV TOW" },
+      red  = { "BRDM-2", "Tigr_233036" },
+    },
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------
@@ -2082,7 +2087,19 @@ function War:dropPlatoons(pids, id, side)
       self:nodeName(id)), { node = id })
     return "reinforced"
   end
-  -- Air assault: a move that has already arrived and is fighting.
+  -- Air assault: a move that has already arrived and is fighting. Several
+  -- helicopters landing at the same base fight as one assault.
+  for _, mv in pairs(self.state.moves) do
+    if mv.airAssault and mv.side == side and mv.to == id and mv.status == "fighting" then
+      for _, pid in ipairs(list) do
+        self.state.platoons[pid].move = mv.id
+        mv.platoons[#mv.platoons + 1] = pid
+      end
+      self:log("airassault", side, string.format("%s reinforces the air assault on %s", side:upper(),
+        self:nodeName(id)), { node = id })
+      return "assault"
+    end
+  end
   local mid = self:newId("m")
   local mv = { id = mid, kind = "assault", side = side, from = id, to = id, platoons = {},
                progress = 1, km = 1, status = "fighting", airAssault = true }
@@ -3778,6 +3795,38 @@ function War:planHelilifts(side, dist, focus)
     self:log("helilift", side, string.format("%s supply helicopter departs %s for %s", side:upper(),
       self:nodeName(src), self:nodeName(dst)), { node = dst })
   end
+end
+
+-- ---------------------------------------------------------------------------
+-- INTERCEPT also for enemy airlifts and supply helicopters once detected
+-- (target = the move). Helicopters: any aircraft may take it; transports: A2A.
+--   shot down -> done, landed -> failed.
+-- ---------------------------------------------------------------------------
+local genIntercept = gen.INTERCEPT
+gen.INTERCEPT = function(self, side)
+  local out = genIntercept(self, side)
+  for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
+    local mv = self.state.moves[mid]
+    local seen = (not self.fogOfWar) or self:isFresh(side, "m:" .. mid)
+    if mv.kind == "airlift" and mv.side ~= side and mv.status == "moving" and seen then
+      out[#out + 1] = { type = "INTERCEPT", target = mid, node = mv.to, prio = mv.helo and 1 or 2,
+        needs = mv.helo and "ANY" or nil,
+        label = string.format("%s %s %s > %s", mv.side:upper(), mv.helo and "supply helicopters" or "airlift",
+          self:nodeName(mv.from), self:nodeName(mv.to)) }
+    end
+  end
+  return out
+end
+
+local baseOutcomeLift = War.missionOutcome
+function War:missionOutcome(m, events)
+  local st = self.state
+  if m.type == "INTERCEPT" and not st.packages[m.target] then
+    if st.moves[m.target] then return "open" end
+    if st.killedMoves and st.killedMoves[m.target] then return "done" end
+    if st.deliveredMoves and st.deliveredMoves[m.target] then return "failed" end
+  end
+  return baseOutcomeLift(self, m, events)
 end
 
 end
@@ -8594,6 +8643,9 @@ function B.missionPos(m)
     local rec = B.packages[m.target]
     local u = rec and unitsOf(rec.strike)[1]
     if u then return u:getPoint() end
+    local crec = B.cargo[m.target]                      -- an enemy airlift / supply helicopters
+    u = crec and unitsOf(crec.group)[1]
+    if u then return u:getPoint() end
   elseif m.type == "TANKER" then
     local rec = B.assets[m.target] and B.assets[m.target].tanker
     local u = rec and unitsOf(rec.group)[1]
@@ -8700,6 +8752,9 @@ function B.heliCargoDown(side, pos, su)
   end, nil, timer.getTime() + DCC.config.supply.heliCargoMinutes * 60)
   return names
 end
+
+B.EFFECT.INTERCEPT = "Shoot them down before they get there. A package or air assault stopped does no harm; "
+  .. "an airlift or supply helicopters shot down lose their supply. \"My mission\" gives its latest position."
 
 end
 
@@ -9167,10 +9222,24 @@ function B.ctldConfigure()
     end
     if #keep > 0 then crates[cat] = keep end
   end
+  -- RED's light recon vehicle (BLUE has its Humvees already)
+  local cv = crates["Combat Vehicles"] or {}
+  local haveTigr = false
+  for _, c in ipairs(cv) do if c.unit == "Tigr_233036" then haveTigr = true end end
+  if not haveTigr then
+    cv[#cv + 1] = { unit = "Tigr_233036", desc = "Tigr - recon", weight = 1000.13, cratesRequired = 2, side = 1 }
+    crates["Combat Vehicles"] = cv
+  end
   -- the supply crate: never unpacked; unloaded at an own base it is supply
   crates["Supply"] = { { unit = "DCC_SUPPLY", desc = string.format("Supply crate (%d SU)", CC().supplyCrateSU),
                          weight = CC().supplyWeight, cratesRequired = 1, dccSupply = true } }
   set("spawnableCrates", crates)
+  -- whole vehicles in a helicopter or transport: light recon vehicles only (no APCs, no tanks)
+  local wv = CC().wholeVehicles or {}
+  for _, caps in pairs(ctld.gs("capabilitiesByType") or {}) do
+    if type(caps) == "table" and caps.loadableVehiclesBLUE then caps.loadableVehiclesBLUE = U.copy(wv.blue or {}) end
+    if type(caps) == "table" and caps.loadableVehiclesRED then caps.loadableVehiclesRED = U.copy(wv.red or {}) end
+  end
 end
 
 -- ===========================================================================
@@ -9531,11 +9600,25 @@ function B.ctldVehicleDown(desc, gname, side)
   local g = ok(Group.getByName, gname)
   local u1 = g and ok(function() return g:getUnits()[1] end)
   local pos = u1 and ok(u1.getPoint, u1)
-  local node = pos and B.nearestNodeOf(pos, side, CC().dropKm * 1000)
-  if not node then return end                          -- out in the field: stays a CTLD unit
-  local role = B.ctldRoleOf(desc, side)
-  if not role then return end
   local su = (desc.cratesRequired or 1) * CC().crateSU
+  local role = B.ctldRoleOf(desc, side)
+  local node = pos and B.nearestNodeOf(pos, side, CC().dropKm * 1000)
+  if not node then
+    -- set down at an ENEMY base: the vehicle attacks it (with any troops landed there)
+    local target = pos and B.nearestNodeOf(pos, nil, CC().dropKm * 1000)
+    if not target or war.state.nodes[target].side == side then return end
+    if role ~= "MECH_PLT" and role ~= "ARMOR_PLT" and role ~= "SHORAD" then return end
+    local home = B.nearestNodeOf(pos, side)
+    if not home then return end
+    local pid = war:newPlatoon(side, role, home)
+    war.state.platoons[pid].health = math.min(1, su / CC().platoonSU)
+    war:carryPlatoon(pid, "ctld:" .. gname)
+    war:dropPlatoons({ pid }, target, side)
+    trigger.action.outTextForCoalition(coalOf(side), string.format("%s joins the air assault on %s!",
+      tostring(desc.desc or desc.unit), war:nodeName(target)), 12)
+    return                                             -- it fights where it stands
+  end
+  if not role then return end
   local what
   if role == "SUPPLY" then
     war:deliverCrate(side, node, su)
