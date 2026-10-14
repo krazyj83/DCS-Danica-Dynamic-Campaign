@@ -239,13 +239,16 @@ ed:publish("OnVehicleUnloaded", { dcsUnitObject = MOCK.groups["CTLD_VEH_test"].u
   position = { x = kp.x + 300, y = 0, z = kp.z + 300 } })
 check("a vehicle flown in whole joins the garrison too", #ns.platoons == npv + 1)
 
-print("Chinooks carry light recon vehicles only")
+print("Chinooks carry light vehicles only")
 local caps = ctld.gs("capabilitiesByType")["CH-47Fbl1"]
 local wv = DCC.config.ctld.wholeVehicles
-check("BLUE Chinook: only the recon Humvees", table.concat(caps.loadableVehiclesBLUE, ",") == table.concat(wv.blue, ","),
+check("BLUE Chinook: only the Humvees", table.concat(caps.loadableVehiclesBLUE, ",") == table.concat(wv.blue, ","),
   table.concat(caps.loadableVehiclesBLUE, ","))
-check("RED: BRDM-2 and Tigr, no BTR-D", table.concat(caps.loadableVehiclesRED, ",") == "BRDM-2,Tigr_233036")
-check("the Tigr is in CTLD's crate list for RED", cm:findDescriptorByTypeName("Tigr_233036") ~= nil)
+check("RED: the UAZ only (BRDM-2, Tigr, BTR-D are ~7-8 t)", table.concat(caps.loadableVehiclesRED, ",") == "UAZ-469")
+check("UAZ and Tigr in CTLD's crate list for RED", cm:findDescriptorByTypeName("UAZ-469") ~= nil
+  and cm:findDescriptorByTypeName("Tigr_233036") ~= nil)
+local wts = ctld.gs("groundVehicleWeights")
+check("CTLD knows the real weights (Tigr 7.2 t, too heavy for a Mi-8)", wts["Tigr_233036"] == 7200 and wts["UAZ-469"] == 1600)
 
 print("Vehicles into an air assault")
 local enemy2

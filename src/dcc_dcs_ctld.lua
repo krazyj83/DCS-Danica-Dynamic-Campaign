@@ -86,19 +86,25 @@ function B.ctldConfigure()
     end
     if #keep > 0 then crates[cat] = keep end
   end
-  -- RED's light recon vehicle (BLUE has its Humvees already)
+  -- RED's light vehicles (BLUE has its Humvees already): the UAZ flies whole, the Tigr in crates
   local cv = crates["Combat Vehicles"] or {}
-  local haveTigr = false
-  for _, c in ipairs(cv) do if c.unit == "Tigr_233036" then haveTigr = true end end
-  if not haveTigr then
+  local have = {}
+  for _, c in ipairs(cv) do have[c.unit] = true end
+  if not have["Tigr_233036"] then
     cv[#cv + 1] = { unit = "Tigr_233036", desc = "Tigr - recon", weight = 1000.13, cratesRequired = 2, side = 1 }
-    crates["Combat Vehicles"] = cv
   end
+  if not have["UAZ-469"] then
+    cv[#cv + 1] = { unit = "UAZ-469", desc = "UAZ - light", weight = 1000.14, cratesRequired = 1, side = 1 }
+  end
+  crates["Combat Vehicles"] = cv
   -- the supply crate: never unpacked; unloaded at an own base it is supply
   crates["Supply"] = { { unit = "DCC_SUPPLY", desc = string.format("Supply crate (%d SU)", CC().supplyCrateSU),
                          weight = CC().supplyWeight, cratesRequired = 1, dccSupply = true } }
   set("spawnableCrates", crates)
-  -- whole vehicles in a helicopter or transport: light recon vehicles only (no APCs, no tanks)
+  local weights = ctld.gs("groundVehicleWeights") or {}
+  for t, kg in pairs(CC().vehicleWeights or {}) do weights[t] = kg end
+  set("groundVehicleWeights", weights)
+  -- whole vehicles in a helicopter or transport: light vehicles only (no APCs, no tanks)
   local wv = CC().wholeVehicles or {}
   for _, caps in pairs(ctld.gs("capabilitiesByType") or {}) do
     if type(caps) == "table" and caps.loadableVehiclesBLUE then caps.loadableVehiclesBLUE = U.copy(wv.blue or {}) end

@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.10.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.10.1 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.10.0",
+  version         = "0.10.1",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -250,11 +250,14 @@ DCC.config = {
                                -- health (crates x crateSU) / platoonSU (an Abrams, 4 crates: 0.67)
     joinDelay        = 60,     -- seconds before the unpacked vehicle leaves the map (it is in the garrison)
     maxExtraBatteries = 2,     -- artillery crates can add this many batteries per side
-    -- whole vehicles a helicopter (Chinook, Mi-8) or transport aircraft may carry: light recon only
+    -- whole vehicles a helicopter (Chinook, Mi-8) or transport aircraft may carry: light vehicles
+    -- only (BRDM-2 and Tigr are ~7 t: crates only)
     wholeVehicles = {
-      blue = { "M1043 HMMWV Armament", "M1045 HMMWV TOW" },
-      red  = { "BRDM-2", "Tigr_233036" },
+      blue = { "Hummer", "M1043 HMMWV Armament", "M1045 HMMWV TOW" },
+      red  = { "UAZ-469" },
     },
+    -- kg, for CTLD's load checks (Mi-8 3 t, Chinook 11 t)
+    vehicleWeights = { ["UAZ-469"] = 1600, ["Tigr_233036"] = 7200 },
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------
@@ -9222,19 +9225,25 @@ function B.ctldConfigure()
     end
     if #keep > 0 then crates[cat] = keep end
   end
-  -- RED's light recon vehicle (BLUE has its Humvees already)
+  -- RED's light vehicles (BLUE has its Humvees already): the UAZ flies whole, the Tigr in crates
   local cv = crates["Combat Vehicles"] or {}
-  local haveTigr = false
-  for _, c in ipairs(cv) do if c.unit == "Tigr_233036" then haveTigr = true end end
-  if not haveTigr then
+  local have = {}
+  for _, c in ipairs(cv) do have[c.unit] = true end
+  if not have["Tigr_233036"] then
     cv[#cv + 1] = { unit = "Tigr_233036", desc = "Tigr - recon", weight = 1000.13, cratesRequired = 2, side = 1 }
-    crates["Combat Vehicles"] = cv
   end
+  if not have["UAZ-469"] then
+    cv[#cv + 1] = { unit = "UAZ-469", desc = "UAZ - light", weight = 1000.14, cratesRequired = 1, side = 1 }
+  end
+  crates["Combat Vehicles"] = cv
   -- the supply crate: never unpacked; unloaded at an own base it is supply
   crates["Supply"] = { { unit = "DCC_SUPPLY", desc = string.format("Supply crate (%d SU)", CC().supplyCrateSU),
                          weight = CC().supplyWeight, cratesRequired = 1, dccSupply = true } }
   set("spawnableCrates", crates)
-  -- whole vehicles in a helicopter or transport: light recon vehicles only (no APCs, no tanks)
+  local weights = ctld.gs("groundVehicleWeights") or {}
+  for t, kg in pairs(CC().vehicleWeights or {}) do weights[t] = kg end
+  set("groundVehicleWeights", weights)
+  -- whole vehicles in a helicopter or transport: light vehicles only (no APCs, no tanks)
   local wv = CC().wholeVehicles or {}
   for _, caps in pairs(ctld.gs("capabilitiesByType") or {}) do
     if type(caps) == "table" and caps.loadableVehiclesBLUE then caps.loadableVehiclesBLUE = U.copy(wv.blue or {}) end
