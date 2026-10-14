@@ -12,7 +12,7 @@ islands, and in the air.
 """,
     "maxEdgeKm": 200,
     # Measured offline (16 wars of 7 days): BLUE x1.15 -> BLUE wins 9 of 16 on the clock.
-    "balance": {"blue": 1.15, "red": 1.0},
+    "balance": {"blue": 1.05, "red": 1.0},
     # RED's depot is on the Musandam peninsula (Khasab): with it at Ras Al Khaimah RED won
     # every test war, without one on the beachhead BLUE held 65 %. Khasab gives ~46 % BLUE.
     "airbases": [

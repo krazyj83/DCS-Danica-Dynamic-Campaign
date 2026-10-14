@@ -9,7 +9,7 @@ coast to the Fulda Gap. Berlin is not in play.
 """,
     "maxEdgeKm": 120,
     # Measured offline: RED x1.15 -> BLUE wins 7 of 16 wars on the 7-day clock (even production: 1 of 8).
-    "balance": {"blue": 1.0, "red": 1.15},
+    "balance": {"blue": 1.0, "red": 1.10},
     "airbases": [
         # ---------------- BLUE: north ----------------
         ("Kiel", "blue"),

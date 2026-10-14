@@ -165,10 +165,21 @@ DCC_CATALOGS.modern = {
   -- Air-defence site at airbases and depots: radars, launchers, support.
   sam = {
     blue = { radars = { "Hawk sr", "Hawk tr" }, launchers = { "Hawk ln", "Hawk ln", "Hawk ln" },
-             support = { "Hawk pcp" }, pointDefence = { "M1097 Avenger", "M1097 Avenger" } },
+             support = { "Hawk pcp" }, pointDefence = { "M1097 Avenger", "M1097 Avenger" } },   -- Hawk: fixed; its Avengers move
     red  = { radars = { "SA-11 Buk SR 9S18M1" }, launchers = { "SA-11 Buk LN 9A310M1", "SA-11 Buk LN 9A310M1",
              "SA-11 Buk LN 9A310M1" }, support = { "SA-11 Buk CC 9S470M1" },
-             pointDefence = { "Tor 9A331" } },
+             pointDefence = { "Tor 9A331" }, mobile = true },   -- SA-11 shoots and scoots
+  },
+
+  -- Partisan cells (both sides use the same irregulars; the coalition decides)
+  partisans = { units = { "HL_DSHK", "Infantry AK Ins", "Infantry AK Ins", "Infantry AK Ins" },
+                fallback = { "Infantry AK", "Infantry AK", "Infantry AK" } },
+
+  -- Industry sites behind the lines (static objects): { type, category } x 3
+  industry = {
+    factory          = { { "Workshop A", "Fortifications" }, { "Tech combine", "Fortifications" }, { "Workshop A", "Fortifications" } },
+    ["power plant"]  = { { "Tech combine", "Fortifications" }, { "Chemical tank A", "Fortifications" }, { "Chemical tank A", "Fortifications" } },
+    refinery         = { { "Fuel tank", "Fortifications" }, { "Fuel tank", "Fortifications" }, { "Chemical tank A", "Fortifications" } },
   },
 
   -- Strike targets at depots and airbases (static objects), in build order.

@@ -27,6 +27,8 @@ dofile(DCC_ROOT .. "/src/dcc_dcs_public.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_air.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ground.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ctld.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_ext_air.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_ext_ground.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
 local B = DCC.dcs

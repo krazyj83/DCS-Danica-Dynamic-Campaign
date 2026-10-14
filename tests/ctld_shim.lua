@@ -49,3 +49,5 @@ StaticMT.getCategory = StaticMT.getCategory or function(self) return Object.Cate
 StaticMT.getTypeName = StaticMT.getTypeName or function(self) return self.type end
 StaticMT.getID = StaticMT.getID or function(self) return 1 end
 StaticMT.getDesc = StaticMT.getDesc or function(self) return { typeName = self.type } end
+trigger.action.quadToAll = trigger.action.quadToAll or function() end
+trigger.action.explosion = trigger.action.explosion or function() end

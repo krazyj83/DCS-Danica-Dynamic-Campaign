@@ -18,7 +18,7 @@ DCC.Pilots = Pilots
 -- Points per achievement. Score decides rank.
 Pilots.POINTS = {
   kills_air = 10, kills_ground = 3, kills_convoy = 2, kills_sam = 8, kills_structure = 5,
-  missions = 20, rescues = 25, deaths = -10, captured = -5,
+  missions = 20, rescues = 25, deaths = -10, captured = -5, prisoners = 15,
   wins_conquest = 150,   -- flew for the side that conquered the whole map
   wins_clock = 50,       -- flew for the side that was ahead when the war clock ran out
 }
@@ -36,7 +36,7 @@ end
 
 local FIELDS = { "sorties", "flightMinutes", "kills_air", "kills_ground", "kills_convoy", "kills_sam",
                  "kills_structure", "missions", "rescues", "deaths", "ejections", "captured", "saved",
-                 "wins_conquest", "wins_clock" }
+                 "wins_conquest", "wins_clock", "prisoners" }
 
 -- Squadron tag from a player name: "[VKG] Morten", "VKG | Morten", "-=VKG=- Morten",
 -- "Morten [VKG]". Tags are 2-8 letters/digits; returned upper-case, or nil.
@@ -111,6 +111,14 @@ function Pilots:rank(key)
   for _, step in ipairs(Pilots.RANKS) do if s >= step[1] then r = step[2] end end
   return r
 end
+
+-- Position of a rank name in RANKS (1 = Lieutenant), or of a pilot's rank.
+function Pilots.rankIndexOf(name)
+  for i, step in ipairs(Pilots.RANKS) do if step[2] == name then return i end end
+  return 1
+end
+
+function Pilots:rankIndex(key) return Pilots.rankIndexOf(self:rank(key)) end
 
 function Pilots:summary(key)
   local p = self.data.pilots[key]

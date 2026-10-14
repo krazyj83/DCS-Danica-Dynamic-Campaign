@@ -225,6 +225,9 @@ local function wp(x, z, action, speed)
 end
 
 function B.spawn(pid, w)
+  -- veteran and elite platoons (dcc_ext.lua) spawn with better crews
+  local lvl = B.war.vetLevel and B.war:vetLevel(pid) or 0
+  local vetSkill = (lvl == 2 and "Excellent") or (lvl == 1 and "Good") or "Average"
   local war = B.war
   local pl = war.state.platoons[pid]
   local types = B.unitTypes(pl.role, pl.side)
@@ -252,7 +255,7 @@ function B.spawn(pid, w)
   local gname = "DCC_" .. pid
   local units = {}
   for i = 1, n do
-    units[i] = { name = gname .. "_" .. i, type = types[i], skill = "Average",
+    units[i] = { name = gname .. "_" .. i, type = types[i], skill = vetSkill,
                  x = start.x + (i - 1) * 18, y = start.z + (i % 2) * 12,
                  heading = 0, playerCanDrive = false }
   end

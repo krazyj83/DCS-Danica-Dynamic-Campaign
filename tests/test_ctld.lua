@@ -23,7 +23,7 @@ ctld = { dontInitialize = true }
 local loaded, lerr = pcall(dofile, DCC_ROOT .. "/vendor/ctld/CTLD.lua")
 for _, f in ipairs({ "dcc_persist", "dcc_dcs", "dcc_dcs_supply", "dcc_dcs_ops", "dcc_dcs_intel", "dcc_dcs_radar",
                      "dcc_dcs_world", "dcc_dcs_jtac", "dcc_dcs_public", "dcc_dcs_air", "dcc_dcs_ground",
-                     "dcc_dcs_ctld", "dcc_main" }) do
+                     "dcc_dcs_ctld", "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_main" }) do
   dofile(DCC_ROOT .. "/src/" .. f .. ".lua")
 end
 
@@ -273,6 +273,29 @@ tm:disembark(heli2)
 local n = 0
 for _, mv in pairs(war.state.moves) do if mv.airAssault and mv.to == enemy2 and mv.side == "blue" then n = n + 1 end end
 check("troops landed there fight in the same assault", n == 1 and raid and #raid.platoons == 2, raid and #raid.platoons)
+
+print("Engineers and minefields")
+local kitDesc
+for _, list in pairs(ctld.gs("spawnableCrates")) do
+  for _, c in ipairs(list) do if c.dccBridge then kitDesc = c end end
+end
+check("a Bridge kit crate in CTLD's catalogue", kitDesc ~= nil)
+war:bridgeDown("kutaisi", "zestaponi")
+local ka, kb = B.nodePos.kutaisi, B.nodePos.zestaponi
+local bpos = { x = (ka.x + kb.x) / 2, z = (ka.z + kb.z) / 2 }
+war.bridges = { { a = "kutaisi", b = "zestaponi", pos = bpos } }
+local k1 = cm:spawnCrate(kitDesc, { x = bpos.x + 300, y = 0, z = bpos.z }, BLUE, nil, "crate_spawn")
+cm:unpackCrate(k1.crateName, heli2)
+check("one kit is not enough", war:roadClosed("kutaisi", "zestaponi"))
+cm:spawnCrate(kitDesc, { x = bpos.x + 310, y = 0, z = bpos.z }, BLUE, nil, "crate_spawn")
+cm:unpackCrate(k1.crateName, heli2)
+check("two kits next to the downed bridge: road reopened", not war:roadClosed("kutaisi", "zestaponi"))
+local mf = CTLDSceneManager.getInstance():getModel("mineField")
+local layer = MOCK.spawnPlayer(BLUE, "UH-1H", bpos.x + 200, bpos.z, "Sapper", true)
+pcall(mf.steps[1].func, { unit = layer })
+local mined = false
+for k, m in pairs(war.state.mines) do if m.side == "blue" and k:find("kutaisi") then mined = true end end
+check("a CTLD minefield next to a road mines that road", mined)
 
 print("A day of war with CTLD")
 for _ = 1, 288 do MOCK.advance(300) end

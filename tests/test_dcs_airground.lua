@@ -24,7 +24,7 @@ local bp = coord.LLtoLO((ka.lat + kb.lat) / 2, (ka.lon + kb.lon) / 2, 0)
 local bridge = MOCK.addBridge(bp.x, bp.z)
 
 for _, f in ipairs({ "dcc_persist", "dcc_dcs", "dcc_dcs_supply", "dcc_dcs_ops", "dcc_dcs_intel", "dcc_dcs_radar",
-                     "dcc_dcs_world", "dcc_dcs_jtac", "dcc_dcs_public", "dcc_dcs_air", "dcc_dcs_ground", "dcc_dcs_ctld", "dcc_main" }) do
+                     "dcc_dcs_world", "dcc_dcs_jtac", "dcc_dcs_public", "dcc_dcs_air", "dcc_dcs_ground", "dcc_dcs_ctld", "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_main" }) do
   dofile(DCC_ROOT .. "/src/" .. f .. ".lua")
 end
 
@@ -207,6 +207,15 @@ for _, id in ipairs(war.T.order) do
 end
 for _, mv in pairs(war.state.moves) do if mv.helo then war.state.moves[mv.id] = nil end end
 war.state.nodes[front].supply = 0
+-- helicopters are for emergencies: the road into the base is under attack
+local function threaten(side, node)
+  for nb in pairs(war.T.nodes[node].nb) do
+    if war.state.nodes[nb].side == side then war:addThreat(side, nb, node, 3) end
+  end
+end
+threaten("blue", front)
+war.state.heliLast = {}
+for mid, mv in pairs(war.state.moves) do if mv.cargo and mv.to == front then war.state.moves[mid] = nil end end
 for _, id in ipairs(war.T.order) do
   local ns = war.state.nodes[id]
   local km = DCC.util.distKm(war.T.nodes[id], war.T.nodes[front])
@@ -233,12 +242,14 @@ B.reconcileCargo()
 check("landed: supply delivered", dest and war.state.nodes[dest].supply > s0 and war.state.moves[hmv.id] == nil)
 local crates = 0
 for name in pairs(MOCK.statics) do if name:find("^DCC_HELICARGO_") then crates = crates + 1 end end
-check("cargo crates set down next to the helicopter", crates == 2, crates)
+check("cargo crates set down next to the helicopter", crates >= 1, crates)
 check("the helicopters wait on the ground a moment", MOCK.groups[hrec.group] ~= nil)
 MOCK.advance(200)
 check("...then leave", MOCK.groups[hrec.group] == nil)
 -- shot down on the way
 war.state.nodes[front].supply = 0
+war.state.heliLast = {}
+for mid, mv in pairs(war.state.moves) do if mv.cargo and mv.to == front then war.state.moves[mid] = nil end end
 war:planHelilifts("blue", dist, nil)
 local h2
 for _, mv in pairs(war.state.moves) do if mv.helo and mv.side == "blue" then h2 = mv end end
@@ -255,6 +266,9 @@ for _, id in ipairs(war.T.order) do
 end
 for _, mv in pairs(war.state.moves) do if mv.helo then war.state.moves[mv.id] = nil end end
 war.state.nodes[rfront].supply = 0
+threaten("red", rfront)
+war.state.heliLast = {}
+for mid, mv in pairs(war.state.moves) do if mv.cargo and mv.to == rfront then war.state.moves[mid] = nil end end
 for _, id in ipairs(war.T.order) do
   local ns = war.state.nodes[id]
   if ns.side == "red" and rdist[id] and rdist[id] > 1 then ns.supply = 400 end

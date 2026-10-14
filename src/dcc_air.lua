@@ -268,42 +268,54 @@ function War:planHelilifts(side, dist, focus)
   local sdist = self:stagingDistance(side, focus)
   local supplied = self:supplied(side)
 
-  local dst, dstKey
+  -- candidate destinations, most urgent first
+  local cands = {}
   for _, id in ipairs(self.T.order) do
     local ns, tn = self.state.nodes[id], self.T.nodes[id]
     local busy = false
     for _, mv in pairs(self.state.moves) do if mv.helo and mv.to == id then busy = true end end
+    self.state.heliLast = self.state.heliLast or {}
+    local last = self.state.heliLast[id]
+    if last and self.state.tick - last < (cfg.heliliftEveryTicks or 0) then busy = true end
     if ns.side == side and tn.kind ~= "carrier" and not busy and (dist[id] == 1 or sdist[id] == 0) then
-      local need = self:supplyKeep(id, dist, sdist) - ns.supply - self:incomingSupply(id, side)
-      if need >= cap * 0.5 then
-        local threat = 0
-        if self.threatOn then
-          for nb in pairs(tn.nb) do
-            if self.state.nodes[nb].side == side then threat = math.max(threat, self:threatOn(side, nb, id)) end
-          end
+      local keep = self:supplyKeep(id, dist, sdist)
+      local need = keep - ns.supply - self:incomingSupply(id, side)
+      local threat = 0
+      if self.threatOn then
+        for nb in pairs(tn.nb) do
+          if self.state.nodes[nb].side == side then threat = math.max(threat, self:threatOn(side, nb, id)) end
         end
-        local key = (supplied[id] and 1 or 0) * 100000 - threat * 1000 - need
-        if not dstKey or key < dstKey then dst, dstKey = id, key end
+      end
+      -- helicopters are for emergencies: cut off, or the road in is under attack
+      local urgent = not supplied[id] or threat > 0
+      if need >= cap * 0.5 and urgent then
+        cands[#cands + 1] = { id = id, key = (supplied[id] and 1 or 0) * 100000 - threat * 1000 - need }
       end
     end
+  end
+  table.sort(cands, function(a, b) if a.key ~= b.key then return a.key < b.key end return a.id < b.id end)
+
+  -- the first one a base 15-120 km away can supply
+  local dst, src, srcKm
+  for _, c in ipairs(cands) do
+    for _, id in ipairs(self.T.order) do
+      local ns, tn = self.state.nodes[id], self.T.nodes[id]
+      if id ~= c.id and ns.side == side and tn.kind ~= "carrier" and dist[id] and dist[id] > 1 then
+        local km = U.distKm(self.T.nodes[id], self.T.nodes[c.id])
+        local surplus = ns.supply - self:supplyKeep(id, dist, sdist)
+        if km >= cfg.heliliftMinKm and km <= cfg.heliliftMaxKm and surplus >= cap and (not srcKm or km < srcKm) then
+          src, srcKm = id, km
+        end
+      end
+    end
+    if src then dst = c.id; break end
   end
   if not dst then return end
-
-  local src, srcKm
-  for _, id in ipairs(self.T.order) do
-    local ns, tn = self.state.nodes[id], self.T.nodes[id]
-    if id ~= dst and ns.side == side and tn.kind ~= "carrier" and dist[id] and dist[id] > 1 then
-      local km = U.distKm(self.T.nodes[id], self.T.nodes[dst])
-      local surplus = ns.supply - self:supplyKeep(id, dist, sdist)
-      if km >= cfg.heliliftMinKm and km <= cfg.heliliftMaxKm and surplus >= cap and (not srcKm or km < srcKm) then
-        src, srcKm = id, km
-      end
-    end
-  end
-  if not src then return end
   local mv = self:startCargo("airlift", side, src, dst, cap)
   if mv then
     mv.helo, mv.km = true, srcKm
+    self.state.heliLast = self.state.heliLast or {}
+    self.state.heliLast[dst] = self.state.tick
     self:log("helilift", side, string.format("%s supply helicopter departs %s for %s", side:upper(),
       self:nodeName(src), self:nodeName(dst)), { node = dst })
   end

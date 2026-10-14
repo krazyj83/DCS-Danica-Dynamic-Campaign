@@ -297,6 +297,8 @@ function B.spawnSam(id)
   local spec = B.catalog.sam and B.catalog.sam[rec and rec.side or ""]
   if not rec or not spec or not spec.pointDefence then return end
   local c = B.nodePos[id]
+  local off = B.war.state.nodes[id].sam and B.war.state.nodes[id].sam.pdOff
+  if off then c = { x = c.x + off.dx, z = c.z + off.dz } end
   local units = {}
   for i, t in ipairs(spec.pointDefence) do
     if B.validType(t) then

@@ -20,7 +20,7 @@ DCC_THEATERS.PersianGulf = {
   name    = "PersianGulf",
   era     = "modern",
   country = { blue = "CJTF_BLUE", red = "CJTF_RED" },
-  balance = { blue = 1.15, red = 1.0 },
+  balance = { blue = 1.05, red = 1.0 },
 
   nodes = {
     -- ---------------- BLUE ----------------

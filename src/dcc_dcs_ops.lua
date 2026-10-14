@@ -380,6 +380,8 @@ function B.spawnSam(id)
       if B.validType(t) then
         k = k + 1
         local sp = spotNear(id, 40 + k, 1500 + (k % 3) * 120)
+        local off = ns.sam.off                             -- the site moved (shoot and scoot)
+        if off then sp = { x = sp.x + off.dx, z = sp.z + off.dz } end
         units[#units + 1] = { name = "DCC_SAM_" .. id .. "_" .. tag .. i, type = t, skill = "High",
                               x = sp.x, y = sp.z, heading = 0, playerCanDrive = false }
       end
@@ -873,7 +875,7 @@ function B.onKill(e)
   local field = "kills_ground"
   local category = ok(Object.getCategory, tgt)
   if category == Object.Category.STATIC then
-    if not tname:find("^DCC_INF") and not tname:find("^DCC_FORT") then return end
+    if not tname:find("^DCC_INF") and not tname:find("^DCC_FORT") and not tname:find("^DCC_IND") then return end
     field = "kills_structure"
   else
     local desc = ok(tgt.getDesc, tgt)

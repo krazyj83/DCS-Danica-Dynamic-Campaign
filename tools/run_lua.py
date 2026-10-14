@@ -30,6 +30,7 @@ PURE_MODULES = [
     "src/dcc_world.lua",
     "src/dcc_air.lua",
     "src/dcc_ground.lua",
+    "src/dcc_ext.lua",
     "src/dcc_front.lua",
     "src/dcc_territory.lua",
     "catalogs/modern.lua",

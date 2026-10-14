@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.10.1",
+  version         = "0.11.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -68,11 +68,13 @@ DCC.config = {
     airliftSpeedKmh  = 350,
     airliftMinKm     = 80,    -- airlifts only for longer hops (or cut-off airbases)
     maxAirlifts      = 2,     -- per side at once
-    heliliftCapacity = 20,    -- SU per helicopter supply run (real AI helicopters, escortable)
+    heliliftCapacity = 10,    -- SU per helicopter supply run (real AI helicopters, escortable)
     heliliftSpeedKmh = 200,
     heliliftMinKm    = 15,    -- short hops to the front, towns included
     heliliftMaxKm    = 120,
-    maxHelilifts     = 2,     -- per side at once
+    maxHelilifts     = 1,     -- per side at once
+    heliliftEveryTicks = 24,  -- at most one run to the same base every 2 h
+                              -- ...and only for bases cut off or behind a road under attack
     heliCargoMinutes = 15,    -- the crates a supply helicopter sets down stay on the ground this long
     captureShare     = 0.5,   -- share of a captured node's stores the attacker keeps
     airRestockTicks  = 12,    -- every hour each airbase may replace one lost aircraft...
@@ -100,9 +102,10 @@ DCC.config = {
 
   -- Mission board (phase 3)
   missions = {
-    perType = { CAS = 2, BAI = 3, STRIKE = 2, SEAD = 2, CAP = 1, ESCORT = 2,
+    perType = { CAS = 2, BAI = 3, STRIKE = 2, SEAD = 2, CAP = 1, ESCORT = 3,
                 CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1, ANTISHIP = 1, FARP = 2,
-                INTERCEPT = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2 },
+                INTERCEPT = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
+                RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2 },
     capMinutes      = 20,     -- CAP: time on station that completes the mission
     capRadiusKm     = 40,
     reconRadiusKm   = 8,      -- recon: overfly within this distance...
@@ -228,6 +231,30 @@ DCC.config = {
     capSides  = 24,     -- polygon used for that limit
     fillAlpha = 0.12,   -- territory shading on the F10 map
     lineWidth = 3,      -- front line thickness style
+  },
+
+  -- More air and ground war (dcc_ext.lua / dcc_dcs_ext_*.lua)
+  ext = {
+    -- weapons a base can arm aircraft with, by its supply (share of its cap)
+    armoury = { guidedAt = 0.3, advancedAt = 0.6, guidedSU = 0.5, advancedSU = 1, enforce = true },
+    runwayHits = 3, runwayTicks = 48, runwayRepairSU = 30,   -- 3 bomb hits close an airfield for 4 h
+    runwayHitM = 60,             -- a bomb this close to the runway centre line counts
+    samMoveKm = { 1.5, 4 }, samMoveCooldown = 900,            -- shoot and scoot (seconds between moves)
+    aiCrewChance = 0.7,          -- share of AI crews that eject alive
+    support = {
+      artySU = 10, artyRangeKm = 35, artyRounds = 12, artyCooldownMin = 10,
+      casSU = 20, casCooldownMin = 20,
+      markMinutes = 15,          -- a map mark is good for this long
+    },
+    bridgeKitKm = 1.5, bridgeKitCrates = 2,
+    mineTicks = 288, mineSpeed = 0.5, mineLoss = 0.15, mineRoadKm = 1.5,
+    veterancy = { vetXp = 2, eliteXp = 5, vetBonus = 0.1, eliteBonus = 0.2 },
+    industryPerSide = 3, industryFactor = 0.12, industryRebuildTicks = 288, industryRebuildSU = 80,
+    partisans = { maps = { Syria = true, PersianGulf = true }, chance = 0.004, max = 4, lifeTicks = 576,
+                  sabotageSU = 1, sweepPerPlatoon = 0.004, ambush = 0.25 },
+    scaling = { perPlayer = 0.05, max = 0.15, airPerPlayer = 0.25, airMax = 2 },
+    ranks = { arty = "Captain", cas = "Major", farp = "Lieutenant Colonel", picture = "Colonel" },
+    wrecks = { max = 300, days = 3, scenery = true },
   },
 
   -- CTLD (VEAF CTLD v2, built into the missions): helicopter logistics

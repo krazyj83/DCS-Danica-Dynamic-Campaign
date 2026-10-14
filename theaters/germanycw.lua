@@ -17,7 +17,7 @@ DCC_THEATERS.GermanyCW = {
   name    = "GermanyCW",
   era     = "modern",
   country = { blue = "CJTF_BLUE", red = "CJTF_RED" },
-  balance = { blue = 1.0, red = 1.15 },
+  balance = { blue = 1.0, red = 1.10 },
 
   nodes = {
     -- ---------------- BLUE ----------------

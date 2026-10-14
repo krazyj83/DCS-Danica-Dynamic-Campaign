@@ -75,6 +75,10 @@ and range, what success does) and a mark on your F10 map. **My mission** repeats
 | **RECON** | Anyone | Enemy base near the front | You overfly it within 8 km below 4500 m | Its garrison, supply and SAM status appear on your side's map |
 | **CSAR** | Transport helicopters | Your downed pilot | Land within 150 m (green smoke), then at a friendly base | Pilot saved, aircraft refunded to that base. After 2 h the pilot is captured |
 | **LOGISTICS** | Transport helicopters | Your base short of supply | You unload a supply crate there | +10 SU per crate |
+| **RUNWAY** | A2G | Enemy airbase near the front, or a depot | 3 bombs within 60 m of the runway centre line | Airfield closed 4 h: no airlifts, no fixed-wing spawns; repair costs 30 SU |
+| **INDUSTRY** | A2G | Enemy factory, power plant or refinery behind the lines | 2 of its 3 buildings destroyed | That side's production −12 % per site until rebuilt (a day, 80 SU) |
+| **SNATCH** | Transport helicopters | Enemy pilot or AI crew on the ground | Land within 150 m, then at a friendly base | Prisoner: your side learns his home base; +15 points |
+| **COIN** | A2G | Partisan cell near a town you hold (Syria, Gulf) | The cell's group is wiped out | Stops sabotage and ambushes around the town |
 
 **Helicopter cargo is CTLD** (see [Helicopter logistics (CTLD)](#helicopter-logistics-ctld)): crates,
 troops, FOBs and AA systems through **F10 → CTLD**, all of it tied to the war.
@@ -200,8 +204,9 @@ start, dashed = sea crossing.
 never spawn and cannot be BAI or ambush targets). Fight them at the ports and islands, and in the air.
 
 **Balance**, measured offline with nobody online, as wins on the 7-day clock (the AI fights alone; with
-players, players decide): Caucasus BLUE 6 of 12, Persian Gulf BLUE 16 of 28, Syria BLUE 12 of 28
-(RED production × 1.15), Germany BLUE 10 of 28 (RED production × 1.15). Single 8-war batches swing a lot.
+players, players decide), re-tuned with veterancy, industry and supply helicopters in (v0.11): Caucasus
+BLUE 7 of 16, Persian Gulf BLUE 9 of 16 (BLUE production × 1.05), Syria BLUE 18 of 32 (RED × 1.10),
+Germany BLUE 18 of 32 (RED × 1.10). Single batches swing a lot.
 **Depot placement matters far more than production multipliers:** with BLUE's Caucasus depot at Tbilisi
 BLUE gained ground in 11 of 12 wars (now Kutaisi: 5 of 12); with RED's Gulf depot at Ras Al Khaimah
 RED won every war (now Khasab).
@@ -302,14 +307,67 @@ from base garrisons only (no free troops at CTLD FOBs). Without CTLD in the miss
 
 ## AI supply helicopters
 
-Both sides fly **supply helicopters** (UH-60A / Mi-8MT pairs, 20 SU) on short hops to the front —
-towns too — from a base 15–120 km behind it. Bases that are cut off or behind a road the enemy keeps
-hitting come first. They are real aircraft, low and slow: **ESCORT** them (any aircraft, helicopters
+Both sides fly **supply helicopters** (UH-60A / Mi-8MT pairs, 10 SU) on short hops to the front —
+towns too — from a base 15–120 km behind it, **in emergencies only**: a base that is cut off, or whose
+road in is under attack (so interdiction still bites — but now the helicopters are worth hunting too). They are real aircraft, low and slow: **ESCORT** them (any aircraft, helicopters
 included — the mission is on the board while they fly), or hunt the enemy's: once your side has
 detected them (radar, AWACS, eyes) you get an **INTERCEPT** mission on them — any aircraft, attack
 helicopters too. Enemy fixed-wing airlifts get an INTERCEPT (air-to-air) the same way. Shot down = the supply is
-lost. On landing they set their crates down, wait a few minutes and fly home. At most 2 per side at once;
-none in a storm.
+lost. On landing they set their crates down, wait a few minutes and fly home. At most 1 per side at once,
+one run to the same base every 2 h, none in a storm.
+
+## Armoury: weapons follow supply
+
+What a base can arm you with depends on its supply (share of its supply cap):
+
+| Base supply | Weapons | Cost when you take off |
+| --- | --- | --- |
+| under 30 % | guns, rockets, unguided bombs | free |
+| 30–60 % | + guided: IR missiles, laser / TV missiles and bombs (Hellfire, Maverick, GBU-12) | 0.5 SU each |
+| over 60 % | + advanced: radar missiles (AMRAAM, R-77), anti-radiation, GPS bombs, anti-ship, cruise | 1 SU each |
+
+You are told the base's armoury when you spawn (and **F10 → Support → Armoury at this base**). Taxi
+out with more than the base can supply and you get a warning; take off with it anyway and you are
+**recalled** (the aircraft is removed). `ext.armoury.enforce = false` makes it a charge only.
+
+## Support on call and ranks
+
+**F10 → Support** — put a mark on the F10 map (your coalition), then:
+
+| Command | Rank | What happens |
+| --- | --- | --- |
+| Artillery on my map mark | Captain | Your nearest artillery battery within 35 km fires 12 rounds (10 SU from its base; every 10 min per side) |
+| CAS pair on my map mark | Major | An AI attack pair flies to the mark (20 SU, from the air pool; every 20 min per side) |
+| AWACS picture | Colonel | The 5 nearest enemy aircraft your side's sensors hold, as bearing / range / altitude |
+| Armoury at this base | anyone | What the base can arm you with |
+
+**Lieutenant Colonel** and up may spawn helicopters at FARPs. Ranks come from your score
+(Captain 100, Major 300, Lt Col 700, Colonel 1500).
+
+## More air war
+
+* **Shoot and scoot** — point defence (Avenger, Tor) drives 1.5–4 km to a new spot after it fires or a
+  HARM comes in; the SA-11 site does too (the Hawk is fixed). The enemy's fix on it goes stale by that
+  distance, and the site respawns where it went.
+* **AI aircrews** eject (70 %): CSAR for their side — rescued, the aircraft goes back into the AI pool —
+  and **SNATCH** for the other. Enemy player pilots can be snatched too (they get a "captured").
+* **Scaling** — the side with fewer players online takes up to 15 % fewer losses in battle and its AI flies
+  more strike packages (5 % and +25 % per player of difference). Keeps PvE fair when players switch sides.
+
+## More ground war
+
+* **Engineers** — CTLD **Bridge kit** crates: 2 unpacked within 1.5 km of a destroyed bridge reopen the road
+  at once (otherwise 6 h).
+* **Minefields** — a CTLD minefield laid within 1.5 km of a road mines it for 24 h: the other side's columns
+  on it move at half speed and lose 15 % once.
+* **Veterancy** — platoons at a base that is held or taken gain experience: **veteran** (2) fights 10 %
+  harder, **elite** (5) 20 %, and they spawn with better crews.
+* **Industry** — 3 sites per side behind the lines (factory, power plant, refinery), always on the map,
+  ruins while destroyed. See INDUSTRY.
+* **Partisans** (Syria, Persian Gulf) — cells rise in towns held by the side that took them, away from the
+  front: they sabotage supply and ambush columns. A garrison breaks them up now and then; COIN does it now.
+* **Persistent wrecks** — destroyed vehicles stay as wrecks through restarts (3 days, at most 300), and
+  destroyed buildings stay destroyed.
 
 ## FARPs
 
@@ -637,7 +695,8 @@ python tools/run_lua.py tests/test_dcs_airground.lua # packages, tankers, drones
 python tools/run_lua.py tests/test_dcs_world.lua    # weather, night, AI escorts and CAP, FARPs, JTAC, carrier, public files: 46 checks
 python tests/test_companion.py                      # web map and Discord feed (with a fake Discord): 7 tests
 python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended, bonus and report: 40 checks
-python tools/run_lua.py tests/test_ctld.lua         # the real CTLD.lua on the fake DCS: zones, crates, troops, FOB, AA, vehicles joining bases or assaults, light-vehicle loads: 56 checks
+python tools/run_lua.py tests/test_ext.lua          # armoury, runways, SAM moves, crews, support, mines, veterancy, industry, partisans, scaling, wrecks: 67 checks
+python tools/run_lua.py tests/test_ctld.lua         # the real CTLD.lua on the fake DCS: zones, crates, troops, FOB, AA, vehicles joining bases or assaults, light-vehicle loads, bridge kits, minefields: 60 checks
 
 python tools/run_lua.py tools/sim.lua 4320 2026 docs/sim_history.json   # simulate 15 days
 DCC_THEATER=Syria python tools/run_lua.py tools/sim.lua 4320               # ...on another map
@@ -669,6 +728,7 @@ src/
   dcc_world.lua       weather, night, road threat (AI adaptation), FARPs, ships, ANTISHIP and FARP missions
   dcc_air.lua         tankers, drones, strike packages and helicopter assaults, INTERCEPT and TANKER missions
   dcc_ground.lua      artillery, fortifications, bridges and closed roads, morale and surrender
+  dcc_ext.lua         armoury, runways, crews, support, engineers, mines, veterancy, industry, partisans, scaling, wrecks
   dcc_front.lua       front crossings on contested roads (kept for the AI and tests)
   dcc_territory.lua   territory and front line from Voronoi cells (drawn on F10 and the web map)
   dcc_persist.lua     save / load / backups (the only file access)
@@ -683,6 +743,8 @@ src/
   dcc_dcs_air.lua     DCS bridge: tankers, drones, packages, IADS cueing, point defence, forward CAP, credit, cooldown
   dcc_dcs_ground.lua  DCS bridge: artillery fire, front skirmishes, bunkers, bridge discovery
   dcc_dcs_ctld.lua    DCS bridge: CTLD set-up, base zones, crate costs, troops, FOBs and AA into the war
+  dcc_dcs_ext_air.lua DCS bridge: armoury, runway bombs, shoot and scoot, AI crews, prisoners, Support menu, ranks, wrecks
+  dcc_dcs_ext_ground.lua DCS bridge: bridge kits, minefields, industry sites, partisan cells
   dcc_main.lua        start-up and the 30 s / 5 min loops
   dcc_loader.lua      development loader
 theaters/*.lua          Caucasus (hand-made), Syria, Persian Gulf, Cold War Germany (generated)
@@ -711,7 +773,9 @@ tools/                  Lua runner, simulator, plotter, interdiction test, bundl
 
 **After phase 5 ✓:** war clock (7 days, ground gained wins), victory bonus and war report, squadrons,
 web map and Discord feed, weather and night, AI that adapts to interdiction, JTAC, player-built FARPs,
-carrier operations in the Gulf, VEAF CTLD as the helicopter logistics layer, AI supply helicopters.
+carrier operations in the Gulf, VEAF CTLD as the helicopter logistics layer, AI supply helicopters,
+armoury, runway strikes, shoot and scoot, prisoners, support on call, engineers, minefields, veterancy,
+industry, partisans, player-count scaling, rank unlocks, persistent wrecks.
 
 **Ideas, not started:** fog for the AI commanders too, a Cold War era catalog (if wanted later),
 player-requested AI support (artillery, CAS on call), more ships (a RED surface group in the Gulf).
