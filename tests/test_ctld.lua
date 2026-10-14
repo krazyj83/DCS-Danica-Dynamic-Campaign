@@ -202,6 +202,43 @@ ed:publish("OnAASystemDeployed", { systemName = "HAWK", groupName = "x", coaliti
   position = { x = kp.x + 800, y = 0, z = kp.z } })
 check("AA system at an own base: dug in one level", ns.fort == 1)
 
+print("Crate vehicles join the base")
+local function unpackAt(unitType, x, z)
+  local d = cm:findDescriptorByUnitType(unitType)
+  local before = {}
+  for n in pairs(MOCK.groups) do before[n] = true end
+  cm:_spawnUnpacked(d, { x = x, y = 0, z = z }, BLUE, 80, nil)
+  for n in pairs(MOCK.groups) do if not before[n] then return d, n end end
+  return d, nil
+end
+local np = #ns.platoons
+local abrams, ag = unpackAt("M-1 Abrams", kp.x + 400, kp.z)
+local newest = war.state.platoons[ns.platoons[#ns.platoons]]
+check("an Abrams unpacked at Kutaisi joins its garrison", #ns.platoons == np + 1 and newest.role == "ARMOR_PLT")
+check("...at the strength its crates paid for (4 crates = 0.67)", math.abs(newest.health - 40 / 60) < 0.01, newest.health)
+check("the CTLD vehicle stays a minute", ag and MOCK.groups[ag] ~= nil)
+MOCK.advance(DCC.config.ctld.joinDelay + 5)
+check("...then leaves the map (it is in the garrison now)", MOCK.groups[ag] == nil)
+local np2 = #ns.platoons
+local _, fg = unpackAt("M1043 HMMWV Armament", kp.x + 30000, kp.z + 30000)
+check("unpacked in the field: stays a CTLD unit, no platoon", #ns.platoons == np2 and fg and MOCK.groups[fg] ~= nil)
+local bat = war:batteries("blue")
+local nb = #bat
+for _, b in ipairs(bat) do b.status = "up" end
+unpackAt("M-109", kp.x + 500, kp.z)
+check("a howitzer unpacked at a base: a new artillery battery there", #bat == nb + 1 and bat[#bat].node == "kutaisi")
+ns.supply = 10
+local sup0 = ns.supply
+unpackAt("M 818", kp.x + 600, kp.z)
+check("an ammo truck unpacked at a base: its load becomes supply", ns.supply > sup0, sup0 .. " -> " .. ns.supply)
+-- a whole vehicle carried by a Chinook and set down at an own base
+local npv = #ns.platoons
+coalition.addGroup(80, Group.Category.GROUND, { name = "CTLD_VEH_test", units = { { name = "CTLD_VEH_test",
+  type = "M1045 HMMWV TOW", x = kp.x + 300, y = kp.z + 300 } } })
+ed:publish("OnVehicleUnloaded", { dcsUnitObject = MOCK.groups["CTLD_VEH_test"].units[1], vehicleType = "M1045 HMMWV TOW",
+  position = { x = kp.x + 300, y = 0, z = kp.z + 300 } })
+check("a vehicle flown in whole joins the garrison too", #ns.platoons == npv + 1)
+
 print("A day of war with CTLD")
 for _ = 1, 288 do MOCK.advance(300) end
 check("no DCC script errors", errors == 0, errors)

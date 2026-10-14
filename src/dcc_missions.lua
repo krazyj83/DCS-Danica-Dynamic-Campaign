@@ -132,7 +132,9 @@ function gen.ESCORT(self, side)
     local mv = self.state.moves[mid]
     if mv.side == side and mv.kind == "airlift" and mv.status == "moving" then
       out[#out + 1] = { type = "ESCORT", target = mid, node = mv.to, prio = 0,
-        label = string.format("airlift %s > %s", self:nodeName(mv.from), self:nodeName(mv.to)) }
+        needs = mv.helo and "ANY" or nil,        -- helicopters escort helicopters too
+        label = string.format("%s %s > %s", mv.helo and "supply helicopter" or "airlift",
+          self:nodeName(mv.from), self:nodeName(mv.to)) }
     end
   end
   return out
@@ -361,7 +363,7 @@ function War:missionsTick()
             local mid = self:newId("x")
             st.missions[mid] = { id = mid, side = side, type = t, target = c.target, node = c.node,
               label = c.label, base = c.base or {}, created = st.tick, taken = {}, status = "open",
-              needs = War.MISSION_NEEDS[t] }
+              needs = c.needs or War.MISSION_NEEDS[t] }
             have[key] = true
             have[t] = (have[t] or 0) + 1
           end

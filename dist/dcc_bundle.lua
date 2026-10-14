@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.8.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.9.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.8.0",
+  version         = "0.9.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -72,6 +72,12 @@ DCC.config = {
     airliftSpeedKmh  = 350,
     airliftMinKm     = 80,    -- airlifts only for longer hops (or cut-off airbases)
     maxAirlifts      = 2,     -- per side at once
+    heliliftCapacity = 20,    -- SU per helicopter supply run (real AI helicopters, escortable)
+    heliliftSpeedKmh = 200,
+    heliliftMinKm    = 15,    -- short hops to the front, towns included
+    heliliftMaxKm    = 120,
+    maxHelilifts     = 2,     -- per side at once
+    heliCargoMinutes = 15,    -- the crates a supply helicopter sets down stay on the ground this long
     captureShare     = 0.5,   -- share of a captured node's stores the attacker keeps
     airRestockTicks  = 12,    -- every hour each airbase may replace one lost aircraft...
     airRestockCost   = 5,     -- ...for this much supply
@@ -240,6 +246,10 @@ DCC.config = {
     fobFarpKm        = 5,      -- a CTLD FOB this close to a town makes the town a FARP
     fobChargeKm      = 40,     -- crates at a FOB are paid by the nearest own base this close
     aaDefenceKm      = 3,      -- an AA system this close to an own base digs it in one level
+    platoonSU        = 60,     -- vehicles unpacked at an own base join it as a platoon of
+                               -- health (crates x crateSU) / platoonSU (an Abrams, 4 crates: 0.67)
+    joinDelay        = 60,     -- seconds before the unpacked vehicle leaves the map (it is in the garrison)
+    maxExtraBatteries = 2,     -- artillery crates can add this many batteries per side
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------
@@ -945,6 +955,7 @@ end
 function War:advanceMoves()
   local kmPerTick = self.cfg.groundSpeedKmh * self.cfg.tickSeconds / 3600
   local airKmPerTick = self.cfg.supply.airliftSpeedKmh * self.cfg.tickSeconds / 3600
+  local heloKmPerTick = (self.cfg.supply.heliliftSpeedKmh or 200) * self.cfg.tickSeconds / 3600
   for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
     local mv = self.state.moves[mid]
     if mv and mv.status == "moving" then
@@ -953,7 +964,7 @@ function War:advanceMoves()
         self.state.moves[mid] = nil
       else
         -- Live moves are advanced by the bridge from real unit positions.
-        local step = (mv.kind == "airlift") and airKmPerTick or kmPerTick
+        local step = (mv.kind == "airlift") and (mv.helo and heloKmPerTick or airKmPerTick) or kmPerTick
         if self.moveSpeedFactor then step = step * self:moveSpeedFactor(mv) end   -- weather
         if not self:isMoveLive(mv) then mv.progress = mv.progress + step / math.max(mv.km, 0.1) end
         if mv.progress >= 1 then self:arrive(mv) end
@@ -1634,8 +1645,8 @@ function War:deliver(mv)
     ns.supply = math.min(self:supplyCap(mv.to) * S(self).overfillFactor, ns.supply + amount)
     self.state.stats.delivered[mv.side] = self.state.stats.delivered[mv.side] + amount
     if mv.kind == "airlift" then
-      self:log("airlift_in", mv.side, string.format("%s airlift landed at %s with %d supply",
-        mv.side:upper(), self:nodeName(mv.to), math.floor(amount + 0.5)))
+      self:log("airlift_in", mv.side, string.format("%s %s landed at %s with %d supply",
+        mv.side:upper(), mv.helo and "supply helicopter" or "airlift", self:nodeName(mv.to), math.floor(amount + 0.5)))
     end
   else
     self.state.stats.cargoLost[mv.side] = self.state.stats.cargoLost[mv.side] + amount
@@ -1653,7 +1664,7 @@ function War:destroyCargo(mid, reason)
   self.state.stats.cargoLost[mv.side] = self.state.stats.cargoLost[mv.side] + mv.cargo * (mv.health or 1)
   self.state.moves[mid] = nil
   self:log(mv.kind == "airlift" and "airlift_lost" or "convoy_lost", mv.side,
-    string.format("%s %s from %s to %s destroyed%s", mv.side:upper(), mv.kind,
+    string.format("%s %s from %s to %s destroyed%s", mv.side:upper(), mv.helo and "supply helicopter" or mv.kind,
       self:nodeName(mv.from), self:nodeName(mv.to), reason and (" (" .. reason .. ")") or ""))
 end
 
@@ -2320,7 +2331,9 @@ function gen.ESCORT(self, side)
     local mv = self.state.moves[mid]
     if mv.side == side and mv.kind == "airlift" and mv.status == "moving" then
       out[#out + 1] = { type = "ESCORT", target = mid, node = mv.to, prio = 0,
-        label = string.format("airlift %s > %s", self:nodeName(mv.from), self:nodeName(mv.to)) }
+        needs = mv.helo and "ANY" or nil,        -- helicopters escort helicopters too
+        label = string.format("%s %s > %s", mv.helo and "supply helicopter" or "airlift",
+          self:nodeName(mv.from), self:nodeName(mv.to)) }
     end
   end
   return out
@@ -2549,7 +2562,7 @@ function War:missionsTick()
             local mid = self:newId("x")
             st.missions[mid] = { id = mid, side = side, type = t, target = c.target, node = c.node,
               label = c.label, base = c.base or {}, created = st.tick, taken = {}, status = "open",
-              needs = War.MISSION_NEEDS[t] }
+              needs = c.needs or War.MISSION_NEEDS[t] }
             have[key] = true
             have[t] = (have[t] or 0) + 1
           end
@@ -3699,6 +3712,72 @@ function War:opsTick()
   baseOpsTick(self)
   self:restockAssets()
   self:packagesTick()
+end
+
+-- ---------------------------------------------------------------------------
+-- Helicopter supply runs: short hops to the front by real AI transport
+-- helicopters (towns too, not only airbases). A kind of airlift (mv.helo):
+-- escortable (ESCORT, any aircraft), interceptable, lost when shot down.
+-- Cut-off bases and bases behind a threatened road come first.
+-- ---------------------------------------------------------------------------
+local basePlanAirlifts = War.planAirlifts
+function War:planAirlifts(side, dist, focus)
+  basePlanAirlifts(self, side, dist, focus)
+  self:planHelilifts(side, dist, focus)
+end
+
+function War:planHelilifts(side, dist, focus)
+  local cfg = self.cfg.supply
+  local cap = cfg.heliliftCapacity or 0
+  if (cfg.maxHelilifts or 0) <= 0 or cap <= 0 then return end
+  if self.isStorm and self:isStorm() then return end
+  local active = 0
+  for _, mv in pairs(self.state.moves) do
+    if mv.helo and mv.side == side then active = active + 1 end
+  end
+  if active >= cfg.maxHelilifts then return end
+  local sdist = self:stagingDistance(side, focus)
+  local supplied = self:supplied(side)
+
+  local dst, dstKey
+  for _, id in ipairs(self.T.order) do
+    local ns, tn = self.state.nodes[id], self.T.nodes[id]
+    local busy = false
+    for _, mv in pairs(self.state.moves) do if mv.helo and mv.to == id then busy = true end end
+    if ns.side == side and tn.kind ~= "carrier" and not busy and (dist[id] == 1 or sdist[id] == 0) then
+      local need = self:supplyKeep(id, dist, sdist) - ns.supply - self:incomingSupply(id, side)
+      if need >= cap * 0.5 then
+        local threat = 0
+        if self.threatOn then
+          for nb in pairs(tn.nb) do
+            if self.state.nodes[nb].side == side then threat = math.max(threat, self:threatOn(side, nb, id)) end
+          end
+        end
+        local key = (supplied[id] and 1 or 0) * 100000 - threat * 1000 - need
+        if not dstKey or key < dstKey then dst, dstKey = id, key end
+      end
+    end
+  end
+  if not dst then return end
+
+  local src, srcKm
+  for _, id in ipairs(self.T.order) do
+    local ns, tn = self.state.nodes[id], self.T.nodes[id]
+    if id ~= dst and ns.side == side and tn.kind ~= "carrier" and dist[id] and dist[id] > 1 then
+      local km = U.distKm(self.T.nodes[id], self.T.nodes[dst])
+      local surplus = ns.supply - self:supplyKeep(id, dist, sdist)
+      if km >= cfg.heliliftMinKm and km <= cfg.heliliftMaxKm and surplus >= cap and (not srcKm or km < srcKm) then
+        src, srcKm = id, km
+      end
+    end
+  end
+  if not src then return end
+  local mv = self:startCargo("airlift", side, src, dst, cap)
+  if mv then
+    mv.helo, mv.km = true, srcKm
+    self:log("helilift", side, string.format("%s supply helicopter departs %s for %s", side:upper(),
+      self:nodeName(src), self:nodeName(dst)), { node = dst })
+  end
 end
 
 end
@@ -5165,7 +5244,8 @@ function B.pollCargo(mid, rec)
     local landed = lead.inAir and not lead:inAir()
     if landed and d < 6000 then p = 1 else p = math.min(p, 0.97) end
     -- Safety: a transport circling for 3x its flight time delivers anyway.
-    local expect = total / (DCC.config.supply.airliftSpeedKmh / 3.6)
+    local kmh = rec.helo and DCC.config.supply.heliliftSpeedKmh or DCC.config.supply.airliftSpeedKmh
+    local expect = total / (kmh / 3.6)
     if timer.getTime() - rec.born > 3 * expect + 600 then p = 1 end
   elseif d <= DCC.config.captureRadiusKm * 1000 then
     p = 1
@@ -8560,6 +8640,67 @@ function B.init(war, theater, catalog)
   end
 end
 
+-- ===========================================================================
+-- Helicopter supply runs (war moves with mv.helo): real AI transport
+-- helicopters (the airmobile template), low level, landing at the base.
+-- Escort them (ESCORT, any aircraft) - the enemy AI and players can shoot
+-- them down. On landing the cargo is set down (as CTLD crates when CTLD is
+-- in the mission) and the helicopters lift off home a few minutes later.
+-- ===========================================================================
+local baseSpawnAirlift = B.spawnAirlift
+function B.spawnAirlift(mv)
+  if not mv.helo then return baseSpawnAirlift(mv) end
+  local a, b = B.nodePos[mv.from], B.nodePos[mv.to]
+  local p = U.clamp(mv.progress, 0, 0.95)
+  local x, z = a.x + (b.x - a.x) * p, a.z + (b.z - a.z) * p
+  local landing = { x = b.x + 350, z = b.z + 350 }
+  local speed = DCC.config.supply.heliliftSpeedKmh / 3.6
+  local gname = "DCC_" .. mv.id
+  local g = B.spawnFlight(mv.side, "airmobile", gname, { x = x, z = z }, 150, speed, {
+    wp(x, z, 150, speed),
+    wp(landing.x, landing.z, 0, speed, combo({ { id = "Land", params = { point = { x = landing.x, y = landing.z },
+      durationFlag = true, duration = 900 } } })) }, { helicopter = true, task = "Transport" })
+  local n = g and #(unitsOf(gname)) or 1
+  B.cargo[mv.id] = { group = gname, size = math.max(1, n), base = mv.health or 1, kind = "airlift", helo = true,
+                     landing = landing, side = mv.side, failed = g == nil, born = timer.getTime() }
+end
+
+local baseDespawn = B.despawnCargo
+function B.despawnCargo(mid, rec)
+  local war = B.war
+  local delivered = rec.helo and war.state.deliveredMoves and war.state.deliveredMoves[mid]
+  if not delivered then return baseDespawn(mid, rec) end
+  -- landed and unloaded: crates on the ground, helicopters stay a while, then go
+  B.cargo[mid] = nil
+  local lead = unitsOf(rec.group)[1]
+  local pos = lead and ok(lead.getPoint, lead) or rec.landing
+  ok(B.heliCargoDown, rec.side, pos, war.cfg.supply.heliliftCapacity)
+  timer.scheduleFunction(function()
+    local g = ok(Group.getByName, rec.group)
+    if g and ok(g.isExist, g) then g:destroy() end
+  end, nil, timer.getTime() + 180)
+end
+
+-- The cargo, set down next to the helicopter: one crate per 10 SU (scenery -
+-- the supply is already in the base's stock).
+function B.heliCargoDown(side, pos, su)
+  local names = {}
+  B.heliCrateN = (B.heliCrateN or 0) + 1
+  for i = 1, math.max(1, math.min(4, math.floor(su / 10))) do
+    local name = string.format("DCC_HELICARGO_%d_%d", B.heliCrateN, i)
+    local s = pcall(coalition.addStaticObject, B.countryId(side), { name = name, type = "ammo_cargo",
+      category = "Cargos", x = pos.x + 25 + i * 6, y = pos.z + 20, heading = 0, canCargo = false, mass = 1000 })
+    if s then names[#names + 1] = name end
+  end
+  timer.scheduleFunction(function()
+    for _, n in ipairs(names) do
+      local o = ok(StaticObject.getByName, n)
+      if o and ok(o.isExist, o) then o:destroy() end
+    end
+  end, nil, timer.getTime() + DCC.config.supply.heliCargoMinutes * 60)
+  return names
+end
+
 end
 
 -- >>> src/dcc_dcs_ground.lua
@@ -8953,6 +9094,9 @@ do
 --       supply crate unloaded at an own base   -> supply delivered (LOGISTICS)
 --       FOB built next to a town               -> the town gets a FARP
 --       AA system set up next to an own base   -> base dug in one level
+--       vehicle unpacked / set down at own base -> joins the garrison as a
+--                                                 platoon (artillery: a battery,
+--                                                 trucks: their load as supply)
 --       troops picked up at a base             -> a platoon leaves the garrison
 --       troops unloaded at an own base         -> reinforcement
 --       troops unloaded at an enemy base       -> air assault
@@ -9331,6 +9475,21 @@ function B.ctldHook()
     end
     return baseUnpack(self, crateName, unpacker)
   end
+  -- a crate vehicle stands on the map: does it join a base?
+  if CM._dispatchPostSpawn then
+    local basePost = CM._dispatchPostSpawn
+    CM._dispatchPostSpawn = function(self, desc, gname)
+      basePost(self, desc, gname)
+      if B.war and desc and not desc.isJTAC and (desc.spawnAs == nil or desc.spawnAs == "GROUND") then
+        local g = ok(Group.getByName, gname)
+        local u1 = g and ok(function() return g:getUnits()[1] end)
+        local side = u1 and sideOf(ok(u1.getCoalition, u1))
+        local s, e = pcall(B.ctldVehicleDown, desc, gname, side)
+        if not s then U.log("ERROR ctld vehicle: %s", tostring(e)) end
+      end
+    end
+  end
+
   if CM._spawnUnpacked then
     local baseSU = CM._spawnUnpacked
     CM._spawnUnpacked = function(self, desc, ...)
@@ -9338,6 +9497,72 @@ function B.ctldHook()
       return baseSU(self, desc, ...)
     end
   end
+end
+
+-- ===========================================================================
+-- 4b. Vehicles unpacked at an own base join its garrison
+-- ===========================================================================
+-- What a CTLD crate vehicle is in the war: a platoon role, an artillery
+-- battery, or (trucks) supply. Support trucks (CTLD crate family 1001.xx) first, then the catalogue's
+-- unit lists, then CTLD's crate families (1000.xx combat,
+-- 1002 artillery, 1003 short-range AA).
+function B.ctldRoleOf(desc, side)
+  local t = desc.unit
+  local fam = math.floor(tonumber(desc.weight) or 0)
+  if fam == 1001 then return "SUPPLY" end              -- trucks: their load, not the truck, counts
+  for role, spec in pairs(B.catalog.roles or {}) do
+    local s = spec[side] or {}
+    for _, list in ipairs({ s.units or {}, s.fallback or {} }) do
+      for _, u in ipairs(list) do if u == t then return role end end
+    end
+  end
+  if fam == 1000 then
+    if t:find("Abrams") or t:find("T%-%d") or t:find("Leopard") or t:find("LAV") then return "ARMOR_PLT" end
+    return "MECH_PLT"
+  elseif fam == 1002 then return "ARTY"
+  elseif fam == 1003 then return "SHORAD"
+  end
+  return nil
+end
+
+function B.ctldVehicleDown(desc, gname, side)
+  local war = B.war
+  if not (desc and gname and side) or isSupply(desc) then return end
+  local g = ok(Group.getByName, gname)
+  local u1 = g and ok(function() return g:getUnits()[1] end)
+  local pos = u1 and ok(u1.getPoint, u1)
+  local node = pos and B.nearestNodeOf(pos, side, CC().dropKm * 1000)
+  if not node then return end                          -- out in the field: stays a CTLD unit
+  local role = B.ctldRoleOf(desc, side)
+  if not role then return end
+  local su = (desc.cratesRequired or 1) * CC().crateSU
+  local what
+  if role == "SUPPLY" then
+    war:deliverCrate(side, node, su)
+    what = string.format("%s handed its load to %s (+%d SU)", tostring(desc.desc or desc.unit), war:nodeName(node), su)
+  elseif role == "ARTY" then
+    local list, extra, revived = war:batteries(side), 0, false
+    for _, b in ipairs(list) do
+      if b.status ~= "up" and not revived then b.status, b.since, b.node, revived = "up", war.state.tick, node, true end
+      if b.ctld then extra = extra + 1 end
+    end
+    if not revived then
+      if extra >= CC().maxExtraBatteries then return end   -- enough guns: it stays where it is
+      list[#list + 1] = { id = war:newId(side:sub(1, 1) .. "a"), status = "up", node = node, ctld = true }
+    end
+    what = string.format("an artillery battery at %s", war:nodeName(node))
+  else
+    local pid = war:newPlatoon(side, role, node)
+    war.state.platoons[pid].health = math.min(1, su / CC().platoonSU)
+    what = string.format("%s joined the garrison of %s", tostring(desc.desc or desc.unit), war:nodeName(node))
+  end
+  war:log("ctld_vehicle", side, string.format("%s: %s", side:upper(), what), { node = node })
+  trigger.action.outTextForCoalition(coalOf(side), what:sub(1, 1):upper() .. what:sub(2) .. ".", 10)
+  -- it is part of the base now: the live bubble spawns it with the garrison
+  timer.scheduleFunction(function()
+    local gg = ok(Group.getByName, gname)
+    if gg and ok(gg.isExist, gg) then ok(gg.destroy, gg) end
+  end, nil, timer.getTime() + CC().joinDelay)
 end
 
 function B.ctldSubscribe()
@@ -9351,6 +9576,15 @@ function B.ctldSubscribe()
     local tg = ev.troops
     local pos = ev.positions and ev.positions[1]
     if tg then B.ctldTroopsDown(tg, ev.spawnedGroup, pos, sideOf(tg.coalitionId)) end
+  end)
+  -- a whole vehicle carried by a Chinook / Mi-26 and set down at an own base
+  on("OnVehicleUnloaded", function(ev)
+    local u = ev.dcsUnitObject
+    if not u or (ok(u.inAir, u)) then return end
+    local g = ok(u.getGroup, u)
+    local gname = g and ok(g.getName, g)
+    local desc = CTLDCrateManager.getInstance():findDescriptorByUnitType(ev.vehicleType)
+    if gname and desc then B.ctldVehicleDown(desc, gname, sideOf(ok(u.getCoalition, u))) end
   end)
   on("OnFOBDeployed", function(ev)
     local side = sideOf(ev.fob and ev.fob.coalitionId)

@@ -70,7 +70,7 @@ and range, what success does) and a mark on your F10 map. **My mission** repeats
 | **STRIKE** | A2G | Fuel, ammo and warehouse buildings at an enemy depot/airbase | A building is destroyed | Each one burns 25 SU and cuts the base's output (all gone = 30 %); one rebuilt every 3 h |
 | **SEAD/DEAD** | SEAD | Enemy SAM site (Hawk / SA-11) | Radar or whole site killed | Radar: site offline ~2 h. Radar + launchers: destroyed, rebuilt in ~6 h for 60 SU |
 | **CAP** | A2A | Your main-effort area | 20 min on station, or an air kill there | 1 h of air superiority: enemy AI attack sorties stay away |
-| **ESCORT** | A2A | Your airlift transport | It lands with you mostly within 15 km | Cargo delivered; enemy AI fighters try to intercept airlifts |
+| **ESCORT** | A2A (supply helicopters: anyone) | Your airlift transport or supply helicopters | They land with you mostly within 15 km | Cargo delivered; enemy AI fighters try to intercept airlifts |
 | **CONVOY** | Helicopters | Your convoy to the front | It arrives with you mostly within 3 km | An ambush spawns on its road; an escorted convoy is never ambushed |
 | **RECON** | Anyone | Enemy base near the front | You overfly it within 8 km below 4500 m | Its garrison, supply and SAM status appear on your side's map |
 | **CSAR** | Transport helicopters | Your downed pilot | Land within 150 m (green smoke), then at a friendly base | Pilot saved, aircraft refunded to that base. After 2 h the pilot is captured |
@@ -290,11 +290,23 @@ the VEAF team), started and configured by the engine. Every helicopter type CTLD
 | Helicopter shot down with troops | Platoons lost. Leave the slot with troops on board: they walk home |
 | **FOB** built within 5 km of an own town | The town is a **FARP** (destroyed FOB = FARP gone) |
 | **AA system** set up within 3 km of an own base | Base digs in one level (max 3) |
+| **Vehicle** unpacked (or flown in whole and set down) within 3 km of an own base | Joins the garrison as a platoon, at the strength its crates paid for (crates × 10 SU ÷ 60: an Abrams, 4 crates, = 0.67 platoon). After a minute it leaves the map — the base spawns it with the garrison from then on |
+| **Howitzer / MLRS** unpacked at an own base | An artillery battery there (a destroyed one is rebuilt first; at most 2 extra per side) |
+| **Ammo / fuel truck** unpacked at an own base | Its load becomes supply (crates × 10 SU) |
 
-Vehicles, artillery and AA systems from crates are real CTLD units where you put them. CTLD's own
+Vehicles unpacked out in the field stay real CTLD units where you put them. CTLD's own
 JTAC (crates, drones, JTAC teams) is switched off — the [campaign JTAC](#jtac) does CAS. Troops come
 from base garrisons only (no free troops at CTLD FOBs). Without CTLD in the mission
 (`make_mission.py --no-ctld`) the engine's own simple **F10 → Missions → Cargo** menu comes back.
+
+## AI supply helicopters
+
+Both sides fly **supply helicopters** (UH-60A / Mi-8MT pairs, 20 SU) on short hops to the front —
+towns too — from a base 15–120 km behind it. Bases that are cut off or behind a road the enemy keeps
+hitting come first. They are real aircraft, low and slow: **ESCORT** them (any aircraft, helicopters
+included — the mission is on the board while they fly), or hunt the enemy's. Shot down = the supply is
+lost. On landing they set their crates down, wait a few minutes and fly home. At most 2 per side at once;
+none in a storm.
 
 ## FARPs
 
@@ -618,11 +630,11 @@ python tools/run_lua.py tests/test_dcs_ops.lua      # flying every mission type 
 python tools/run_lua.py tests/test_dcs_intel.lua    # fog of war: each map shows only what that side detected: 40 checks
 python tools/run_lua.py tests/test_dcs_radar.lua    # EWR, AWACS, HVAA, recon photos: 34 checks
 python tools/run_lua.py tests/test_theaters.lua     # all four maps: connected, depots, war runs, territory and front: 44 checks
-python tools/run_lua.py tests/test_dcs_airground.lua # packages, tankers, drones, IADS, cooldown, artillery, skirmishes, forts, bridges: 35 checks
+python tools/run_lua.py tests/test_dcs_airground.lua # packages, tankers, drones, IADS, cooldown, artillery, skirmishes, forts, bridges, supply helicopters: 43 checks
 python tools/run_lua.py tests/test_dcs_world.lua    # weather, night, AI escorts and CAP, FARPs, JTAC, carrier, public files: 46 checks
 python tests/test_companion.py                      # web map and Discord feed (with a fake Discord): 7 tests
 python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended, bonus and report: 40 checks
-python tools/run_lua.py tests/test_ctld.lua         # the real CTLD.lua on the fake DCS: zones, crates, troops, FOB, AA: 41 checks
+python tools/run_lua.py tests/test_ctld.lua         # the real CTLD.lua on the fake DCS: zones, crates, troops, FOB, AA, vehicles joining bases: 49 checks
 
 python tools/run_lua.py tools/sim.lua 4320 2026 docs/sim_history.json   # simulate 15 days
 DCC_THEATER=Syria python tools/run_lua.py tools/sim.lua 4320               # ...on another map
@@ -696,7 +708,7 @@ tools/                  Lua runner, simulator, plotter, interdiction test, bundl
 
 **After phase 5 ✓:** war clock (7 days, ground gained wins), victory bonus and war report, squadrons,
 web map and Discord feed, weather and night, AI that adapts to interdiction, JTAC, player-built FARPs,
-carrier operations in the Gulf, VEAF CTLD as the helicopter logistics layer.
+carrier operations in the Gulf, VEAF CTLD as the helicopter logistics layer, AI supply helicopters.
 
 **Ideas, not started:** fog for the AI commanders too, a Cold War era catalog (if wanted later),
 player-requested AI support (artillery, CAS on call), more ships (a RED surface group in the Gulf).

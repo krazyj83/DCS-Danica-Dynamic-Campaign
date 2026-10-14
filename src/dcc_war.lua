@@ -386,6 +386,7 @@ end
 function War:advanceMoves()
   local kmPerTick = self.cfg.groundSpeedKmh * self.cfg.tickSeconds / 3600
   local airKmPerTick = self.cfg.supply.airliftSpeedKmh * self.cfg.tickSeconds / 3600
+  local heloKmPerTick = (self.cfg.supply.heliliftSpeedKmh or 200) * self.cfg.tickSeconds / 3600
   for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
     local mv = self.state.moves[mid]
     if mv and mv.status == "moving" then
@@ -394,7 +395,7 @@ function War:advanceMoves()
         self.state.moves[mid] = nil
       else
         -- Live moves are advanced by the bridge from real unit positions.
-        local step = (mv.kind == "airlift") and airKmPerTick or kmPerTick
+        local step = (mv.kind == "airlift") and (mv.helo and heloKmPerTick or airKmPerTick) or kmPerTick
         if self.moveSpeedFactor then step = step * self:moveSpeedFactor(mv) end   -- weather
         if not self:isMoveLive(mv) then mv.progress = mv.progress + step / math.max(mv.km, 0.1) end
         if mv.progress >= 1 then self:arrive(mv) end

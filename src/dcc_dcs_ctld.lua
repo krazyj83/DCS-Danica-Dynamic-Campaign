@@ -13,6 +13,9 @@
 --       supply crate unloaded at an own base   -> supply delivered (LOGISTICS)
 --       FOB built next to a town               -> the town gets a FARP
 --       AA system set up next to an own base   -> base dug in one level
+--       vehicle unpacked / set down at own base -> joins the garrison as a
+--                                                 platoon (artillery: a battery,
+--                                                 trucks: their load as supply)
 --       troops picked up at a base             -> a platoon leaves the garrison
 --       troops unloaded at an own base         -> reinforcement
 --       troops unloaded at an enemy base       -> air assault
@@ -391,6 +394,21 @@ function B.ctldHook()
     end
     return baseUnpack(self, crateName, unpacker)
   end
+  -- a crate vehicle stands on the map: does it join a base?
+  if CM._dispatchPostSpawn then
+    local basePost = CM._dispatchPostSpawn
+    CM._dispatchPostSpawn = function(self, desc, gname)
+      basePost(self, desc, gname)
+      if B.war and desc and not desc.isJTAC and (desc.spawnAs == nil or desc.spawnAs == "GROUND") then
+        local g = ok(Group.getByName, gname)
+        local u1 = g and ok(function() return g:getUnits()[1] end)
+        local side = u1 and sideOf(ok(u1.getCoalition, u1))
+        local s, e = pcall(B.ctldVehicleDown, desc, gname, side)
+        if not s then U.log("ERROR ctld vehicle: %s", tostring(e)) end
+      end
+    end
+  end
+
   if CM._spawnUnpacked then
     local baseSU = CM._spawnUnpacked
     CM._spawnUnpacked = function(self, desc, ...)
@@ -398,6 +416,72 @@ function B.ctldHook()
       return baseSU(self, desc, ...)
     end
   end
+end
+
+-- ===========================================================================
+-- 4b. Vehicles unpacked at an own base join its garrison
+-- ===========================================================================
+-- What a CTLD crate vehicle is in the war: a platoon role, an artillery
+-- battery, or (trucks) supply. Support trucks (CTLD crate family 1001.xx) first, then the catalogue's
+-- unit lists, then CTLD's crate families (1000.xx combat,
+-- 1002 artillery, 1003 short-range AA).
+function B.ctldRoleOf(desc, side)
+  local t = desc.unit
+  local fam = math.floor(tonumber(desc.weight) or 0)
+  if fam == 1001 then return "SUPPLY" end              -- trucks: their load, not the truck, counts
+  for role, spec in pairs(B.catalog.roles or {}) do
+    local s = spec[side] or {}
+    for _, list in ipairs({ s.units or {}, s.fallback or {} }) do
+      for _, u in ipairs(list) do if u == t then return role end end
+    end
+  end
+  if fam == 1000 then
+    if t:find("Abrams") or t:find("T%-%d") or t:find("Leopard") or t:find("LAV") then return "ARMOR_PLT" end
+    return "MECH_PLT"
+  elseif fam == 1002 then return "ARTY"
+  elseif fam == 1003 then return "SHORAD"
+  end
+  return nil
+end
+
+function B.ctldVehicleDown(desc, gname, side)
+  local war = B.war
+  if not (desc and gname and side) or isSupply(desc) then return end
+  local g = ok(Group.getByName, gname)
+  local u1 = g and ok(function() return g:getUnits()[1] end)
+  local pos = u1 and ok(u1.getPoint, u1)
+  local node = pos and B.nearestNodeOf(pos, side, CC().dropKm * 1000)
+  if not node then return end                          -- out in the field: stays a CTLD unit
+  local role = B.ctldRoleOf(desc, side)
+  if not role then return end
+  local su = (desc.cratesRequired or 1) * CC().crateSU
+  local what
+  if role == "SUPPLY" then
+    war:deliverCrate(side, node, su)
+    what = string.format("%s handed its load to %s (+%d SU)", tostring(desc.desc or desc.unit), war:nodeName(node), su)
+  elseif role == "ARTY" then
+    local list, extra, revived = war:batteries(side), 0, false
+    for _, b in ipairs(list) do
+      if b.status ~= "up" and not revived then b.status, b.since, b.node, revived = "up", war.state.tick, node, true end
+      if b.ctld then extra = extra + 1 end
+    end
+    if not revived then
+      if extra >= CC().maxExtraBatteries then return end   -- enough guns: it stays where it is
+      list[#list + 1] = { id = war:newId(side:sub(1, 1) .. "a"), status = "up", node = node, ctld = true }
+    end
+    what = string.format("an artillery battery at %s", war:nodeName(node))
+  else
+    local pid = war:newPlatoon(side, role, node)
+    war.state.platoons[pid].health = math.min(1, su / CC().platoonSU)
+    what = string.format("%s joined the garrison of %s", tostring(desc.desc or desc.unit), war:nodeName(node))
+  end
+  war:log("ctld_vehicle", side, string.format("%s: %s", side:upper(), what), { node = node })
+  trigger.action.outTextForCoalition(coalOf(side), what:sub(1, 1):upper() .. what:sub(2) .. ".", 10)
+  -- it is part of the base now: the live bubble spawns it with the garrison
+  timer.scheduleFunction(function()
+    local gg = ok(Group.getByName, gname)
+    if gg and ok(gg.isExist, gg) then ok(gg.destroy, gg) end
+  end, nil, timer.getTime() + CC().joinDelay)
 end
 
 function B.ctldSubscribe()
@@ -411,6 +495,15 @@ function B.ctldSubscribe()
     local tg = ev.troops
     local pos = ev.positions and ev.positions[1]
     if tg then B.ctldTroopsDown(tg, ev.spawnedGroup, pos, sideOf(tg.coalitionId)) end
+  end)
+  -- a whole vehicle carried by a Chinook / Mi-26 and set down at an own base
+  on("OnVehicleUnloaded", function(ev)
+    local u = ev.dcsUnitObject
+    if not u or (ok(u.inAir, u)) then return end
+    local g = ok(u.getGroup, u)
+    local gname = g and ok(g.getName, g)
+    local desc = CTLDCrateManager.getInstance():findDescriptorByUnitType(ev.vehicleType)
+    if gname and desc then B.ctldVehicleDown(desc, gname, sideOf(ok(u.getCoalition, u))) end
   end)
   on("OnFOBDeployed", function(ev)
     local side = sideOf(ev.fob and ev.fob.coalitionId)

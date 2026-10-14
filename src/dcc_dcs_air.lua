@@ -552,3 +552,64 @@ function B.init(war, theater, catalog)
     end
   end
 end
+
+-- ===========================================================================
+-- Helicopter supply runs (war moves with mv.helo): real AI transport
+-- helicopters (the airmobile template), low level, landing at the base.
+-- Escort them (ESCORT, any aircraft) - the enemy AI and players can shoot
+-- them down. On landing the cargo is set down (as CTLD crates when CTLD is
+-- in the mission) and the helicopters lift off home a few minutes later.
+-- ===========================================================================
+local baseSpawnAirlift = B.spawnAirlift
+function B.spawnAirlift(mv)
+  if not mv.helo then return baseSpawnAirlift(mv) end
+  local a, b = B.nodePos[mv.from], B.nodePos[mv.to]
+  local p = U.clamp(mv.progress, 0, 0.95)
+  local x, z = a.x + (b.x - a.x) * p, a.z + (b.z - a.z) * p
+  local landing = { x = b.x + 350, z = b.z + 350 }
+  local speed = DCC.config.supply.heliliftSpeedKmh / 3.6
+  local gname = "DCC_" .. mv.id
+  local g = B.spawnFlight(mv.side, "airmobile", gname, { x = x, z = z }, 150, speed, {
+    wp(x, z, 150, speed),
+    wp(landing.x, landing.z, 0, speed, combo({ { id = "Land", params = { point = { x = landing.x, y = landing.z },
+      durationFlag = true, duration = 900 } } })) }, { helicopter = true, task = "Transport" })
+  local n = g and #(unitsOf(gname)) or 1
+  B.cargo[mv.id] = { group = gname, size = math.max(1, n), base = mv.health or 1, kind = "airlift", helo = true,
+                     landing = landing, side = mv.side, failed = g == nil, born = timer.getTime() }
+end
+
+local baseDespawn = B.despawnCargo
+function B.despawnCargo(mid, rec)
+  local war = B.war
+  local delivered = rec.helo and war.state.deliveredMoves and war.state.deliveredMoves[mid]
+  if not delivered then return baseDespawn(mid, rec) end
+  -- landed and unloaded: crates on the ground, helicopters stay a while, then go
+  B.cargo[mid] = nil
+  local lead = unitsOf(rec.group)[1]
+  local pos = lead and ok(lead.getPoint, lead) or rec.landing
+  ok(B.heliCargoDown, rec.side, pos, war.cfg.supply.heliliftCapacity)
+  timer.scheduleFunction(function()
+    local g = ok(Group.getByName, rec.group)
+    if g and ok(g.isExist, g) then g:destroy() end
+  end, nil, timer.getTime() + 180)
+end
+
+-- The cargo, set down next to the helicopter: one crate per 10 SU (scenery -
+-- the supply is already in the base's stock).
+function B.heliCargoDown(side, pos, su)
+  local names = {}
+  B.heliCrateN = (B.heliCrateN or 0) + 1
+  for i = 1, math.max(1, math.min(4, math.floor(su / 10))) do
+    local name = string.format("DCC_HELICARGO_%d_%d", B.heliCrateN, i)
+    local s = pcall(coalition.addStaticObject, B.countryId(side), { name = name, type = "ammo_cargo",
+      category = "Cargos", x = pos.x + 25 + i * 6, y = pos.z + 20, heading = 0, canCargo = false, mass = 1000 })
+    if s then names[#names + 1] = name end
+  end
+  timer.scheduleFunction(function()
+    for _, n in ipairs(names) do
+      local o = ok(StaticObject.getByName, n)
+      if o and ok(o.isExist, o) then o:destroy() end
+    end
+  end, nil, timer.getTime() + DCC.config.supply.heliCargoMinutes * 60)
+  return names
+end

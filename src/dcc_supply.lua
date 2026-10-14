@@ -180,8 +180,8 @@ function War:deliver(mv)
     ns.supply = math.min(self:supplyCap(mv.to) * S(self).overfillFactor, ns.supply + amount)
     self.state.stats.delivered[mv.side] = self.state.stats.delivered[mv.side] + amount
     if mv.kind == "airlift" then
-      self:log("airlift_in", mv.side, string.format("%s airlift landed at %s with %d supply",
-        mv.side:upper(), self:nodeName(mv.to), math.floor(amount + 0.5)))
+      self:log("airlift_in", mv.side, string.format("%s %s landed at %s with %d supply",
+        mv.side:upper(), mv.helo and "supply helicopter" or "airlift", self:nodeName(mv.to), math.floor(amount + 0.5)))
     end
   else
     self.state.stats.cargoLost[mv.side] = self.state.stats.cargoLost[mv.side] + amount
@@ -199,7 +199,7 @@ function War:destroyCargo(mid, reason)
   self.state.stats.cargoLost[mv.side] = self.state.stats.cargoLost[mv.side] + mv.cargo * (mv.health or 1)
   self.state.moves[mid] = nil
   self:log(mv.kind == "airlift" and "airlift_lost" or "convoy_lost", mv.side,
-    string.format("%s %s from %s to %s destroyed%s", mv.side:upper(), mv.kind,
+    string.format("%s %s from %s to %s destroyed%s", mv.side:upper(), mv.helo and "supply helicopter" or mv.kind,
       self:nodeName(mv.from), self:nodeName(mv.to), reason and (" (" .. reason .. ")") or ""))
 end
 

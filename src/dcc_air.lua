@@ -242,3 +242,69 @@ function War:opsTick()
   self:restockAssets()
   self:packagesTick()
 end
+
+-- ---------------------------------------------------------------------------
+-- Helicopter supply runs: short hops to the front by real AI transport
+-- helicopters (towns too, not only airbases). A kind of airlift (mv.helo):
+-- escortable (ESCORT, any aircraft), interceptable, lost when shot down.
+-- Cut-off bases and bases behind a threatened road come first.
+-- ---------------------------------------------------------------------------
+local basePlanAirlifts = War.planAirlifts
+function War:planAirlifts(side, dist, focus)
+  basePlanAirlifts(self, side, dist, focus)
+  self:planHelilifts(side, dist, focus)
+end
+
+function War:planHelilifts(side, dist, focus)
+  local cfg = self.cfg.supply
+  local cap = cfg.heliliftCapacity or 0
+  if (cfg.maxHelilifts or 0) <= 0 or cap <= 0 then return end
+  if self.isStorm and self:isStorm() then return end
+  local active = 0
+  for _, mv in pairs(self.state.moves) do
+    if mv.helo and mv.side == side then active = active + 1 end
+  end
+  if active >= cfg.maxHelilifts then return end
+  local sdist = self:stagingDistance(side, focus)
+  local supplied = self:supplied(side)
+
+  local dst, dstKey
+  for _, id in ipairs(self.T.order) do
+    local ns, tn = self.state.nodes[id], self.T.nodes[id]
+    local busy = false
+    for _, mv in pairs(self.state.moves) do if mv.helo and mv.to == id then busy = true end end
+    if ns.side == side and tn.kind ~= "carrier" and not busy and (dist[id] == 1 or sdist[id] == 0) then
+      local need = self:supplyKeep(id, dist, sdist) - ns.supply - self:incomingSupply(id, side)
+      if need >= cap * 0.5 then
+        local threat = 0
+        if self.threatOn then
+          for nb in pairs(tn.nb) do
+            if self.state.nodes[nb].side == side then threat = math.max(threat, self:threatOn(side, nb, id)) end
+          end
+        end
+        local key = (supplied[id] and 1 or 0) * 100000 - threat * 1000 - need
+        if not dstKey or key < dstKey then dst, dstKey = id, key end
+      end
+    end
+  end
+  if not dst then return end
+
+  local src, srcKm
+  for _, id in ipairs(self.T.order) do
+    local ns, tn = self.state.nodes[id], self.T.nodes[id]
+    if id ~= dst and ns.side == side and tn.kind ~= "carrier" and dist[id] and dist[id] > 1 then
+      local km = U.distKm(self.T.nodes[id], self.T.nodes[dst])
+      local surplus = ns.supply - self:supplyKeep(id, dist, sdist)
+      if km >= cfg.heliliftMinKm and km <= cfg.heliliftMaxKm and surplus >= cap and (not srcKm or km < srcKm) then
+        src, srcKm = id, km
+      end
+    end
+  end
+  if not src then return end
+  local mv = self:startCargo("airlift", side, src, dst, cap)
+  if mv then
+    mv.helo, mv.km = true, srcKm
+    self:log("helilift", side, string.format("%s supply helicopter departs %s for %s", side:upper(),
+      self:nodeName(src), self:nodeName(dst)), { node = dst })
+  end
+end

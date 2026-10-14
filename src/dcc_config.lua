@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.8.0",
+  version         = "0.9.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -68,6 +68,12 @@ DCC.config = {
     airliftSpeedKmh  = 350,
     airliftMinKm     = 80,    -- airlifts only for longer hops (or cut-off airbases)
     maxAirlifts      = 2,     -- per side at once
+    heliliftCapacity = 20,    -- SU per helicopter supply run (real AI helicopters, escortable)
+    heliliftSpeedKmh = 200,
+    heliliftMinKm    = 15,    -- short hops to the front, towns included
+    heliliftMaxKm    = 120,
+    maxHelilifts     = 2,     -- per side at once
+    heliCargoMinutes = 15,    -- the crates a supply helicopter sets down stay on the ground this long
     captureShare     = 0.5,   -- share of a captured node's stores the attacker keeps
     airRestockTicks  = 12,    -- every hour each airbase may replace one lost aircraft...
     airRestockCost   = 5,     -- ...for this much supply
@@ -236,6 +242,10 @@ DCC.config = {
     fobFarpKm        = 5,      -- a CTLD FOB this close to a town makes the town a FARP
     fobChargeKm      = 40,     -- crates at a FOB are paid by the nearest own base this close
     aaDefenceKm      = 3,      -- an AA system this close to an own base digs it in one level
+    platoonSU        = 60,     -- vehicles unpacked at an own base join it as a platoon of
+                               -- health (crates x crateSU) / platoonSU (an Abrams, 4 crates: 0.67)
+    joinDelay        = 60,     -- seconds before the unpacked vehicle leaves the map (it is in the garrison)
+    maxExtraBatteries = 2,     -- artillery crates can add this many batteries per side
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------

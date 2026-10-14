@@ -197,6 +197,56 @@ local sname = B.forts.kutaisi.names[first]
 MOCK.fire({ id = world.event.S_EVENT_DEAD, initiator = { getName = function() return sname end } })
 check("bunker destroyed: fortification level drops", war.state.nodes.kutaisi.fort == 1)
 
+print("Helicopter supply runs")
+-- a front base that needs supply, a rear base with plenty
+local dist = war:frontDistance("blue")
+local front, rear
+for _, id in ipairs(war.T.order) do
+  local ns = war.state.nodes[id]
+  if ns.side == "blue" and dist[id] == 1 and war.T.nodes[id].kind ~= "carrier" and not front then front = id end
+end
+for _, mv in pairs(war.state.moves) do if mv.helo then war.state.moves[mv.id] = nil end end
+war.state.nodes[front].supply = 0
+for _, id in ipairs(war.T.order) do
+  local ns = war.state.nodes[id]
+  local km = DCC.util.distKm(war.T.nodes[id], war.T.nodes[front])
+  if ns.side == "blue" and dist[id] and dist[id] > 1 and km >= 15 and km <= 120 then ns.supply = 400 end
+end
+war:planHelilifts("blue", dist, war.state.focus.blue and war.state.focus.blue.target)
+local hmv
+for _, mv in pairs(war.state.moves) do if mv.helo and mv.side == "blue" then hmv = mv end end
+check("a supply helicopter is planned for a front base", hmv ~= nil and hmv.kind == "airlift")
+B.reconcileCargo()
+local hrec = hmv and B.cargo[hmv.id]
+local hg = hrec and MOCK.groups[hrec.group]
+check("flown by real AI transport helicopters", hg and hg.category == 1 and hg.units[1].type == "UH-60A", hg and hg.units[1].type)
+DCC.onTick()
+local em
+for _, m in ipairs(war:openMissions("blue")) do if m.type == "ESCORT" and m.target == (hmv and hmv.id) then em = m end end
+check("ESCORT mission for it, open to any aircraft (helicopters too)", em and em.needs == "ANY")
+local dest = hmv and hmv.to
+local s0 = dest and war.state.nodes[dest].supply or 0
+if hg then for _, u in ipairs(hg.units) do u.x, u.z, u.air, u.alt = hrec.landing.x, hrec.landing.z, false, 0 end end
+B.pollAllCargo()
+war:tick()
+B.reconcileCargo()
+check("landed: supply delivered", dest and war.state.nodes[dest].supply > s0 and war.state.moves[hmv.id] == nil)
+local crates = 0
+for name in pairs(MOCK.statics) do if name:find("^DCC_HELICARGO_") then crates = crates + 1 end end
+check("cargo crates set down next to the helicopter", crates == 2, crates)
+check("the helicopters wait on the ground a moment", MOCK.groups[hrec.group] ~= nil)
+MOCK.advance(200)
+check("...then leave", MOCK.groups[hrec.group] == nil)
+-- shot down on the way
+war.state.nodes[front].supply = 0
+war:planHelilifts("blue", dist, nil)
+local h2
+for _, mv in pairs(war.state.moves) do if mv.helo and mv.side == "blue" then h2 = mv end end
+B.reconcileCargo()
+if h2 and B.cargo[h2.id] then MOCK.killGroup(B.cargo[h2.id].group) end
+B.pollAllCargo()
+check("shot down: the supply is lost", h2 and war.state.moves[h2.id] == nil and war.state.killedMoves[h2.id] ~= nil)
+
 print("A day of all of it")
 for _ = 1, 288 do MOCK.advance(300) end
 check("no script errors", errors == 0, errors)

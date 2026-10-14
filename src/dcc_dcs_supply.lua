@@ -162,7 +162,8 @@ function B.pollCargo(mid, rec)
     local landed = lead.inAir and not lead:inAir()
     if landed and d < 6000 then p = 1 else p = math.min(p, 0.97) end
     -- Safety: a transport circling for 3x its flight time delivers anyway.
-    local expect = total / (DCC.config.supply.airliftSpeedKmh / 3.6)
+    local kmh = rec.helo and DCC.config.supply.heliliftSpeedKmh or DCC.config.supply.airliftSpeedKmh
+    local expect = total / (kmh / 3.6)
     if timer.getTime() - rec.born > 3 * expect + 600 then p = 1 end
   elseif d <= DCC.config.captureRadiusKm * 1000 then
     p = 1
