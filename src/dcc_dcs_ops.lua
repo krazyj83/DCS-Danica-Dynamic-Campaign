@@ -73,6 +73,9 @@ local function spotNear(id, k, radius)
 end
 
 local function nearestNodeOf(pos, side, maxM)
+  return B.nearestNodeOf(pos, side, maxM)
+end
+function B.nearestNodeOf(pos, side, maxM)
   local best, bestD
   for id, p in pairs(B.nodePos) do
     if not side or B.war.state.nodes[id].side == side then
@@ -197,6 +200,7 @@ local EFFECT = {
   CSAR = "Land within 150 m of the pilot (green smoke), then land at a friendly base. The aircraft is refunded.",
   LOGISTICS = "F10 > Missions > Cargo: load a supply crate at a friendly base and unload it at the target.",
 }
+B.EFFECT = EFFECT      -- other modules (CTLD) add or reword entries
 
 function B.brief(p, m)
   local pos = B.missionPos(m)
@@ -308,7 +312,7 @@ function B.buildMenu(p)
   missionCommands.addCommandForGroup(p.gid, "Leaderboard", root, B.showLeaderboard, p.unit)
   missionCommands.addCommandForGroup(p.gid, "Squadron leaderboard", root, B.showSquadrons, p.unit)
   local lift = (cat().lift or {})[p.type]
-  if lift then
+  if lift and not B.ctldActive then           -- with CTLD in the mission, CTLD's own menu does cargo
     local c = missionCommands.addSubMenuForGroup(p.gid, "Cargo", root)
     if lift.crates > 0 then missionCommands.addCommandForGroup(p.gid, "Load supply crate", c, B.loadCrate, p.unit) end
     if lift.troops > 0 then missionCommands.addCommandForGroup(p.gid, "Load troops", c, B.loadTroops, p.unit) end

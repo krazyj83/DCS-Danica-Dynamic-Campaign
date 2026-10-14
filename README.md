@@ -74,12 +74,10 @@ and range, what success does) and a mark on your F10 map. **My mission** repeats
 | **CONVOY** | Helicopters | Your convoy to the front | It arrives with you mostly within 3 km | An ambush spawns on its road; an escorted convoy is never ambushed |
 | **RECON** | Anyone | Enemy base near the front | You overfly it within 8 km below 4500 m | Its garrison, supply and SAM status appear on your side's map |
 | **CSAR** | Transport helicopters | Your downed pilot | Land within 150 m (green smoke), then at a friendly base | Pilot saved, aircraft refunded to that base. After 2 h the pilot is captured |
-| **LOGISTICS** | Transport helicopters | Your base short of supply | You unload a crate there | +10 SU per crate |
+| **LOGISTICS** | Transport helicopters | Your base short of supply | You unload a supply crate there | +10 SU per crate |
 
-**Helicopter cargo** (UH-1H, Mi-8, CH-47, Mi-24): **F10 → Missions → Cargo**. Land at a friendly
-base to *Load supply crate* or *Load troops* (one platoon from its garrison), land elsewhere and
-*Unload*. Troops unloaded at an **enemy** base attack it at once — an empty enemy base is simply
-taken. Crash with troops on board and they are lost; leave the slot and they walk home.
+**Helicopter cargo is CTLD** (see [Helicopter logistics (CTLD)](#helicopter-logistics-ctld)): crates,
+troops, FOBs and AA systems through **F10 → CTLD**, all of it tied to the war.
 
 **AI air.** Each side has a pool of AI fighters and attack aircraft, bought with depot supply.
 While anyone is flying, each side keeps a CAP pair over its main effort, sends attack pairs to
@@ -274,9 +272,34 @@ night-vision goggles, follows it, and switches when it dies. **F10 → Missions 
 (type, MGRS, code, how many hostiles), *Mark with smoke* (red), *Next target*. The team packs up when
 the mission ends.
 
+## Helicopter logistics (CTLD)
+
+The missions include **[VEAF CTLD](https://github.com/VEAF/CTLD) v2** (MIT, by Ciribob, Zip and
+the VEAF team), started and configured by the engine. Every helicopter type CTLD knows can lift
+(UH-1H, Mi-8, CH-47, Mi-24, ...): **F10 → CTLD**. What CTLD does now counts in the war:
+
+| In CTLD | In the war |
+| --- | --- |
+| Every own base is a CTLD **pickup and logistic zone** (1.5 km round an airbase, 600 m round a town) | Captured base: its zones change sides |
+| **Request a crate** at a base | The base pays **10 SU per crate**; a dry base says no |
+| **Supply crate** unloaded (or para-dropped) within 3 km of an own base | **+10 SU** there, completes LOGISTICS, builds towards a FARP |
+| **Load troops** at a base | **1 platoon per 10 soldiers** leaves the garrison (never the last one) |
+| Troops unloaded at an own base | They join that garrison |
+| Troops unloaded at an **enemy** base | **Air assault**: they attack it at once |
+| Troops unloaded in the field | Still yours; killed there = lost; pick them up again with CTLD |
+| Helicopter shot down with troops | Platoons lost. Leave the slot with troops on board: they walk home |
+| **FOB** built within 5 km of an own town | The town is a **FARP** (destroyed FOB = FARP gone) |
+| **AA system** set up within 3 km of an own base | Base digs in one level (max 3) |
+
+Vehicles, artillery and AA systems from crates are real CTLD units where you put them. CTLD's own
+JTAC (crates, drones, JTAC teams) is switched off — the [campaign JTAC](#jtac) does CAS. Troops come
+from base garrisons only (no free troops at CTLD FOBs). Without CTLD in the mission
+(`make_mission.py --no-ctld`) the engine's own simple **F10 → Missions → Cargo** menu comes back.
+
 ## FARPs
 
-Every town can become a FARP. Fly **3 supply crates** (30 SU) to a friendly town — the **FARP** mission
+Every town can become a FARP. Fly **3 supply crates** (30 SU) to a friendly town — or build a CTLD
+**FOB** next to it — the **FARP** mission
 on the board points you at towns right behind the front — and it becomes a FARP: fuel and ammo trucks
 arrive, it shows on everyone's map, and your side's helicopters can **spawn there** (2 of each type,
 dynamic spawn). A captured town loses its FARP. Behind the scenes each town has two invisible FARPs in
@@ -412,7 +435,7 @@ Use the generated **`dist/DCC_<map>.miz`** (Caucasus, Syria, PersianGulf, German
 | **Dynamic spawn** on all 23 campaign airbases | In multiplayer, players pick any aircraft their side's base holds. The engine removes the enemy's types and stocks the owner's at mission start and after every capture. |
 | **Fixed client slots** at the depots | One per aircraft type at Batumi, Kutaisi (BLUE) and Sochi-Adler, Beslan, Krasnodar-Center (RED). These also work in single player. |
 | AI templates | Late-activated groups: 2-ships `DCC_TPL_blue_fighter` F-16C, `_blue_attack` A-10C, `_red_fighter` MiG-29S, `_red_attack` Su-25 with loadouts, and single `DCC_TPL_blue_awacs` E-3A / `_red_awacs` A-50. The engine copies them for AI sorties — change a template's loadout in the Mission Editor if you like. |
-| One trigger | MISSION START → DO SCRIPT FILE `dcc_bundle.lua` (the engine) |
+| One trigger | MISSION START → DO SCRIPT `ctld.dontInitialize = true` → DO SCRIPT FILE `CTLD.lua` → DO SCRIPT FILE `dcc_bundle.lua` (the engine, which sets up and starts CTLD) |
 | Options | F10 map view **Allies only** (enemies appear only through the campaign's intel layer), civil traffic off |
 
 **Player aircraft** (edit `catalogs/modern.lua` → `aircraft` to change):
@@ -590,15 +613,16 @@ pip install lupa matplotlib
 
 python tools/run_lua.py tests/test_war.lua          # war model, supply, war clock: 38 checks
 python tools/run_lua.py tests/test_ops.lua          # every mission type and every war rule: 150 checks
-python tools/run_lua.py tests/test_dcs_bridge.lua   # bridge, convoys, airlifts, warehouses: 49 checks
-python tools/run_lua.py tests/test_dcs_ops.lua      # flying every mission type against a fake DCS: 60 checks
+python tools/run_lua.py tests/test_dcs_bridge.lua   # bridge, convoys, airlifts, warehouses: 51 checks
+python tools/run_lua.py tests/test_dcs_ops.lua      # flying every mission type against a fake DCS: 61 checks
 python tools/run_lua.py tests/test_dcs_intel.lua    # fog of war: each map shows only what that side detected: 40 checks
 python tools/run_lua.py tests/test_dcs_radar.lua    # EWR, AWACS, HVAA, recon photos: 34 checks
 python tools/run_lua.py tests/test_theaters.lua     # all four maps: connected, depots, war runs, territory and front: 44 checks
 python tools/run_lua.py tests/test_dcs_airground.lua # packages, tankers, drones, IADS, cooldown, artillery, skirmishes, forts, bridges: 35 checks
 python tools/run_lua.py tests/test_dcs_world.lua    # weather, night, AI escorts and CAP, FARPs, JTAC, carrier, public files: 46 checks
 python tests/test_companion.py                      # web map and Discord feed (with a fake Discord): 7 tests
-python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended, bonus and report: 33 checks
+python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended, bonus and report: 40 checks
+python tools/run_lua.py tests/test_ctld.lua         # the real CTLD.lua on the fake DCS: zones, crates, troops, FOB, AA: 41 checks
 
 python tools/run_lua.py tools/sim.lua 4320 2026 docs/sim_history.json   # simulate 15 days
 DCC_THEATER=Syria python tools/run_lua.py tools/sim.lua 4320               # ...on another map
@@ -643,10 +667,12 @@ src/
   dcc_dcs_public.lua  DCS bridge: public.json and feed.jsonl for the companion
   dcc_dcs_air.lua     DCS bridge: tankers, drones, packages, IADS cueing, point defence, forward CAP, credit, cooldown
   dcc_dcs_ground.lua  DCS bridge: artillery fire, front skirmishes, bunkers, bridge discovery
+  dcc_dcs_ctld.lua    DCS bridge: CTLD set-up, base zones, crate costs, troops, FOBs and AA into the war
   dcc_main.lua        start-up and the 30 s / 5 min loops
   dcc_loader.lua      development loader
 theaters/*.lua          Caucasus (hand-made), Syria, Persian Gulf, Cold War Germany (generated)
 hooks/DCC_rotation_hook.lua   server hook: loads the next map after a win
+vendor/ctld/            CTLD.lua (VEAF CTLD v2, built by tools/build_ctld.py), beacon sounds, credits
 server/                 dcc_companion.py (web map + Discord), example config, start_companion.bat
 catalogs/modern.lua     Modern era: ground roles, convoys, transports, player aircraft, capabilities,
                         AI air loadouts, SAM sites, strike buildings, ambush teams
@@ -670,7 +696,7 @@ tools/                  Lua runner, simulator, plotter, interdiction test, bundl
 
 **After phase 5 ✓:** war clock (7 days, ground gained wins), victory bonus and war report, squadrons,
 web map and Discord feed, weather and night, AI that adapts to interdiction, JTAC, player-built FARPs,
-carrier operations in the Gulf.
+carrier operations in the Gulf, VEAF CTLD as the helicopter logistics layer.
 
 **Ideas, not started:** fog for the AI commanders too, a Cold War era catalog (if wanted later),
 player-requested AI support (artillery, CAS on call), more ships (a RED surface group in the Gulf).

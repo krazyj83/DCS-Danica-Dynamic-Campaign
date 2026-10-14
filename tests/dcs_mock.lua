@@ -77,7 +77,8 @@ end
 world = {
   event = { S_EVENT_TAKEOFF = 3, S_EVENT_LAND = 4, S_EVENT_CRASH = 5, S_EVENT_EJECTION = 6, S_EVENT_DEAD = 8,
             S_EVENT_PILOT_DEAD = 9, S_EVENT_MISSION_END = 12, S_EVENT_BIRTH = 15, S_EVENT_PLAYER_LEAVE_UNIT = 21,
-            S_EVENT_KILL = 28, S_EVENT_SHOT = 1 },
+            S_EVENT_KILL = 28, S_EVENT_SHOT = 1, S_EVENT_PLAYER_ENTER_UNIT = 20, S_EVENT_HIT = 2,
+            S_EVENT_UNIT_LOST = 30, S_EVENT_ENGINE_STARTUP = 18, S_EVENT_ENGINE_SHUTDOWN = 19 },
   addEventHandler = function(h) MOCK.handlers[#MOCK.handlers + 1] = h end,
   getAirbases = function()
     local list = {}
@@ -242,7 +243,7 @@ function coalition.addGroup(countryId, category, data)
   assert(MOCK.groups[data.name] == nil, "addGroup: duplicate group name " .. data.name)
   assert(not data.lateActivation, "addGroup: a cloned template must not stay late-activated")
   MOCK.nextGroupId = MOCK.nextGroupId + 1
-  local g = setmetatable({ name = data.name, exists = true, units = {}, route = data.route.points,
+  local g = setmetatable({ name = data.name, exists = true, units = {}, route = data.route and data.route.points or {},
                           country = countryId, category = category, id = MOCK.nextGroupId, data = data }, GroupMT)
   local coal = (countryId == 80) and 2 or 1
   for i, u in ipairs(data.units) do
@@ -262,6 +263,7 @@ end
 -- Static objects (strike targets)
 local StaticMT = {}
 StaticMT.__index = StaticMT
+MOCK.StaticMT = StaticMT
 function StaticMT:isExist() return self.alive end
 function StaticMT:getLife() return self.alive and 100 or 0 end
 function StaticMT:getName() return self.name end
@@ -273,6 +275,7 @@ function coalition.addStaticObject(countryId, data)
     "addStaticObject: bad data")
   assert(MOCK.statics[data.name] == nil, "addStaticObject: duplicate name " .. data.name)
   local s = setmetatable({ name = data.name, type = data.type, x = data.x, z = data.y, alive = true,
+                           coal = (countryId == 80) and 2 or ((countryId == 81) and 1 or 0),
                            objCat = Object.Category.STATIC }, StaticMT)
   MOCK.statics[data.name] = s
   return s

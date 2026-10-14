@@ -1,0 +1,211 @@
+-- ============================================================================
+-- CTLD integration tests: the real vendor/ctld/CTLD.lua running on the DCS
+-- mock, driven through CTLD's own API (the calls its F10 menu makes).
+--   python tools/run_lua.py tests/test_ctld.lua
+-- ============================================================================
+
+local passed, failed = 0, 0
+local function check(name, cond, detail)
+  if cond then passed = passed + 1; print("  ok   " .. name)
+  else failed = failed + 1; print("  FAIL " .. name .. (detail and (" - " .. tostring(detail)) or "")) end
+end
+
+dofile(DCC_ROOT .. "/tests/dcs_mock.lua")
+dofile(DCC_ROOT .. "/tests/ctld_shim.lua")
+MOCK.writedir = (arg[1] or "/tmp") .. "/dcc_ctld_" .. tostring(os.time()) .. "/"
+os.execute('mkdir -p "' .. MOCK.writedir .. '"')
+local TH = DCC_THEATERS.Caucasus
+MOCK.buildAirbases(TH)
+MOCK.addTemplates()
+
+-- what the mission's first DO SCRIPT does, then CTLD.lua itself
+ctld = { dontInitialize = true }
+local loaded, lerr = pcall(dofile, DCC_ROOT .. "/vendor/ctld/CTLD.lua")
+for _, f in ipairs({ "dcc_persist", "dcc_dcs", "dcc_dcs_supply", "dcc_dcs_ops", "dcc_dcs_intel", "dcc_dcs_radar",
+                     "dcc_dcs_world", "dcc_dcs_jtac", "dcc_dcs_public", "dcc_dcs_air", "dcc_dcs_ground",
+                     "dcc_dcs_ctld", "dcc_main" }) do
+  dofile(DCC_ROOT .. "/src/" .. f .. ".lua")
+end
+
+local errors = 0
+DCC.util.log = function(fmt, ...)
+  local msg = string.format(fmt, ...)
+  if msg:find("ERROR") then errors = errors + 1; print("    " .. msg) end
+end
+local ctldErrors = 0
+local baseInfo = env.info
+env.info = function(m)
+  if tostring(m):find("%[ERROR%]") then ctldErrors = ctldErrors + 1; print("    " .. m)
+  elseif MOCK.ctldVerbose then print("    " .. m) end
+end
+
+print("Start-up")
+check("CTLD.lua loads under Lua 5.1", loaded, lerr)
+DCC.start()
+local B, war = DCC.dcs, DCC.warObj
+local BLUE, RED = 2, 1
+check("CTLD integrated", B.ctldActive == true)
+local zm, tm, cm = CTLDZoneManager.getInstance(), CTLDTroopManager.getInstance(), CTLDCrateManager.getInstance()
+check("CTLD's JTAC switched off", ctld.gs("JTAC_LIMIT_BLUE") == 0 and ctld.gs("JTAC_dropEnabled") == false)
+local jtacCrates = #cm:getJTACDescriptors(BLUE) + #cm:getJTACDescriptors(RED)
+check("no JTAC crates on offer", jtacCrates == 0, jtacCrates)
+local jtacTroops = 0
+for _, t in ipairs(tm._templates) do if (t.jtac or 0) > 0 then jtacTroops = jtacTroops + 1 end end
+check("no JTAC troop teams", jtacTroops == 0, jtacTroops)
+local supplyDesc = cm:findDescriptorByWeight(DCC.config.ctld.supplyWeight)
+check("a Supply crate in CTLD's catalogue", supplyDesc and supplyDesc.dccSupply == true)
+
+print("Zones follow the bases")
+local kz = zm:getLogisticZone("Kutaisi")
+check("Kutaisi (BLUE) has a BLUE logistic zone", kz and kz.coalition == BLUE)
+local tz = zm:getTroopZone("Kutaisi")
+check("...and a BLUE troop pickup zone", tz and tz.coalition == BLUE and tz:hasPickup())
+local rz = zm:getLogisticZone(war:nodeName("sochi"))
+check("Sochi (RED) has a RED zone", rz and rz.coalition == RED)
+
+-- a player helicopter on the ground at Kutaisi
+local kp = B.nodePos.kutaisi
+local heli = MOCK.spawnPlayer(BLUE, "UH-1H", kp.x + 100, kp.z, "Pedro", true)
+local p = B.players[heli:getName()]
+MOCK.advance(5)                                      -- CTLD builds menus on its own scheduler
+check("the pilot is registered", p ~= nil)
+local cargoMenu, ctldMenu, missions = false, false, false
+for _, item in ipairs(MOCK.groupMenus[p.gid] or {}) do
+  if item.name == "Cargo" then cargoMenu = true end
+  if item.name == "Missions" then missions = true end
+  if tostring(item.name):find("CTLD") then ctldMenu = true end
+end
+check("no DCC Cargo submenu, the Missions menu is still there", not cargoMenu and missions)
+check("CTLD built its own menu for the helicopter", ctldMenu)
+
+print("Crates cost supply")
+local ns = war.state.nodes.kutaisi
+ns.supply = 50
+local crate = cm:spawnCrate(supplyDesc, { x = kp.x + 120, y = 0, z = kp.z }, BLUE, heli:getName(), "menu_ctld")
+check("crate requested at Kutaisi", crate ~= nil)
+check("Kutaisi paid 10 SU", math.abs(ns.supply - 40) < 0.01, ns.supply)
+ns.supply = 5
+local none = cm:spawnCrate(supplyDesc, { x = kp.x + 130, y = 0, z = kp.z }, BLUE, heli:getName(), "menu_ctld")
+check("a dry base refuses the crate", none == nil and math.abs(ns.supply - 5) < 0.01)
+ns.supply = 50
+
+print("Supply crate delivered")
+-- a friendly town to fly it to
+local dest
+for _, id in ipairs(war.T.order) do
+  if war.state.nodes[id].side == "blue" and id ~= "kutaisi" and war.T.nodes[id].kind == "town" then dest = id; break end
+end
+cm:loadCrate(crate.crateName, heli)
+check("crate on board", crate:isOnGround() == false)
+local dp = B.nodePos[dest]
+heli.x, heli.z = dp.x + 200, dp.z
+local before = war.state.nodes[dest].supply
+local farpSU = war.state.nodes[dest].farpSU or 0
+cm:unloadCrate(crate.crateName, { x = dp.x + 210, y = 0, z = dp.z }, "menu_ctld")
+check("unloaded at an own base: supply delivered", war.state.nodes[dest].supply > before,
+  before .. " -> " .. war.state.nodes[dest].supply)
+check("...towards a FARP at the town", (war.state.nodes[dest].farpSU or 0) > farpSU or war:farpAt(dest))
+check("...and the crate is used up", cm:getCrateByName(crate.crateName) == nil)
+check("counted as a helicopter delivery (completes LOGISTICS)", war.state.stats.delivered.blue >= DCC.config.ctld.supplyCrateSU)
+
+print("Troops: pick up, reinforce")
+heli.x, heli.z = kp.x + 100, kp.z
+local std = tm:_findTemplate("Standard Group")
+local n0 = #ns.platoons
+local okEmbark = tm:embarkFromTroopZone(heli, tz, std)
+check("troops board at Kutaisi", okEmbark == true)
+check("one platoon left the garrison", #ns.platoons == n0 - 1, #ns.platoons)
+check("...and rides with the pilot", #p.troops == 1 and war.state.carried[p.troops[1]] ~= nil)
+local pid1 = p.troops[1]
+heli.x, heli.z = dp.x + 200, dp.z
+local d0 = #war.state.nodes[dest].platoons
+check("unloaded at an own town", tm:disembark(heli) == true)
+check("the platoon joins that garrison", #war.state.nodes[dest].platoons == d0 + 1 and war.state.platoons[pid1].node == dest)
+check("nothing left on board", #p.troops == 0 and war.state.carried[pid1] == nil)
+
+print("Troops: air assault")
+heli.x, heli.z = kp.x + 100, kp.z
+tm:embarkFromTroopZone(heli, tz, std)
+local pid2 = p.troops[1]
+local enemy
+for _, id in ipairs(war.T.order) do
+  if war.state.nodes[id].side == "red" and war.T.nodes[id].kind == "town" then enemy = id; break end
+end
+local ep = B.nodePos[enemy]
+heli.x, heli.z = ep.x + 300, ep.z
+tm:disembark(heli)
+local assault
+for _, mv in pairs(war.state.moves) do if mv.airAssault and mv.to == enemy then assault = mv end end
+check("unloaded at an enemy town: air assault", assault ~= nil and war.state.platoons[pid2].move == assault.id)
+
+print("Troops: in the field")
+heli.x, heli.z = kp.x + 100, kp.z
+tm:embarkFromTroopZone(heli, tz, std)
+local pid3 = p.troops[1]
+heli.x, heli.z = kp.x + 30000, kp.z + 30000          -- nowhere near a base
+tm:disembark(heli)
+local fieldName = next(B.ctld.field)
+check("troops in the field are tracked", fieldName ~= nil and B.ctld.field[fieldName][1] == pid3)
+check("...still counted as carried", war.state.carried[pid3] ~= nil)
+check("picked up again from the field", tm:embarkFromField(heli) == true and #p.troops == 1 and p.troops[1] == pid3)
+check("...no longer in the field", B.ctld.field[fieldName] == nil)
+tm:disembark(heli)
+fieldName = next(B.ctld.field)
+MOCK.killGroup(fieldName)
+B.ctldPollField()
+check("killed in the field: platoon lost", war.state.platoons[pid3] == nil and B.ctld.field[fieldName] == nil)
+
+print("Big lifts")
+heli.x, heli.z = kp.x + 100, kp.z
+local big = tm:_findTemplate("3x - Standard Groups")
+while #ns.platoons > 2 do war:destroyPlatoon(ns.platoons[#ns.platoons]) end
+check("a base with 1 platoon to spare refuses a 3-platoon lift", tm:embarkFromTroopZone(heli, tz, big) == false and #ns.platoons == 2)
+for _ = 1, 4 do war:newPlatoon("blue", "MECH_PLT", "kutaisi") end
+local chinook = MOCK.spawnPlayer(BLUE, "CH-47Fbl1", kp.x + 150, kp.z, "Hank", true)
+local pc = B.players[chinook:getName()]
+local okBig = tm:embarkFromTroopZone(chinook, tz, big)
+check("a Chinook takes 3 platoons for '3x - Standard Groups'", okBig and #pc.troops == 3 and #ns.platoons == 3,
+  tostring(okBig) .. " " .. #pc.troops)
+
+print("Helicopter lost with troops")
+tm:embarkFromTroopZone(heli, tz, std)
+local pid4 = p.troops[1]
+MOCK.fire({ id = world.event.S_EVENT_DEAD, initiator = heli })
+heli.alive = false
+MOCK.fire({ id = world.event.S_EVENT_CRASH, initiator = heli })
+check("platoon lost with the helicopter", pid4 ~= nil and war.state.platoons[pid4] == nil and war.state.carried[pid4] == nil)
+
+print("Capture moves the zones")
+local town = dest
+war.state.nodes[town].side = "red"
+B.opsPoll()
+local tzz = zm:getLogisticZone(war:nodeName(town))
+check("captured town: its zone now RED", tzz and tzz.coalition == RED)
+war.state.nodes[town].side = "blue"
+B.opsPoll()
+
+print("FOB and AA systems")
+local ed = EventDispatcher.getInstance()
+local town2
+for _, id in ipairs(war.T.order) do
+  if war.state.nodes[id].side == "blue" and war.T.nodes[id].kind == "town" and not war:farpAt(id) then town2 = id; break end
+end
+local tp = B.nodePos[town2]
+ed:publish("OnFOBDeployed", { fob = { fobId = 1, name = "FOB #1", coalitionId = BLUE },
+  position = { x = tp.x + 1500, y = 0, z = tp.z } })
+check("FOB next to a town: the town is a FARP", war:farpAt(town2))
+ed:publish("OnFOBDestroyed", { fob = { fobId = 1, name = "FOB #1", coalitionId = BLUE }, position = tp })
+check("FOB destroyed: FARP gone", not war:farpAt(town2))
+local f0 = ns.fort
+ns.fort = 0
+ed:publish("OnAASystemDeployed", { systemName = "HAWK", groupName = "x", coalition = BLUE,
+  position = { x = kp.x + 800, y = 0, z = kp.z } })
+check("AA system at an own base: dug in one level", ns.fort == 1)
+
+print("A day of war with CTLD")
+for _ = 1, 288 do MOCK.advance(300) end
+check("no DCC script errors", errors == 0, errors)
+check("no CTLD errors", ctldErrors == 0, ctldErrors)
+
+print(string.format("\n%d passed, %d failed", passed, failed))
+DCC_EXIT_CODE = failed == 0 and 0 or 1

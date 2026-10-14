@@ -15,7 +15,10 @@ What the mission contains:
     capture, so the choice always follows ownership.
   * FIXED CLIENT SLOTS at each side's depots (one per type in `fixedSlots`,
     or every type if unset). These work in single player too.
-  * One trigger: MISSION START -> DO SCRIPT FILE dist/dcc_bundle.lua.
+  * One trigger: MISSION START -> DO SCRIPT (ctld.dontInitialize = true),
+    DO SCRIPT FILE vendor/ctld/CTLD.lua, DO SCRIPT FILE dist/dcc_bundle.lua.
+    The engine configures and starts CTLD itself (src/dcc_dcs_ctld.lua).
+    --no-ctld leaves CTLD out (the engine's own helicopter Cargo menu is used).
   * Options: F10 map in fog-of-war mode, civil traffic off.
 
 Needs pydcs:  pip install git+https://github.com/pydcs/dcs.git
@@ -34,7 +37,7 @@ from lupa import lua51
 
 import dcs
 from dcs import countries, helicopters, planes
-from dcs.action import DoScriptFile, EndMission
+from dcs.action import DoScript, DoScriptFile, EndMission
 from dcs.condition import FlagEquals
 from dcs.triggers import TriggerOnce
 from dcs.coalition import Coalition
@@ -220,7 +223,10 @@ def build_naval(m, theater, cjtf, types):
     return report
 
 
-def build(theater_name, era, out, bundle):
+CTLD_DIR = os.path.join(ROOT, "vendor", "ctld")
+
+
+def build(theater_name, era, out, bundle, use_ctld=True):
     theater, catalog = load_data(theater_name, era)
     if theater_name not in TERRAINS:
         sys.exit(f"no pydcs terrain mapping for {theater_name}")
@@ -305,8 +311,17 @@ def build(theater_name, era, out, bundle):
     # The single trigger: load the campaign engine.
     if not os.path.exists(bundle):
         sys.exit(f"{bundle} not found - run tools/build_bundle.py first")
-    key = m.map_resource.add_resource_file(bundle)
     trig = TriggerStart(comment="DCC start")
+    ctld_lua = os.path.join(CTLD_DIR, "CTLD.lua")
+    if use_ctld and os.path.exists(ctld_lua):
+        # CTLD loads first but does not start: the engine sets it up for the war, then starts it.
+        trig.add_action(DoScript(m.string("ctld = ctld or {}\nctld.dontInitialize = true")))
+        trig.add_action(DoScriptFile(m.map_resource.add_resource_file(ctld_lua)))
+        for snd in ("beacon.ogg", "beaconsilent.ogg"):      # CTLD radio beacons
+            if os.path.exists(os.path.join(CTLD_DIR, snd)):
+                m.map_resource.add_resource_file(os.path.join(CTLD_DIR, snd))
+        print("  CTLD: included")
+    key = m.map_resource.add_resource_file(bundle)
     trig.add_action(DoScriptFile(key))
     m.triggerrules.triggers.append(trig)
 
@@ -343,9 +358,10 @@ def main():
     ap.add_argument("--era", default="modern")
     ap.add_argument("--bundle", default=os.path.join(ROOT, "dist", "dcc_bundle.lua"))
     ap.add_argument("--out", default=None)
+    ap.add_argument("--no-ctld", action="store_true", help="leave CTLD out of the mission")
     a = ap.parse_args()
     out = a.out or os.path.join(ROOT, "dist", f"DCC_{a.theater}.miz")
-    build(a.theater, a.era, out, a.bundle)
+    build(a.theater, a.era, out, a.bundle, use_ctld=not a.no_ctld)
 
 
 if __name__ == "__main__":

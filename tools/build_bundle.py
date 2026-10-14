@@ -41,6 +41,7 @@ ENGINE = [
     "src/dcc_dcs_public.lua",
     "src/dcc_dcs_air.lua",
     "src/dcc_dcs_ground.lua",
+    "src/dcc_dcs_ctld.lua",
     "src/dcc_main.lua",
 ]
 

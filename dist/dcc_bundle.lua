@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.7.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.8.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.7.0",
+  version         = "0.8.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -226,6 +226,20 @@ DCC.config = {
     capSides  = 24,     -- polygon used for that limit
     fillAlpha = 0.12,   -- territory shading on the F10 map
     lineWidth = 3,      -- front line thickness style
+  },
+
+  -- CTLD (VEAF CTLD v2, built into the missions): helicopter logistics
+  ctld = {
+    enabled          = true,   -- use CTLD when the mission loads it (else our own Cargo menu)
+    crateSU          = 10,     -- every crate requested at a base costs that base this much supply
+    supplyCrateSU    = 10,     -- a supply crate unloaded at a friendly base adds this much
+    supplyWeight     = 500.01, -- kg; also CTLD's id for the supply crate
+    zoneRadiusAirbaseM = 1500, -- pickup / logistic zone around an airbase
+    zoneRadiusM      = 600,    -- around a town or carrier
+    dropKm           = 3,      -- troops or crates this close to a base count as delivered there
+    fobFarpKm        = 5,      -- a CTLD FOB this close to a town makes the town a FARP
+    fobChargeKm      = 40,     -- crates at a FOB are paid by the nearest own base this close
+    aaDefenceKm      = 3,      -- an AA system this close to an own base digs it in one level
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------
@@ -5346,6 +5360,9 @@ local function spotNear(id, k, radius)
 end
 
 local function nearestNodeOf(pos, side, maxM)
+  return B.nearestNodeOf(pos, side, maxM)
+end
+function B.nearestNodeOf(pos, side, maxM)
   local best, bestD
   for id, p in pairs(B.nodePos) do
     if not side or B.war.state.nodes[id].side == side then
@@ -5470,6 +5487,7 @@ local EFFECT = {
   CSAR = "Land within 150 m of the pilot (green smoke), then land at a friendly base. The aircraft is refunded.",
   LOGISTICS = "F10 > Missions > Cargo: load a supply crate at a friendly base and unload it at the target.",
 }
+B.EFFECT = EFFECT      -- other modules (CTLD) add or reword entries
 
 function B.brief(p, m)
   local pos = B.missionPos(m)
@@ -5581,7 +5599,7 @@ function B.buildMenu(p)
   missionCommands.addCommandForGroup(p.gid, "Leaderboard", root, B.showLeaderboard, p.unit)
   missionCommands.addCommandForGroup(p.gid, "Squadron leaderboard", root, B.showSquadrons, p.unit)
   local lift = (cat().lift or {})[p.type]
-  if lift then
+  if lift and not B.ctldActive then           -- with CTLD in the mission, CTLD's own menu does cargo
     local c = missionCommands.addSubMenuForGroup(p.gid, "Cargo", root)
     if lift.crates > 0 then missionCommands.addCommandForGroup(p.gid, "Load supply crate", c, B.loadCrate, p.unit) end
     if lift.troops > 0 then missionCommands.addCommandForGroup(p.gid, "Load troops", c, B.loadTroops, p.unit) end
@@ -8914,6 +8932,505 @@ function B.init(war, theater, catalog)
   baseInit(war, theater, catalog)
   B.batteries, B.skirmishes, B.forts, B.bridgeSeenDead = {}, {}, {}, {}
   B.findBridges()
+end
+
+end
+
+-- >>> src/dcc_dcs_ctld.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - DCS bridge: VEAF CTLD v2 as the helicopter
+-- logistics layer.  Load after dcc_dcs_ground.lua, before dcc_main.lua.
+-- ----------------------------------------------------------------------------
+-- The mission loads CTLD.lua (with ctld.dontInitialize = true) before our
+-- bundle. When CTLD is there, this module
+--   * configures it: no ME zones or pilot-name lists, CTLD's JTAC switched
+--     off (ours does CAS), and a "Supply crate" added to the crate list;
+--   * gives every own base a CTLD pickup (troops) and logistic (crates)
+--     zone, and moves them to the other side when the base is captured;
+--   * makes crates cost the base's supply (refused when the base is dry);
+--   * turns CTLD actions into war-model events:
+--       supply crate unloaded at an own base   -> supply delivered (LOGISTICS)
+--       FOB built next to a town               -> the town gets a FARP
+--       AA system set up next to an own base   -> base dug in one level
+--       troops picked up at a base             -> a platoon leaves the garrison
+--       troops unloaded at an own base         -> reinforcement
+--       troops unloaded at an enemy base       -> air assault
+--       troops unloaded in the field           -> tracked; lost if killed
+--       helicopter lost with troops on board   -> platoon lost
+--   * removes our own F10 "Cargo" menu (CTLD's menu replaces it).
+-- Without CTLD in the mission nothing here runs and the old Cargo menu stays.
+-- ============================================================================
+
+DCC = DCC or {}
+local B = DCC.dcs
+local U = DCC.util
+
+B.ctld = { zones = {}, zoneNode = {}, field = {}, hooked = false }
+
+local function CC() return DCC.config.ctld end
+local function ok(fn, ...) local s, r = pcall(fn, ...); if s then return r end end
+local function sideOf(coal) return coal == 2 and "blue" or (coal == 1 and "red" or nil) end
+local function coalOf(side) return side == "blue" and 2 or 1 end
+local function say(unit, text)
+  local g = unit and ok(unit.getGroup, unit)
+  local gid = g and ok(g.getID, g)
+  if gid then trigger.action.outTextForGroup(gid, text, 12) end
+end
+local function playerOf(uname) return uname and B.players[uname] end
+
+function B.ctldPresent()
+  return DCC.config.ctld.enabled ~= false and type(CTLDConfig) == "table" and type(ctld) == "table"
+    and type(ctld.initialize) == "function" and type(CTLDZoneManager) == "table"
+end
+
+-- ===========================================================================
+-- 1. Configuration (before ctld.initialize)
+-- ===========================================================================
+local function isJtacGroup(g)
+  return type(g) == "table" and (tonumber(g.jtac) or 0) > 0
+end
+
+function B.ctldConfigure()
+  local cfg = CTLDConfig.get()
+  cfg:load()                                         -- idempotent; parses the default YAML
+  local set = function(k, v) cfg:setSetting(k, v) end
+  -- our missions have no ME zones or named transport slots: every helicopter
+  -- type CTLD knows can lift, and zones come from the bases (section 2)
+  set("troopZones", {})
+  set("logisticUnits", {})
+  set("transportPilotNames", {})
+  set("wpZones", {})
+  set("aiZones", {})
+  set("extractableGroups", {})
+  -- troops come out of base garrisons only (a CTLD FOB or FARP is not a barracks)
+  set("troopPickupAtFOB", false)
+  set("troopPickupAtFARP", false)
+  -- our JTAC handles CAS; CTLD's JTACs (crates, drones, JTAC troops) are off
+  set("JTAC_LIMIT_BLUE", 0)
+  set("JTAC_LIMIT_RED", 0)
+  set("JTAC_dropEnabled", false)
+  local groups = {}
+  for _, g in ipairs(ctld.gs("loadableGroups") or {}) do
+    if not isJtacGroup(g) then groups[#groups + 1] = g end
+  end
+  set("loadableGroups", groups)
+  local crates = {}
+  for cat, list in pairs(ctld.gs("spawnableCrates") or {}) do
+    local keep = {}
+    for _, c in ipairs(list) do
+      if not c.isJTAC then keep[#keep + 1] = c end
+    end
+    if #keep > 0 then crates[cat] = keep end
+  end
+  -- the supply crate: never unpacked; unloaded at an own base it is supply
+  crates["Supply"] = { { unit = "DCC_SUPPLY", desc = string.format("Supply crate (%d SU)", CC().supplyCrateSU),
+                         weight = CC().supplyWeight, cratesRequired = 1, dccSupply = true } }
+  set("spawnableCrates", crates)
+end
+
+-- ===========================================================================
+-- 2. Zones follow base ownership
+-- ===========================================================================
+local function zoneRadius(id)
+  return (B.war.T.nodes[id].kind == "airbase") and CC().zoneRadiusAirbaseM or CC().zoneRadiusM
+end
+
+function B.ctldSyncZones()
+  local zm = CTLDZoneManager.getInstance()
+  local war = B.war
+  for _, id in ipairs(war.T.order) do
+    local ns, kind = war.state.nodes[id], war.T.nodes[id].kind
+    local side = ns.side
+    local want = (side == "blue" or side == "red") and kind ~= "carrier" and B.nodePos[id] and coalOf(side) or nil
+    local have = B.ctld.zones[id]
+    if have and have.coal ~= want then
+      ok(zm.unregisterLogistic, zm, have.name)
+      ok(zm.unregisterTroopZone, zm, have.name)
+      B.ctld.zones[id], B.ctld.zoneNode[have.name] = nil, nil
+      have = nil
+    end
+    if want and not have then
+      local p = B.nodePos[id]
+      local pt = { x = p.x, y = land.getHeight({ x = p.x, y = p.z }), z = p.z }
+      local name = war:nodeName(id)
+      ok(zm.registerFOBAsLogistic, zm, name, pt, zoneRadius(id), want)
+      ok(zm.registerFOBAsTroopZone, zm, name, pt, zoneRadius(id), want)
+      B.ctld.zones[id] = { name = name, coal = want }
+      B.ctld.zoneNode[name] = id
+    end
+  end
+end
+
+-- The base that pays for a crate requested at this point: our own zone, or
+-- the nearest own base behind a FOB.
+local function payingNode(pos, side)
+  for id, z in pairs(B.ctld.zones) do
+    if z.coal == coalOf(side) then
+      local p = B.nodePos[id]
+      local dx, dz = pos.x - p.x, pos.z - p.z
+      if math.sqrt(dx * dx + dz * dz) <= zoneRadius(id) then return id end
+    end
+  end
+  return B.nearestNodeOf(pos, side, CC().fobChargeKm * 1000)
+end
+
+-- ===========================================================================
+-- 3. Crates
+-- ===========================================================================
+local function charge(unit, nCrates)
+  local side = sideOf(ok(unit.getCoalition, unit))
+  local pos = ok(unit.getPoint, unit)
+  if not side or not pos then return true end
+  local node = payingNode(pos, side)
+  if not node then return true end                    -- a mission-maker zone: free
+  local su = CC().crateSU * nCrates
+  if B.war:takeCrate(node, su) <= 0 then
+    say(unit, string.format("%s has no supply to spare (%d SU needed, %d left).", B.war:nodeName(node), su,
+      math.floor(B.war.state.nodes[node].supply or 0)))
+    return false
+  end
+  return true, node, su
+end
+
+local function refund(node, su)
+  if node and su then
+    local ns = B.war.state.nodes[node]
+    ns.supply = (ns.supply or 0) + su
+  end
+end
+
+local function isSupply(desc) return type(desc) == "table" and desc.dccSupply == true end
+
+-- A supply crate on the ground near an own base: delivered.
+function B.ctldCrateDown(crate, pos)
+  if not (crate and isSupply(crate.descriptor) and pos) then return false end
+  local side = sideOf(crate.coalition)
+  if not side then return false end
+  local node = B.nearestNodeOf(pos, side, CC().dropKm * 1000)
+  if not node then return false end
+  B.war:deliverCrate(side, node, CC().supplyCrateSU)
+  local mgr = CTLDCrateManager.getInstance()
+  ok(mgr.destroyCrate, mgr, crate.crateName)
+  trigger.action.outTextForCoalition(coalOf(side), string.format("Supply crate delivered to %s (+%d SU).",
+    B.war:nodeName(node), CC().supplyCrateSU), 10)
+  return true
+end
+
+-- ===========================================================================
+-- 4. Troops
+-- ===========================================================================
+local function lastInTransit(tm, uname)
+  local list = tm._inTransit and tm._inTransit[uname]
+  return list and list[#list]
+end
+
+local function addToPlayer(uname, pids)
+  local p = playerOf(uname)
+  if p then for _, pid in ipairs(pids) do p.troops[#p.troops + 1] = pid end end
+end
+
+local function removeFromPlayers(pids)
+  for _, p in pairs(B.players) do
+    for _, pid in ipairs(pids) do U.removeValue(p.troops, pid) end
+  end
+end
+
+-- Platoons a CTLD troop template stands for: one per ~10 soldiers.
+function B.ctldPlatoonsFor(template)
+  return math.max(1, math.floor(((template and template.total) or 10) / 10 + 0.5))
+end
+
+local function pickPlatoons(node, n)
+  local war = B.war
+  local list = war:sortedGarrison(node, false)
+  local out = {}
+  -- mechanised first (they are the ones that ride), never the last platoon
+  for i = #list, 1, -1 do
+    if #out < n and #list - #out > 1 and war.state.platoons[list[i]].role == "MECH_PLT" then out[#out + 1] = list[i] end
+  end
+  for i = #list, 1, -1 do
+    local taken = false
+    for _, p in ipairs(out) do if p == list[i] then taken = true end end
+    if not taken and #out < n and #list - #out > 1 then out[#out + 1] = list[i] end
+  end
+  return out
+end
+
+-- Troops are on the ground at pos (landed, fast-roped or by parachute).
+function B.ctldTroopsDown(troopGroup, dcsGroup, pos, side)
+  local pids = troopGroup and troopGroup._dccPids
+  if not pids or troopGroup._dccDone then return end
+  troopGroup._dccDone = true
+  removeFromPlayers(pids)
+  local war = B.war
+  local gname = dcsGroup and ok(dcsGroup.getName, dcsGroup)
+  local node = pos and B.nearestNodeOf(pos, nil, CC().dropKm * 1000)
+  if node then
+    local r = war:dropPlatoons(pids, node, side)
+    if r == "reinforced" then
+      -- they join the garrison: the bubble spawns them with it from now on
+      timer.scheduleFunction(function()
+        local g = gname and ok(Group.getByName, gname)
+        if g and ok(g.isExist, g) then ok(g.destroy, g) end
+      end, nil, timer.getTime() + 60)
+      trigger.action.outTextForCoalition(coalOf(side), string.format("Troops landed at %s and joined the garrison.",
+        war:nodeName(node)), 10)
+    elseif r == "assault" then
+      trigger.action.outTextForCoalition(coalOf(side), string.format("Air assault on %s!", war:nodeName(node)), 15)
+    end
+    return
+  end
+  if gname then B.ctld.field[gname] = pids         -- out in the field: still carried
+  else for _, pid in ipairs(pids) do war:returnCarried(pid) end end   -- counted into an ME objective zone
+end
+
+-- Field troops killed -> lost; re-embarked -> handled by the embarkFromField hook.
+function B.ctldPollField()
+  for gname, pids in pairs(B.ctld.field) do
+    local g = ok(Group.getByName, gname)
+    local n = 0
+    if g and ok(g.isExist, g) then
+      for _, u in ipairs(ok(g.getUnits, g) or {}) do if ok(u.isExist, u) then n = n + 1 end end
+    end
+    if n == 0 then
+      for _, pid in ipairs(pids) do B.war:loseCarried(pid) end
+      B.ctld.field[gname] = nil
+    end
+  end
+end
+
+-- ===========================================================================
+-- 5. Hooks into CTLD
+-- ===========================================================================
+function B.ctldHook()
+  if B.ctld.hooked then return end
+  B.ctld.hooked = true
+  local TM, CM, VS = CTLDTroopManager, CTLDCrateManager, CTLDVehicleSpawner
+
+  -- troops board at one of our bases: platoons leave the garrison
+  local baseEmbark = TM.embarkFromTroopZone
+  TM.embarkFromTroopZone = function(self, unit, zone, template)
+    local node = zone and B.ctld.zoneNode[zone.zoneName or ""]
+    if not node or not B.war then return baseEmbark(self, unit, zone, template) end
+    local want = B.ctldPlatoonsFor(template)
+    local spare = #B.war.state.nodes[node].platoons - 1
+    if spare < want then
+      say(unit, string.format("%s cannot spare %d platoon(s) (%d to spare).", B.war:nodeName(node), want,
+        math.max(0, spare)))
+      return false
+    end
+    if not baseEmbark(self, unit, zone, template) then return false end
+    local uname = unit:getName()
+    local pids = pickPlatoons(node, want)
+    for _, pid in ipairs(pids) do
+      local rec = B.spawned[pid]
+      if rec then B.despawn(pid, rec) end
+      B.war:carryPlatoon(pid, uname)
+    end
+    local tg = lastInTransit(self, uname)
+    if tg then tg._dccPids = pids end
+    addToPlayer(uname, pids)
+    return true
+  end
+
+  -- every way troops leave a helicopter on the ground ends in deploy()
+  local baseDeploy = CTLDTroopGroup.deploy
+  CTLDTroopGroup.deploy = function(self, dcsGroup)
+    local r = baseDeploy(self, dcsGroup)
+    if self._dccPids and B.war then
+      local u1 = dcsGroup and ok(function() return dcsGroup:getUnits()[1] end)
+      local pos = u1 and ok(u1.getPoint, u1)
+      local s, e = pcall(B.ctldTroopsDown, self, dcsGroup, pos, sideOf(self.coalitionId))
+      if not s then U.log("ERROR ctld deploy: %s", tostring(e)) end
+    end
+    return r
+  end
+
+  -- picked up again from the field
+  local baseField = TM.embarkFromField
+  TM.embarkFromField = function(self, unit)
+    local coal = unit:getCoalition()
+    local before = {}
+    for _, n in ipairs((self._droppedGroups or {})[coal] or {}) do before[n] = true end
+    local r = baseField(self, unit)
+    if r then
+      local still = {}
+      for _, n in ipairs((self._droppedGroups or {})[coal] or {}) do still[n] = true end
+      for n in pairs(before) do
+        if not still[n] and B.ctld.field[n] then
+          local pids = B.ctld.field[n]
+          B.ctld.field[n] = nil
+          local tg = lastInTransit(self, unit:getName())
+          if tg then tg._dccPids, tg._dccDone = pids, nil end
+          addToPlayer(unit:getName(), pids)
+        end
+      end
+    end
+    return r
+  end
+
+  -- "return troops to base" at one of our zones: back into that garrison
+  local baseReturn = TM.returnToTroopZone
+  TM.returnToTroopZone = function(self, unit, zone)
+    local list = self._inTransit and self._inTransit[unit:getName()] or {}
+    local pids = {}
+    for _, g in ipairs(list) do for _, pid in ipairs(g._dccPids or {}) do pids[#pids + 1] = pid end end
+    local r = baseReturn(self, unit, zone)
+    if r and B.war and #pids > 0 then
+      local node = zone and B.ctld.zoneNode[zone.zoneName or ""]
+      removeFromPlayers(pids)
+      if node then B.war:dropPlatoons(pids, node, sideOf(unit:getCoalition()))
+      else for _, pid in ipairs(pids) do B.war:returnCarried(pid) end end
+    end
+    return r
+  end
+
+  -- crates cost supply at the base they are requested at
+  local baseSpawn = CM.spawnCrate
+  CM.spawnCrate = function(self, descriptor, position, coal, spawnedBy, spawnMethod, ...)
+    local node, su
+    if spawnMethod == "menu_ctld" and spawnedBy and B.war then
+      local u = ok(Unit.getByName, spawnedBy)
+      if u then
+        local paid
+        paid, node, su = charge(u, 1)
+        if not paid then return nil end
+      end
+    end
+    local crate = baseSpawn(self, descriptor, position, coal, spawnedBy, spawnMethod, ...)
+    if not crate then refund(node, su) end
+    return crate
+  end
+
+  if VS and VS.spawnVehicleForTransport then
+    local baseVeh = VS.spawnVehicleForTransport
+    VS.spawnVehicleForTransport = function(self, vehicleType, spawner, zone)
+      local node, su
+      if B.war and spawner then
+        local d = ok(CM.findDescriptorByTypeName, CM.getInstance(), vehicleType)
+        local paid
+        paid, node, su = charge(spawner, d and d.cratesRequired or 1)
+        if not paid then return false end
+      end
+      local r = baseVeh(self, vehicleType, spawner, zone)
+      if not r then refund(node, su) end
+      return r
+    end
+  end
+
+  -- a supply crate is never unpacked into anything
+  local baseUnpack = CM.unpackCrate
+  CM.unpackCrate = function(self, crateName, unpacker)
+    local crate = self.crates and self.crates[crateName]
+    if crate and isSupply(crate.descriptor) then
+      if not B.ctldCrateDown(crate, crate.position) then
+        say(unpacker, "Supply crates are delivered by unloading them at a friendly base.")
+      end
+      return
+    end
+    return baseUnpack(self, crateName, unpacker)
+  end
+  if CM._spawnUnpacked then
+    local baseSU = CM._spawnUnpacked
+    CM._spawnUnpacked = function(self, desc, ...)
+      if isSupply(desc) then return nil end
+      return baseSU(self, desc, ...)
+    end
+  end
+end
+
+function B.ctldSubscribe()
+  local ed = EventDispatcher.getInstance()
+  local function on(name, fn)
+    ed:subscribe(name, function(ev) if B.war then local s, e = pcall(fn, ev); if not s then U.log("ERROR ctld %s: %s", name, tostring(e)) end end end)
+  end
+  on("OnCrateUnloaded", function(ev) B.ctldCrateDown(ev.crate, ev.position) end)
+  on("OnCrateParachuteLanded", function(ev) B.ctldCrateDown(ev.crate, ev.position or (ev.crate and ev.crate.position)) end)
+  on("OnTroopsParachuteLanded", function(ev)
+    local tg = ev.troops
+    local pos = ev.positions and ev.positions[1]
+    if tg then B.ctldTroopsDown(tg, ev.spawnedGroup, pos, sideOf(tg.coalitionId)) end
+  end)
+  on("OnFOBDeployed", function(ev)
+    local side = sideOf(ev.fob and ev.fob.coalitionId)
+    local war = B.war
+    local node = side and ev.position and B.nearestNodeOf(ev.position, side, CC().fobFarpKm * 1000)
+    if node and war:canHaveFarp(node) and not war:farpAt(node) then
+      war.state.nodes[node].farp = { side = side, built = war.state.tick, ctld = ev.fob.name }
+      war.state.nodes[node].farpSU = nil
+      war:log("farp_built", side, string.format("%s helicopters built a FOB at %s - it is a FARP now",
+        side:upper(), war:nodeName(node)), { node = node })
+    end
+  end)
+  on("OnFOBDestroyed", function(ev)
+    local war = B.war
+    for _, id in ipairs(war.T.order) do
+      local ns = war.state.nodes[id]
+      if ns.farp and ns.farp.ctld and ev.fob and ns.farp.ctld == ev.fob.name then
+        ns.farp = nil
+        war:log("farp_lost", ns.side, string.format("The FOB at %s has been destroyed", war:nodeName(id)), { node = id })
+      end
+    end
+  end)
+  on("OnAASystemDeployed", function(ev)
+    local side = sideOf(ev.coalition)
+    local war = B.war
+    local node = side and ev.position and B.nearestNodeOf(ev.position, side, CC().aaDefenceKm * 1000)
+    if not node then return end
+    local ns = war.state.nodes[node]
+    local max = DCC.config.ground.fortMax
+    if (ns.fort or 0) < max then
+      ns.fort, ns.fortSince = (ns.fort or 0) + 1, war.state.tick
+      war:log("ctld_aa", side, string.format("%s set up a %s at %s - defences now level %d", side:upper(),
+        tostring(ev.systemName or "AA system"), war:nodeName(node), ns.fort), { node = node })
+    end
+  end)
+end
+
+-- ===========================================================================
+-- 6. Start-up and wiring
+-- ===========================================================================
+function B.ctldSetup()
+  B.ctldActive = false
+  if not B.ctldPresent() then return false end
+  if not ctld._dccInit then
+    local s, e = pcall(function()
+      B.ctldConfigure()
+      B.ctldHook()
+      ctld.initialize()
+      B.ctldSubscribe()
+    end)
+    if not s then
+      U.log("ERROR CTLD start failed, keeping the DCC cargo menu: %s", tostring(e))
+      return false
+    end
+    ctld._dccInit = true
+  end
+  B.ctldActive = true
+  B.ctld.zones, B.ctld.zoneNode, B.ctld.field = {}, {}, {}
+  B.ctldSyncZones()
+  B.EFFECT.LOGISTICS = "F10 > CTLD: request a Supply crate at a friendly base, fly it to the target and unload it there."
+  B.EFFECT.FARP = "F10 > CTLD: bring FOB crates (or supply crates) to the town and build it there."
+  local n = 0
+  for _ in pairs(B.ctld.zones) do n = n + 1 end
+  U.log("CTLD %s integrated: %d base zones", tostring(ctld.VERSION), n)
+  return true
+end
+
+local baseInit = B.init
+function B.init(war, theater, catalog)
+  baseInit(war, theater, catalog)
+  B.ctldSetup()
+end
+
+local basePoll = B.opsPoll
+function B.opsPoll()
+  basePoll()
+  if B.ctldActive then
+    B.ctldSyncZones()
+    B.ctldPollField()
+  end
 end
 
 end

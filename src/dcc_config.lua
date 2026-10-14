@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.7.0",
+  version         = "0.8.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -222,6 +222,20 @@ DCC.config = {
     capSides  = 24,     -- polygon used for that limit
     fillAlpha = 0.12,   -- territory shading on the F10 map
     lineWidth = 3,      -- front line thickness style
+  },
+
+  -- CTLD (VEAF CTLD v2, built into the missions): helicopter logistics
+  ctld = {
+    enabled          = true,   -- use CTLD when the mission loads it (else our own Cargo menu)
+    crateSU          = 10,     -- every crate requested at a base costs that base this much supply
+    supplyCrateSU    = 10,     -- a supply crate unloaded at a friendly base adds this much
+    supplyWeight     = 500.01, -- kg; also CTLD's id for the supply crate
+    zoneRadiusAirbaseM = 1500, -- pickup / logistic zone around an airbase
+    zoneRadiusM      = 600,    -- around a town or carrier
+    dropKm           = 3,      -- troops or crates this close to a base count as delivered there
+    fobFarpKm        = 5,      -- a CTLD FOB this close to a town makes the town a FARP
+    fobChargeKm      = 40,     -- crates at a FOB are paid by the nearest own base this close
+    aaDefenceKm      = 3,      -- an AA system this close to an own base digs it in one level
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------
