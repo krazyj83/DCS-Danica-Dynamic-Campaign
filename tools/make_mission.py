@@ -227,6 +227,24 @@ def build_naval(m, theater, cjtf, types):
 CTLD_DIR = os.path.join(ROOT, "vendor", "ctld")
 
 
+def fix_radio_frequencies(m):
+    """Every aircraft group on its type's own default radio frequency.
+
+    pydcs gives helicopter groups 127.5 MHz, which some types cannot tune (the UH-1H's
+    radio stops below it) and the Mission Editor then refuses to save the mission."""
+    fixed = 0
+    for coal in m.coalition.values():
+        for country in coal.countries.values():
+            for g in list(country.plane_group) + list(country.helicopter_group):
+                utype = g.units[0].unit_type if g.units else None
+                freq = getattr(utype, "radio_frequency", None)
+                if freq and g.frequency != freq:
+                    g.frequency = freq
+                    fixed += 1
+    if fixed:
+        print(f"  radio: {fixed} aircraft groups set to their type's default frequency")
+
+
 def build(theater_name, era, out, bundle, use_ctld=True, armoury="takeoff"):
     theater, catalog = load_data(theater_name, era)
     if theater_name not in TERRAINS:
@@ -347,6 +365,7 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="takeoff"):
         "Fly from any airbase your side owns (multiplayer: dynamic spawn) or from the fixed depot slots.\n"
         "F10 > Other > Campaign > Campaign status for the situation.")
 
+    fix_radio_frequencies(m)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     m.save(out)
 
