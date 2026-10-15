@@ -157,7 +157,7 @@ def latlon_point(m, lat, lon):
     return mapping.Point.from_latlng(mapping.LatLng(lat, lon), m.terrain)
 
 
-def build_farps(m, theater, catalog, cjtf):
+def build_farps(m, theater, catalog, cjtf, armoury="takeoff"):
     """Two invisible FARPs per town (one per coalition) with dynamic spawn and
     an EMPTY helicopter stock. The engine stocks the owner's FARP once players
     have built it (crates), and empties it when the town is lost."""
@@ -175,6 +175,7 @@ def build_farps(m, theater, catalog, cjtf):
             wh.dynamic_spawn = True
             wh.allow_hot_start = True
             wh.unlimited_aircrafts = False
+            wh.unlimited_munitions = armoury != "warehouse"
             wh.aircrafts = {"planes": {}, "helicopters": {t: {"initialAmount": 1}
                                                          for t in catalog["aircraft"][side].get("helicopters", [])}}
             m.warehouses.warehouses[int(g.units[0].id)] = wh.dict()
@@ -226,7 +227,7 @@ def build_naval(m, theater, cjtf, types):
 CTLD_DIR = os.path.join(ROOT, "vendor", "ctld")
 
 
-def build(theater_name, era, out, bundle, use_ctld=True):
+def build(theater_name, era, out, bundle, use_ctld=True, armoury="takeoff"):
     theater, catalog = load_data(theater_name, era)
     if theater_name not in TERRAINS:
         sys.exit(f"no pydcs terrain mapping for {theater_name}")
@@ -271,7 +272,7 @@ def build(theater_name, era, out, bundle, use_ctld=True):
         ap.dynamic_spawn = True
         ap.allow_hot_start = True
         ap.unlimited_aircrafts = False
-        ap.unlimited_munitions = True
+        ap.unlimited_munitions = armoury != "warehouse"   # warehouse: the engine stocks the shelves
         ap.unlimited_fuel = True
         own = stock["depot"] if node.get("depot") else stock["airbase"]
         warehouse = {"planes": {}, "helicopters": {}}
@@ -304,7 +305,7 @@ def build(theater_name, era, out, bundle, use_ctld=True):
     print(f"  AI templates: {', '.join(templates)}")
 
     # FARPs players can build at towns, and ships (carrier in the Gulf).
-    farps = build_farps(m, theater, catalog, cjtf)
+    farps = build_farps(m, theater, catalog, cjtf, armoury)
     naval = build_naval(m, theater, cjtf, types)
     print(f"  FARP sites: {farps}  naval slots: {len(naval)}")
 
@@ -321,6 +322,10 @@ def build(theater_name, era, out, bundle, use_ctld=True):
             if os.path.exists(os.path.join(CTLD_DIR, snd)):
                 m.map_resource.add_resource_file(os.path.join(CTLD_DIR, snd))
         print("  CTLD: included")
+    if armoury == "warehouse":
+        # test mission: warehouse armoury, its own saves, F10 > Armoury test
+        trig.add_action(DoScript(m.string("DCC_ARMOURY_MODE = 'warehouse'\nDCC_TEST_MISSION = true")))
+        print("  armoury: warehouse (limited munitions) - TEST MISSION")
     key = m.map_resource.add_resource_file(bundle)
     trig.add_action(DoScriptFile(key))
     m.triggerrules.triggers.append(trig)
@@ -359,9 +364,12 @@ def main():
     ap.add_argument("--bundle", default=os.path.join(ROOT, "dist", "dcc_bundle.lua"))
     ap.add_argument("--out", default=None)
     ap.add_argument("--no-ctld", action="store_true", help="leave CTLD out of the mission")
+    ap.add_argument("--armoury", choices=["takeoff", "warehouse"], default="takeoff",
+                    help="warehouse: limited munitions stocked by the engine (test mission, own saves)")
     a = ap.parse_args()
-    out = a.out or os.path.join(ROOT, "dist", f"DCC_{a.theater}.miz")
-    build(a.theater, a.era, out, a.bundle, use_ctld=not a.no_ctld)
+    suffix = "_ArmouryTest" if a.armoury == "warehouse" else ""
+    out = a.out or os.path.join(ROOT, "dist", f"DCC_{a.theater}{suffix}.miz")
+    build(a.theater, a.era, out, a.bundle, use_ctld=not a.no_ctld, armoury=a.armoury)
 
 
 if __name__ == "__main__":

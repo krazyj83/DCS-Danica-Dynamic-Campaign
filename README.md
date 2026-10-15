@@ -326,9 +326,28 @@ What a base can arm you with depends on its supply (share of its supply cap):
 | 30–60 % | + guided: IR missiles, laser / TV missiles and bombs (Hellfire, Maverick, GBU-12) | 0.5 SU each |
 | over 60 % | + advanced: radar missiles (AMRAAM, R-77), anti-radiation, GPS bombs, anti-ship, cruise | 1 SU each |
 
-You are told the base's armoury when you spawn (and **F10 → Support → Armoury at this base**). Taxi
-out with more than the base can supply and you get a warning; take off with it anyway and you are
-**recalled** (the aircraft is removed). `ext.armoury.enforce = false` makes it a charge only.
+You are told the base's armoury when you spawn (and **F10 → Support → Armoury at this base**).
+
+Two ways to enforce it (`ext.armoury.mode`):
+
+* **takeoff** (the normal missions, unlimited munitions): taxi out with more than the base can supply and
+  you get a warning; take off with it anyway and you are **recalled** (the aircraft is removed).
+  `ext.armoury.enforce = false` makes it a charge only.
+* **warehouse** (being tested — `DCC_Caucasus_ArmouryTest.miz`): munitions are limited and the engine stocks
+  every airbase's and FARP's shelf by its supply, so the **re-arm menu only offers what the base has**. Shelves
+  are topped up every 5 min; what pilots took since the last top-up is paid from the base's supply. Nobody is
+  ever removed. The engine asks DCS for its weapon names (`Warehouse.getResourceMap`, else a warehouse
+  inventory, else the catalogue's list), tests each one, and sorts them into tiers by name.
+
+**Testing the warehouse armoury** (the test mission keeps its own saves in `Saved Games\DCS\DCC_test`
+and ignores the map rotation, so the real war is not touched):
+
+1. Load `DCC_Caucasus_ArmouryTest.miz` on the server and join.
+2. **F10 → Other → Armoury test → Report: what DCS gave us** — note *Names from*, *accepted* and the tier counts.
+3. *Depot supply 10 %* → spawn at the base the message names (Batumi for BLUE, Sochi-Adler for RED) and open the re-arm menu: only bombs, rockets, tanks, pods.
+4. *Depot supply 45 %* → re-open it: guided weapons appear (Mavericks, GBU-12, AIM-9, Hellfire / Vikhr).
+5. *Depot supply 90 %* → AMRAAM / R-77, HARM, JDAM appear.
+6. If a weapon sits in the wrong tier or is missing, *List the names* shows the DCS name to fix.
 
 ## Support on call and ranks
 
@@ -696,6 +715,7 @@ python tools/run_lua.py tests/test_dcs_world.lua    # weather, night, AI escorts
 python tests/test_companion.py                      # web map and Discord feed (with a fake Discord): 7 tests
 python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended, bonus and report: 40 checks
 python tools/run_lua.py tests/test_ext.lua          # armoury, runways, SAM moves, crews, support, mines, veterancy, industry, partisans, scaling, wrecks: 67 checks
+python tools/run_lua.py tests/test_armoury.lua      # warehouse armoury: names from DCS, tiers, shelves, test menu: 29 checks
 python tools/run_lua.py tests/test_ctld.lua         # the real CTLD.lua on the fake DCS: zones, crates, troops, FOB, AA, vehicles joining bases or assaults, light-vehicle loads, bridge kits, minefields: 60 checks
 
 python tools/run_lua.py tools/sim.lua 4320 2026 docs/sim_history.json   # simulate 15 days
@@ -745,6 +765,7 @@ src/
   dcc_dcs_ctld.lua    DCS bridge: CTLD set-up, base zones, crate costs, troops, FOBs and AA into the war
   dcc_dcs_ext_air.lua DCS bridge: armoury, runway bombs, shoot and scoot, AI crews, prisoners, Support menu, ranks, wrecks
   dcc_dcs_ext_ground.lua DCS bridge: bridge kits, minefields, industry sites, partisan cells
+  dcc_dcs_armoury.lua DCS bridge: warehouse armoury (weapon names, tiers, shelves) and F10 > Armoury test
   dcc_main.lua        start-up and the 30 s / 5 min loops
   dcc_loader.lua      development loader
 theaters/*.lua          Caucasus (hand-made), Syria, Persian Gulf, Cold War Germany (generated)

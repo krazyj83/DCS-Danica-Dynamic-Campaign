@@ -44,6 +44,7 @@ local files = {
   [[src\dcc_dcs_ctld.lua]],
   [[src\dcc_dcs_ext_air.lua]],
   [[src\dcc_dcs_ext_ground.lua]],
+  [[src\dcc_dcs_armoury.lua]],
   [[src\dcc_main.lua]],
   [[catalogs\modern.lua]],
   [[theaters\caucasus.lua]],
