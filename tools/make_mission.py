@@ -225,6 +225,7 @@ def build_naval(m, theater, cjtf, types):
 
 
 CTLD_DIR = os.path.join(ROOT, "vendor", "ctld")
+SCRIPTS_DIR = os.path.join(ROOT, "tools", "mission_scripts")
 
 
 def fix_radio_frequencies(m):
@@ -334,7 +335,8 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="takeoff"):
     ctld_lua = os.path.join(CTLD_DIR, "CTLD.lua")
     if use_ctld and os.path.exists(ctld_lua):
         # CTLD loads first but does not start: the engine sets it up for the war, then starts it.
-        trig.add_action(DoScript(m.string("ctld = ctld or {}; ctld.dontInitialize = true")))
+        # (a script file, not DO SCRIPT text: DCS ran the text's dictionary key instead of the text)
+        trig.add_action(DoScriptFile(m.map_resource.add_resource_file(os.path.join(SCRIPTS_DIR, "dcc_ctld_wait.lua"))))
         trig.add_action(DoScriptFile(m.map_resource.add_resource_file(ctld_lua)))
         for snd in ("beacon.ogg", "beaconsilent.ogg"):      # CTLD radio beacons
             if os.path.exists(os.path.join(CTLD_DIR, snd)):
@@ -342,7 +344,7 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="takeoff"):
         print("  CTLD: included")
     if armoury == "warehouse":
         # test mission: warehouse armoury, its own saves, F10 > Armoury test
-        trig.add_action(DoScript(m.string("DCC_ARMOURY_MODE = 'warehouse'; DCC_TEST_MISSION = true")))
+        trig.add_action(DoScriptFile(m.map_resource.add_resource_file(os.path.join(SCRIPTS_DIR, "dcc_test_mode.lua"))))
         print("  armoury: warehouse (limited munitions) - TEST MISSION")
     key = m.map_resource.add_resource_file(bundle)
     trig.add_action(DoScriptFile(key))
