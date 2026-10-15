@@ -334,7 +334,7 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="takeoff"):
     ctld_lua = os.path.join(CTLD_DIR, "CTLD.lua")
     if use_ctld and os.path.exists(ctld_lua):
         # CTLD loads first but does not start: the engine sets it up for the war, then starts it.
-        trig.add_action(DoScript(m.string("ctld = ctld or {}\nctld.dontInitialize = true")))
+        trig.add_action(DoScript(m.string("ctld = ctld or {}; ctld.dontInitialize = true")))
         trig.add_action(DoScriptFile(m.map_resource.add_resource_file(ctld_lua)))
         for snd in ("beacon.ogg", "beaconsilent.ogg"):      # CTLD radio beacons
             if os.path.exists(os.path.join(CTLD_DIR, snd)):
@@ -342,7 +342,7 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="takeoff"):
         print("  CTLD: included")
     if armoury == "warehouse":
         # test mission: warehouse armoury, its own saves, F10 > Armoury test
-        trig.add_action(DoScript(m.string("DCC_ARMOURY_MODE = 'warehouse'\nDCC_TEST_MISSION = true")))
+        trig.add_action(DoScript(m.string("DCC_ARMOURY_MODE = 'warehouse'; DCC_TEST_MISSION = true")))
         print("  armoury: warehouse (limited munitions) - TEST MISSION")
     key = m.map_resource.add_resource_file(bundle)
     trig.add_action(DoScriptFile(key))

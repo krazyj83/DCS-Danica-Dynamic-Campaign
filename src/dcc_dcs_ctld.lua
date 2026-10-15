@@ -582,6 +582,10 @@ function B.ctldSetup()
   B.ctldActive = false
   if not B.ctldPresent() then return false end
   if not ctld._dccInit then
+    if CTLDPlayerManager and CTLDPlayerManager._instance then
+      U.log("ERROR CTLD started on its own before the campaign set it up (the mission's DO SCRIPT "
+        .. "'ctld.dontInitialize = true' did not run) - CTLD keeps its default settings")
+    end
     local s, e = pcall(function()
       B.ctldConfigure()
       B.ctldHook()
