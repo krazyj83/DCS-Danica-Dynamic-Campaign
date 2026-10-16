@@ -184,6 +184,7 @@ trigger.action.explosion = function(p, power) MOCK.explosions[#MOCK.explosions +
 for _, ab in pairs(MOCK.airbases) do
   ab.getRunways = function(self) return { { position = { x = self.p.x, y = 0, z = self.p.z }, course = 0, length = 2500, width = 60 } } end
 end
+DCC_ARMOURY_MODE = "takeoff"     -- this file tests the take-off variant (test_armoury.lua the warehouse one)
 MOCK.UnitMT.getAmmo = function(self) return self.ammo end
 MOCK.UnitMT.hasAttribute = function(self, a) return self.attrs and self.attrs[a] == true end
 

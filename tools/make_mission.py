@@ -157,7 +157,7 @@ def latlon_point(m, lat, lon):
     return mapping.Point.from_latlng(mapping.LatLng(lat, lon), m.terrain)
 
 
-def build_farps(m, theater, catalog, cjtf, armoury="takeoff"):
+def build_farps(m, theater, catalog, cjtf, armoury="warehouse"):
     """Two invisible FARPs per town (one per coalition) with dynamic spawn and
     an EMPTY helicopter stock. The engine stocks the owner's FARP once players
     have built it (crates), and empties it when the town is lost."""
@@ -246,7 +246,7 @@ def fix_radio_frequencies(m):
         print(f"  radio: {fixed} aircraft groups set to their type's default frequency")
 
 
-def build(theater_name, era, out, bundle, use_ctld=True, armoury="takeoff"):
+def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", test=False):
     theater, catalog = load_data(theater_name, era)
     if theater_name not in TERRAINS:
         sys.exit(f"no pydcs terrain mapping for {theater_name}")
@@ -342,10 +342,13 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="takeoff"):
             if os.path.exists(os.path.join(CTLD_DIR, snd)):
                 m.map_resource.add_resource_file(os.path.join(CTLD_DIR, snd))
         print("  CTLD: included")
-    if armoury == "warehouse":
-        # test mission: warehouse armoury, its own saves, F10 > Armoury test
+    if armoury == "takeoff":
+        trig.add_action(DoScriptFile(m.map_resource.add_resource_file(os.path.join(SCRIPTS_DIR, "dcc_armoury_takeoff.lua"))))
+    if test:
+        # test mission: its own saves, no rotation, F10 > Armoury test
         trig.add_action(DoScriptFile(m.map_resource.add_resource_file(os.path.join(SCRIPTS_DIR, "dcc_test_mode.lua"))))
-        print("  armoury: warehouse (limited munitions) - TEST MISSION")
+        print("  TEST MISSION (own saves, F10 > Armoury test)")
+    print(f"  armoury: {armoury}")
     key = m.map_resource.add_resource_file(bundle)
     trig.add_action(DoScriptFile(key))
     m.triggerrules.triggers.append(trig)
@@ -385,12 +388,15 @@ def main():
     ap.add_argument("--bundle", default=os.path.join(ROOT, "dist", "dcc_bundle.lua"))
     ap.add_argument("--out", default=None)
     ap.add_argument("--no-ctld", action="store_true", help="leave CTLD out of the mission")
-    ap.add_argument("--armoury", choices=["takeoff", "warehouse"], default="takeoff",
-                    help="warehouse: limited munitions stocked by the engine (test mission, own saves)")
+    ap.add_argument("--armoury", choices=["takeoff", "warehouse"], default="warehouse",
+                    help="warehouse (default): limited munitions, shelves stocked by base supply; "
+                         "takeoff: unlimited munitions, recall at take-off")
+    ap.add_argument("--test", action="store_true",
+                    help="armoury test mission: own saves (DCC_test), no rotation, F10 > Armoury test")
     a = ap.parse_args()
-    suffix = "_ArmouryTest" if a.armoury == "warehouse" else ""
+    suffix = "_ArmouryTest" if a.test else ""
     out = a.out or os.path.join(ROOT, "dist", f"DCC_{a.theater}{suffix}.miz")
-    build(a.theater, a.era, out, a.bundle, use_ctld=not a.no_ctld, armoury=a.armoury)
+    build(a.theater, a.era, out, a.bundle, use_ctld=not a.no_ctld, armoury=a.armoury, test=a.test)
 
 
 if __name__ == "__main__":

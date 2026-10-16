@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.12.0",
+  version         = "0.13.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -237,9 +237,10 @@ DCC.config = {
   ext = {
     -- weapons a base can arm aircraft with, by its supply (share of its cap)
     armoury = { guidedAt = 0.3, advancedAt = 0.6, guidedSU = 0.5, advancedSU = 1,
-                mode = "takeoff",      -- "takeoff": warn when taxiing, recall at take-off (unlimited munitions)
-                                       -- "warehouse": the re-arm menu only offers what is on the shelf
-                                       --              (mission built with --armoury warehouse)
+                mode = "warehouse",    -- "warehouse": limited munitions, the re-arm menu only offers what
+                                       --   is on the shelf (tested on a server, Oct 2026)
+                                       -- "takeoff": unlimited munitions, warn when taxiing, recall at
+                                       --   take-off (missions built with --armoury takeoff)
                 enforce = true,        -- takeoff mode: false = charge only, never recall
                 stock = { basic = 100, guided = 16, advanced = 8 },   -- per weapon type per base (depots x2)
                 testMenu = false },    -- F10 > Armoury test (on in the test mission)

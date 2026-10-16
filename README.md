@@ -328,18 +328,18 @@ What a base can arm you with depends on its supply (share of its supply cap):
 
 You are told the base's armoury when you spawn (and **F10 → Support → Armoury at this base**).
 
-Two ways to enforce it (`ext.armoury.mode`):
+The missions have **limited munitions**: the engine stocks every airbase's and FARP's shelf by its
+supply, so **the re-arm menu only offers what the base has** ("NOT AVAILABLE" otherwise). Shelves are
+topped up every 5 min (16 of each guided and 8 of each advanced weapon type per base, double at depots);
+what pilots took since the last top-up is paid from the base's supply. When supply drops, the higher tier
+comes off the shelf. Nobody is ever removed. Bombs, rockets, launchers, pods and tanks are always there.
+The engine gets the weapon list from DCS itself (`Warehouse.getResourceMap`, 1537 types on a 2026 server)
+and sorts each into a tier by its DCS category, then its name.
 
-* **takeoff** (the normal missions, unlimited munitions): taxi out with more than the base can supply and
-  you get a warning; take off with it anyway and you are **recalled** (the aircraft is removed).
-  `ext.armoury.enforce = false` makes it a charge only.
-* **warehouse** (being tested — `DCC_Caucasus_ArmouryTest.miz`): munitions are limited and the engine stocks
-  every airbase's and FARP's shelf by its supply, so the **re-arm menu only offers what the base has**. Shelves
-  are topped up every 5 min; what pilots took since the last top-up is paid from the base's supply. Nobody is
-  ever removed. The engine asks DCS for its weapon names (`Warehouse.getResourceMap`, else a warehouse
-  inventory, else the catalogue's list), tests each one, and sorts them into tiers by name.
+(`make_mission.py --armoury takeoff` builds the older variant instead: unlimited munitions, a warning when
+you taxi with weapons the base cannot supply, and a recall at take-off.)
 
-**Testing the warehouse armoury** (the test mission keeps its own saves in `Saved Games\DCS\DCC_test`
+**Re-testing the armoury** (`make_mission.py --test` builds `DCC_Caucasus_ArmouryTest.miz`; the test mission keeps its own saves in `Saved Games\DCS\DCC_test`
 and ignores the map rotation, so the real war is not touched):
 
 1. Load `DCC_Caucasus_ArmouryTest.miz` on the server and join.
