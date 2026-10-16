@@ -70,6 +70,11 @@ check("GBU-12 is guided, GBU-38 (GPS) advanced", B.weaponTier("weapons.bombs.GBU
   and B.weaponTier("weapons.bombs.GBU_38") == "advanced")
 check("Mk-82, rockets and tanks are basic", B.weaponTier("weapons.bombs.Mk_82") == "basic"
   and B.weaponTier("weapons.nurs.HYDRA_70_M151") == "basic" and B.weaponTier("weapons.droptanks.FuelTank_350L") == "basic")
+check("launcher adapters are basic (always on the shelf)", B.weaponTier("weapons.adapters.9M114-PILON") == "basic"
+  and B.weaponTier("weapons.adapters.CHAP_HOT3LN") == "basic")
+check("a dumb cluster bomb named like a missile stays basic", B.weaponTier("weapons.bombs.AB_250_2_SD_10A") == "basic")
+check("pods and tanks are basic", B.weaponTier("weapons.containers.AN_AAQ_28_LITENING") == "basic")
+check("APKWS rockets are guided", B.weaponTier("weapons.nurs.AGR_20A") == "guided")
 check("R-77 advanced, R-73 and Vikhr guided", B.weaponTier("weapons.missiles.R_77") == "advanced"
   and B.weaponTier("weapons.missiles.R_73") == "guided" and B.weaponTier("weapons.missiles.Vikhr_M") == "guided")
 

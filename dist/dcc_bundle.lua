@@ -11382,29 +11382,41 @@ function B.armWarehouseMode() return AC().mode == "warehouse" end
 -- ===========================================================================
 -- Tier of a weapon by its DCS resource name
 -- ===========================================================================
-local ADV = { "aim_120", "aim120", "aim_7", "aim7", "aim_54", "aim54", "r_77", "r-77", "r_27", "r-27", "sd_10", "sd-10",
-              "pl_12", "r_33", "r_37", "r_40", "agm_88", "harm", "kh_58", "kh-58", "kh_25mp", "kh_31", "kh-31",
-              "agm_84", "harpoon", "slam", "kh_35", "kh_59", "agm_154", "jsow", "gbu_31", "gbu_32", "gbu_38", "gbu_54",
-              "jdam", "kab_500s", "ls_6", "ls-6", "c_802", "c-802", "yj_", "gb_6", "agm_158", "storm_shadow", "scalp",
-              "c_701ir", "brimstone", "aim_260", "meteor", "derby", "mica_em", "super_530d" }
-local GUIDED = { "aim_9", "aim9", "r_73", "r-73", "r_60", "r-60", "r_13", "r-13", "r_3s", "pl_5", "pl-5", "pl_8", "pl-8",
-                 "mistral", "stinger", "fim_92", "igla", "aim_92", "agm_65", "maverick", "agm_114", "hellfire",
-                 "vikhr", "9m127", "ataka", "9m120", "9m114", "kh_25", "kh-25", "kh_29", "kh-29", "kh_23", "gbu_", "kab_",
-                 "apkws", "agr_20", "bgm_71", "tow", "s_25l", "c_701", "c-701", "c_705", "agm_62", "walleye",
-                 "mica_ir", "magic", "r_550", "sa342" , "hot3", "hot_3", "lgb", "paveway", "aim_132", "asraam", "iris" }
-local ALWAYS = { "droptank", "fuel_tank", "fueltank", "containers", "pod", "smoke", "illum", "chaff", "flare", "gun",
-                 "shells", "cannon" }
+-- Missiles: every missile is at least "guided"; these are "advanced"
+-- (radar-guided air-to-air, anti-radiation, anti-ship, cruise, stand-off).
+local ADV_MISSILE = { "aim_120", "aim120", "aim-120", "aim_7", "aim7", "aim-7", "aim_54", "aim54", "aim-54", "r_77", "r-77",
+              "r_27", "r-27", "sd_10", "sd-10", "pl_12", "pl-12", "r_33", "r-33", "r_37", "r-37", "r_40", "r-40",
+              "agm_88", "agm-88", "harm", "kh_58", "kh-58", "x_58", "kh_25mp", "kh-25mp", "x_25mp", "kh_31", "kh-31", "x_31",
+              "agm_84", "agm-84", "harpoon", "slam", "kh_35", "kh-35", "x_35", "kh_59", "kh-59", "x_59", "agm_154", "agm-154",
+              "c_802", "c-802", "yj_", "yj-", "agm_158", "storm_shadow", "scalp", "aim_260", "aim-260", "meteor", "derby",
+              "mica_em", "super_530d", "super530d", "lj_7", "cm-400", "cm_400", "c_701ir" }
+-- Bombs: unguided unless they match these; "advanced" first (GPS / glide), then "guided" (laser / TV).
+local ADV_BOMB = { "gbu_31", "gbu-31", "gbu_32", "gbu-32", "gbu_38", "gbu-38", "gbu_39", "gbu-39", "gbu_54", "gbu-54",
+                   "gbu_53", "jdam", "kab_500s", "kab-500s", "ls_6", "ls-6", "gb_6", "gb-6", "agm_154", "jsow", "lj_7" }
+local GUIDED_BOMB = { "gbu_", "gbu-", "kab_", "kab-", "lgb", "paveway", "bgl", "agm_62", "walleye" }
+-- Rockets: unguided unless laser-guided
+local GUIDED_ROCKET = { "apkws", "agr_20", "agr-20" }
 
 local function has(name, list)
   for _, p in ipairs(list) do if name:find(p, 1, true) then return true end end
   return false
 end
 
+-- By DCS's own category first (weapons.<category>.<name>), then by name.
+-- Adapters, launchers, pods, tanks, guns and everything else are "basic":
+-- always on the shelf, so a loadout never fails for want of a pylon.
 function B.weaponTier(name)
   local n = string.lower(name)
-  if has(n, ALWAYS) then return "basic" end
-  if has(n, ADV) then return "advanced" end
-  if has(n, GUIDED) then return "guided" end
+  local cat = n:match("^weapons%.([^%.]+)%.") or ""
+  if cat == "missiles" then
+    return has(n, ADV_MISSILE) and "advanced" or "guided"
+  elseif cat == "bombs" then
+    if has(n, ADV_BOMB) then return "advanced" end
+    if has(n, GUIDED_BOMB) then return "guided" end
+    return "basic"
+  elseif cat == "nurs" or cat == "rockets" then
+    return has(n, GUIDED_ROCKET) and "guided" or "basic"
+  end
   return "basic"
 end
 
