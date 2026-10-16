@@ -233,7 +233,7 @@ DCC.config = {
   territory = {
     reachKm   = 75,     -- a base claims ground at most this far (keeps territory off open sea)
     capSides  = 24,     -- polygon used for that limit
-    fillAlpha = 0.25,   -- territory shading on the F10 map (0 = none, 1 = solid)
+    fillAlpha = 0.35,   -- territory shading on the F10 map (0 = none, 1 = solid)
     lineWidth = 3,      -- front line thickness style
   },
 

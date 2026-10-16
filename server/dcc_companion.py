@@ -245,7 +245,7 @@ function draw(d){
   layer.clearLayers();
   const pts=[];
   for(const t of d.territory||[]){const c=t.side==='blue'?css('--blue'):css('--red');
-    L.polygon(t.poly,{stroke:false,fillColor:c,fillOpacity:.25,interactive:false}).addTo(layer)}
+    L.polygon(t.poly,{stroke:false,fillColor:c,fillOpacity:.35,interactive:false}).addTo(layer)}
   for(const f of d.front||[]){L.polyline(f,{color:css('--front'),weight:4,opacity:.95,interactive:false}).addTo(layer)}
   for(const n of d.nodes||[]){
     const c=n.side==='blue'?css('--blue'):css('--red');pts.push([n.lat,n.lon]);
