@@ -121,7 +121,7 @@ check("an aircraft that took off is never removed", viper.alive ~= false)
 print("F10 > Armoury test")
 local items = {}
 for _, it in ipairs(MOCK.menus) do items[it.name] = it end
-check("the test menu is there", items["Report: what DCS gave us"] ~= nil and items["Depot supply 90 % (advanced)"] ~= nil)
+check("the test menu is there", items["Report: what DCS gave us"] ~= nil and items["All bases 90 % supply (advanced)"] ~= nil)
 local n0 = #MOCK.texts
 items["Report: what DCS gave us"].fn(items["Report: what DCS gave us"].arg)
 local rep = MOCK.texts[#MOCK.texts]
@@ -131,9 +131,15 @@ items["List the names (next page)"].fn()
 check("the names can be listed", MOCK.texts[#MOCK.texts]:find("AIM_120C", 1, true) ~= nil)
 items["Stock at my side's bases"].fn(items["Stock at my side's bases"].arg)
 check("stock per base", MOCK.texts[#MOCK.texts]:find("types on the shelf", 1, true) ~= nil)
-local it = items["Depot supply 90 % (advanced)"]
+local it = items["All bases 90 % supply (advanced)"]
 it.fn(it.arg)
-check("test button: a depot to 90 %, tier advanced", MOCK.texts[#MOCK.texts]:find("advanced", 1, true) ~= nil)
+check("test button: all bases to 90 %, tier advanced", MOCK.texts[#MOCK.texts]:find("advanced", 1, true) ~= nil)
+local other
+for _, id in ipairs(war.T.order) do
+  if war.state.nodes[id].side == it.arg.side and B.airbases[id] and not war.T.nodes[id].depot then other = id; break end
+end
+local owh = MOCK.airbases[B.airbases[other]].wh
+check("...a plain airbase too, not only the depot: HARMs on its shelf", (owh.items["weapons.missiles.AGM_88C"] or 0) > 0, other)
 
 print("Without getResourceMap: inventory, then the catalogue")
 Warehouse = nil

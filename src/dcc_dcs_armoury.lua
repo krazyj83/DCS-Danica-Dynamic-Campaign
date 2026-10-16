@@ -279,18 +279,18 @@ function B.armouryBaseReport(side)
 end
 
 function B.armourySetSupply(args)
-  -- test helper: set the nearest base of a side to a supply share, restock now
-  local war = B.war
+  -- test helper: every base of a side to a supply share, restock now
+  local war, n = B.war, 0
   for _, id in ipairs(war.T.order) do
     local ns = war.state.nodes[id]
-    if ns.side == args.side and B.airbases and B.airbases[id] and war.T.nodes[id].depot then
+    if ns.side == args.side then
       ns.supply = war:supplyCap(id) * args.share
-      B.restockArmoury()
-      trigger.action.outText(string.format("TEST: %s supply set to %d%% - tier %s. Re-open the re-arm menu.",
-        war:nodeName(id), math.floor(args.share * 100), war:armouryTier(id)), 20)
-      return
+      n = n + 1
     end
   end
+  B.restockArmoury()
+  trigger.action.outText(string.format("TEST: all %d %s bases at %d%% supply - tier %s. Re-open the re-arm menu.",
+    n, args.side:upper(), math.floor(args.share * 100), args.tier), 20)
 end
 
 function B.addArmouryTestMenu()
@@ -300,9 +300,12 @@ function B.addArmouryTestMenu()
     missionCommands.addCommandForCoalition(c, "Report: what DCS gave us", root, B.armouryReport)
     missionCommands.addCommandForCoalition(c, "List the names (next page)", root, B.armouryListPage)
     missionCommands.addCommandForCoalition(c, "Stock at my side's bases", root, B.armouryBaseReport, side)
-    missionCommands.addCommandForCoalition(c, "Depot supply 10 % (basic)", root, B.armourySetSupply, { side = side, share = 0.1 })
-    missionCommands.addCommandForCoalition(c, "Depot supply 45 % (guided)", root, B.armourySetSupply, { side = side, share = 0.45 })
-    missionCommands.addCommandForCoalition(c, "Depot supply 90 % (advanced)", root, B.armourySetSupply, { side = side, share = 0.9 })
+    missionCommands.addCommandForCoalition(c, "All bases 10 % supply (basic)", root, B.armourySetSupply,
+      { side = side, share = 0.1, tier = "basic" })
+    missionCommands.addCommandForCoalition(c, "All bases 45 % supply (guided)", root, B.armourySetSupply,
+      { side = side, share = 0.45, tier = "guided" })
+    missionCommands.addCommandForCoalition(c, "All bases 90 % supply (advanced)", root, B.armourySetSupply,
+      { side = side, share = 0.9, tier = "advanced" })
   end
 end
 

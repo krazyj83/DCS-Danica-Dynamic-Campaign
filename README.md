@@ -344,9 +344,9 @@ and ignores the map rotation, so the real war is not touched):
 
 1. Load `DCC_Caucasus_ArmouryTest.miz` on the server and join.
 2. **F10 → Other → Armoury test → Report: what DCS gave us** — note *Names from*, *accepted* and the tier counts.
-3. *Depot supply 10 %* → spawn at the base the message names (Batumi for BLUE, Sochi-Adler for RED) and open the re-arm menu: only bombs, rockets, tanks, pods.
-4. *Depot supply 45 %* → re-open it: guided weapons appear (Mavericks, GBU-12, AIM-9, Hellfire / Vikhr).
-5. *Depot supply 90 %* → AMRAAM / R-77, HARM, JDAM appear.
+3. *All bases 10 % supply* → spawn anywhere on your side and open the re-arm menu: only bombs, rockets, tanks, pods.
+4. *All bases 45 % supply* → re-open it: guided weapons appear (Mavericks, GBU-12, AIM-9, Hellfire / Vikhr).
+5. *All bases 90 % supply* → AMRAAM / R-77, HARM, JDAM appear.
 6. If a weapon sits in the wrong tier or is missing, *List the names* shows the DCS name to fix.
 
 ## Support on call and ranks
