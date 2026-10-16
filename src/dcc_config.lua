@@ -229,7 +229,7 @@ DCC.config = {
   territory = {
     reachKm   = 75,     -- a base claims ground at most this far (keeps territory off open sea)
     capSides  = 24,     -- polygon used for that limit
-    fillAlpha = 0.12,   -- territory shading on the F10 map
+    fillAlpha = 0.25,   -- territory shading on the F10 map (0 = none, 1 = solid)
     lineWidth = 3,      -- front line thickness style
   },
 
@@ -293,8 +293,8 @@ DCC.config = {
   -- Drawing (F10 map) -----------------------------------------------------------
   markIdBase       = 7000000,  -- F10 mark ids used by the engine start here
   colours = {
-    blue  = { 0.15, 0.45, 1.00, 1.0 },
-    red   = { 1.00, 0.20, 0.15, 1.0 },
+    blue  = { 0.137, 0.451, 0.957, 1.0 },   -- #2373F4
+    red   = { 0.875, 0.188, 0.110, 1.0 },   -- #DF301C
     front = { 1.00, 0.85, 0.10, 1.0 },
   },
 

@@ -200,7 +200,7 @@ PAGE = r"""<!doctype html>
 <title>Danica Dynamic Campaign</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-:root{--bg:#f4f1ea;--panel:#fffdf8;--ink:#1d2329;--muted:#66707a;--line:#ddd6c8;--blue:#2a6fdb;--red:#d93a2b;--front:#e0a800}
+:root{--bg:#f4f1ea;--panel:#fffdf8;--ink:#1d2329;--muted:#66707a;--line:#ddd6c8;--blue:#2373F4;--red:#DF301C;--front:#e0a800}
 @media (prefers-color-scheme:dark){:root{--bg:#14181c;--panel:#1c2227;--ink:#e8e6e1;--muted:#98a2ab;--line:#2c343b}}
 *{box-sizing:border-box}html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
 font:14px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -245,7 +245,7 @@ function draw(d){
   layer.clearLayers();
   const pts=[];
   for(const t of d.territory||[]){const c=t.side==='blue'?css('--blue'):css('--red');
-    L.polygon(t.poly,{stroke:false,fillColor:c,fillOpacity:.16,interactive:false}).addTo(layer)}
+    L.polygon(t.poly,{stroke:false,fillColor:c,fillOpacity:.25,interactive:false}).addTo(layer)}
   for(const f of d.front||[]){L.polyline(f,{color:css('--front'),weight:4,opacity:.95,interactive:false}).addTo(layer)}
   for(const n of d.nodes||[]){
     const c=n.side==='blue'?css('--blue'):css('--red');pts.push([n.lat,n.lon]);
