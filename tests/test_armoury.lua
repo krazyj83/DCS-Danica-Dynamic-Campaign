@@ -88,7 +88,7 @@ ns.supply = cap * 0.1
 B.restockArmoury()
 check("dry base: Mk-82 on the shelf", wh.items["weapons.bombs.Mk_82"] == stock.basic * big)
 check("...no GBU-12, no AMRAAM", (wh.items["weapons.bombs.GBU_12"] or 0) == 0 and (wh.items["weapons.missiles.AIM_120C"] or 0) == 0)
-ns.supply = cap * 0.45
+ns.supply = cap * 0.3
 local s0 = ns.supply
 B.restockArmoury()
 check("some supply: GBU-12 and AIM-9X arrive", wh.items["weapons.bombs.GBU_12"] == stock.guided * big
@@ -96,7 +96,7 @@ check("some supply: GBU-12 and AIM-9X arrive", wh.items["weapons.bombs.GBU_12"] 
 check("...stocking the shelf is free", ns.supply == s0)
 wh.items["weapons.bombs.GBU_12"] = wh.items["weapons.bombs.GBU_12"] - 4      -- an A-10 took 4
 B.restockArmoury()
-check("4 GBU-12 taken: paid at the next top-up (0.5 SU each)", math.abs(ns.supply - (s0 - 2)) < 0.01, ns.supply)
+check("4 GBU-12 taken: paid at the next top-up", math.abs(ns.supply - (s0 - 4 * DCC.config.ext.armoury.guidedSU)) < 0.01, ns.supply)
 check("...still no AMRAAM", (wh.items["weapons.missiles.AIM_120C"] or 0) == 0)
 ns.supply = cap * 0.9
 B.restockArmoury()
@@ -104,8 +104,8 @@ check("well supplied: AMRAAMs on the shelf", wh.items["weapons.missiles.AIM_120C
 wh.items["weapons.missiles.AIM_120C"] = 3                -- pilots took some
 local s1 = ns.supply
 B.restockArmoury()
-check("restocked to the level, 1 SU per missile taken", wh.items["weapons.missiles.AIM_120C"] == stock.advanced * big
-  and math.abs((s1 - ns.supply) - (stock.advanced * big - 3)) < 0.01)
+check("restocked to the level, taken missiles paid", wh.items["weapons.missiles.AIM_120C"] == stock.advanced * big
+  and math.abs((s1 - ns.supply) - (stock.advanced * big - 3) * DCC.config.ext.armoury.advancedSU) < 0.01)
 ns.supply = cap * 0.1
 B.restockArmoury()
 check("supply runs down: advanced and guided come off the shelf", wh.items["weapons.missiles.AIM_120C"] == 0

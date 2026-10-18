@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.13.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.14.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.13.0",
+  version         = "0.14.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -110,6 +110,7 @@ DCC.config = {
                 CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1, ANTISHIP = 1, FARP = 2,
                 INTERCEPT = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
                 RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2 },
+    heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     capMinutes      = 20,     -- CAP: time on station that completes the mission
     capRadiusKm     = 40,
     reconRadiusKm   = 8,      -- recon: overfly within this distance...
@@ -240,13 +241,15 @@ DCC.config = {
   -- More air and ground war (dcc_ext.lua / dcc_dcs_ext_*.lua)
   ext = {
     -- weapons a base can arm aircraft with, by its supply (share of its cap)
-    armoury = { guidedAt = 0.3, advancedAt = 0.6, guidedSU = 0.5, advancedSU = 1,
+    armoury = { guidedAt = 0.2, advancedAt = 0.45, guidedSU = 0.25, advancedSU = 0.5,
+                                       -- bases start at 0.5 supply, so every tier is on the shelf
+                                       --   until the enemy cuts the supply lines
                 mode = "warehouse",    -- "warehouse": limited munitions, the re-arm menu only offers what
                                        --   is on the shelf (tested on a server, Oct 2026)
                                        -- "takeoff": unlimited munitions, warn when taxiing, recall at
                                        --   take-off (missions built with --armoury takeoff)
                 enforce = true,        -- takeoff mode: false = charge only, never recall
-                stock = { basic = 100, guided = 16, advanced = 8 },   -- per weapon type per base (depots x2)
+                stock = { basic = 500, guided = 60, advanced = 30 },   -- per weapon type per base (depots x2)
                 testMenu = false },    -- F10 > Armoury test (on in the test mission)
     runwayHits = 3, runwayTicks = 48, runwayRepairSU = 30,   -- 3 bomb hits close an airfield for 4 h
     runwayHitM = 60,             -- a bomb this close to the runway centre line counts
@@ -6175,6 +6178,10 @@ function B.registerPlayer(u)
     crates = 0, troops = {}, onboard = {}, capSeconds = 0, ticks = 0,
   }
   p.home = nearestNodeOf(u:getPoint(), nil, 6000)
+  local d = ok(u.getDesc, u)
+  p.heli = d and d.category == Unit.Category.HELICOPTER or false
+  local sp = u:getPoint()
+  p.spawn = { x = sp.x, y = 0, z = sp.z }     -- helicopters get missions near here
   B.players[uname] = p
   DCC.pilots:get(p.key, name)
   B.buildMenu(p)
@@ -6345,6 +6352,34 @@ function B.showSquadrons(uname)
   end
 end
 
+-- The missions this aircraft is offered. Helicopters only see missions within
+-- missions.heloRangeKm of where they spawned, nearest first (a 300 nm CSAR is no
+-- use to a Huey); if nothing is that close, the 3 nearest are offered instead.
+function B.missionsFor(p)
+  local out = {}
+  for _, m in ipairs(B.war:openMissions(p.side)) do
+    if B.canFly(p, m) then out[#out + 1] = m end
+  end
+  if not p.heli or not p.spawn then return out end
+  local range = (DCC.config.missions.heloRangeKm or 110) * 1000
+  local list = {}
+  for _, m in ipairs(out) do
+    local pos = B.missionPos(m)
+    local d = pos and math.sqrt((pos.x - p.spawn.x) ^ 2 + (pos.z - p.spawn.z) ^ 2) or math.huge
+    list[#list + 1] = { m = m, d = d }
+  end
+  table.sort(list, function(a, b) return a.d < b.d end)
+  local near = {}
+  for i, e in ipairs(list) do
+    if e.d <= range or (i <= 3 and list[1].d > range and e.d < math.huge) then
+      -- a shallow copy, so the distance label never leaks into the war state
+      local c = setmetatable({ _nm = math.floor(e.d / 1852 + 0.5) }, { __index = e.m })
+      near[#near + 1] = c
+    end
+  end
+  return near
+end
+
 -- (Re)build one aircraft's "Missions" menu.
 function B.buildMenu(p)
   if not p.gid then return end
@@ -6354,18 +6389,17 @@ function B.buildMenu(p)
   -- One submenu per mission type this aircraft can fly ("SEAD (2)"), so the
   -- F10 page never overflows (DCS shows at most 10 items per page).
   local byType, order = {}, {}
-  for _, m in ipairs(B.war:openMissions(p.side)) do
-    if B.canFly(p, m) then
-      if not byType[m.type] then byType[m.type] = {}; order[#order + 1] = m.type end
-      table.insert(byType[m.type], m)
-    end
+  for _, m in ipairs(B.missionsFor(p)) do
+    if not byType[m.type] then byType[m.type] = {}; order[#order + 1] = m.type end
+    table.insert(byType[m.type], m)
   end
   for _, t in ipairs(order) do
     local sub = missionCommands.addSubMenuForGroup(p.gid, string.format("%s (%d)", t, #byType[t]), root)
     for i, m in ipairs(byType[t]) do
       if i <= 9 then
         local mark = (p.mission == m.id) and "> " or ""
-        missionCommands.addCommandForGroup(p.gid, mark .. m.type .. ": " .. m.label, sub, B.takeMission,
+        local far = m._nm and string.format(" (%d nm)", m._nm) or ""
+        missionCommands.addCommandForGroup(p.gid, mark .. m.type .. ": " .. m.label .. far, sub, B.takeMission,
           { unit = p.unit, mid = m.id })
       end
     end

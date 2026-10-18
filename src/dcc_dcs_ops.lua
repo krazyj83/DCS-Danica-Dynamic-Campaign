@@ -111,6 +111,10 @@ function B.registerPlayer(u)
     crates = 0, troops = {}, onboard = {}, capSeconds = 0, ticks = 0,
   }
   p.home = nearestNodeOf(u:getPoint(), nil, 6000)
+  local d = ok(u.getDesc, u)
+  p.heli = d and d.category == Unit.Category.HELICOPTER or false
+  local sp = u:getPoint()
+  p.spawn = { x = sp.x, y = 0, z = sp.z }     -- helicopters get missions near here
   B.players[uname] = p
   DCC.pilots:get(p.key, name)
   B.buildMenu(p)
@@ -281,6 +285,34 @@ function B.showSquadrons(uname)
   end
 end
 
+-- The missions this aircraft is offered. Helicopters only see missions within
+-- missions.heloRangeKm of where they spawned, nearest first (a 300 nm CSAR is no
+-- use to a Huey); if nothing is that close, the 3 nearest are offered instead.
+function B.missionsFor(p)
+  local out = {}
+  for _, m in ipairs(B.war:openMissions(p.side)) do
+    if B.canFly(p, m) then out[#out + 1] = m end
+  end
+  if not p.heli or not p.spawn then return out end
+  local range = (DCC.config.missions.heloRangeKm or 110) * 1000
+  local list = {}
+  for _, m in ipairs(out) do
+    local pos = B.missionPos(m)
+    local d = pos and math.sqrt((pos.x - p.spawn.x) ^ 2 + (pos.z - p.spawn.z) ^ 2) or math.huge
+    list[#list + 1] = { m = m, d = d }
+  end
+  table.sort(list, function(a, b) return a.d < b.d end)
+  local near = {}
+  for i, e in ipairs(list) do
+    if e.d <= range or (i <= 3 and list[1].d > range and e.d < math.huge) then
+      -- a shallow copy, so the distance label never leaks into the war state
+      local c = setmetatable({ _nm = math.floor(e.d / 1852 + 0.5) }, { __index = e.m })
+      near[#near + 1] = c
+    end
+  end
+  return near
+end
+
 -- (Re)build one aircraft's "Missions" menu.
 function B.buildMenu(p)
   if not p.gid then return end
@@ -290,18 +322,17 @@ function B.buildMenu(p)
   -- One submenu per mission type this aircraft can fly ("SEAD (2)"), so the
   -- F10 page never overflows (DCS shows at most 10 items per page).
   local byType, order = {}, {}
-  for _, m in ipairs(B.war:openMissions(p.side)) do
-    if B.canFly(p, m) then
-      if not byType[m.type] then byType[m.type] = {}; order[#order + 1] = m.type end
-      table.insert(byType[m.type], m)
-    end
+  for _, m in ipairs(B.missionsFor(p)) do
+    if not byType[m.type] then byType[m.type] = {}; order[#order + 1] = m.type end
+    table.insert(byType[m.type], m)
   end
   for _, t in ipairs(order) do
     local sub = missionCommands.addSubMenuForGroup(p.gid, string.format("%s (%d)", t, #byType[t]), root)
     for i, m in ipairs(byType[t]) do
       if i <= 9 then
         local mark = (p.mission == m.id) and "> " or ""
-        missionCommands.addCommandForGroup(p.gid, mark .. m.type .. ": " .. m.label, sub, B.takeMission,
+        local far = m._nm and string.format(" (%d nm)", m._nm) or ""
+        missionCommands.addCommandForGroup(p.gid, mark .. m.type .. ": " .. m.label .. far, sub, B.takeMission,
           { unit = p.unit, mid = m.id })
       end
     end

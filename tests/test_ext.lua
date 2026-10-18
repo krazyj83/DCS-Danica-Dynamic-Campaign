@@ -24,14 +24,15 @@ local ns = w.state.nodes.kutaisi
 local cap = w:supplyCap("kutaisi")
 ns.supply = cap * 0.1
 check("dry base: basic weapons only", w:armouryTier("kutaisi") == "basic")
-ns.supply = cap * 0.45
+ns.supply = cap * 0.3
 check("some supply: guided weapons", w:armouryTier("kutaisi") == "guided")
 ns.supply = cap * 0.9
 check("well supplied: everything", w:armouryTier("kutaisi") == "advanced")
 local s0 = ns.supply
 local okArm, _, cost = w:armTakeoff("kutaisi", 2, 4)
-check("advanced weapons are paid for (2 guided + 4 advanced = 5 SU)", okArm and math.abs(cost - 5) < 0.01
-  and math.abs(ns.supply - (s0 - 5)) < 0.01, cost)
+local AC = cfg.ext.armoury
+check("advanced weapons are paid for (2 guided + 4 advanced)", okArm and math.abs(cost - (2 * AC.guidedSU + 4 * AC.advancedSU)) < 0.01
+  and math.abs(ns.supply - (s0 - cost)) < 0.01, cost)
 ns.supply = cap * 0.1
 check("a dry base refuses an AMRAAM loadout", w:armTakeoff("kutaisi", 0, 2) == false)
 check("...but guns and rockets are always fine", w:armTakeoff("kutaisi", 0, 0) == true)
@@ -226,7 +227,7 @@ hog.ammo = { { count = 2, desc = { category = 3, guidance = 7, typeName = "GBU_1
              { count = 14, desc = { category = 2, typeName = "Hydra" } } }
 MOCK.fire({ id = world.event.S_EVENT_TAKEOFF, initiator = hog })
 check("a supplied base issues guided bombs and charges for them", hog.alive and
-  math.abs(war.state.nodes.kutaisi.supply - (before - 1)) < 0.01, war.state.nodes.kutaisi.supply)
+  math.abs(war.state.nodes.kutaisi.supply - (before - 2 * DCC.config.ext.armoury.guidedSU)) < 0.01, war.state.nodes.kutaisi.supply)
 
 print("Runway strike")
 local sochiAb = MOCK.airbases[B.airbases.sochi]

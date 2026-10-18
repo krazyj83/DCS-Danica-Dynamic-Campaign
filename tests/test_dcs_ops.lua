@@ -239,6 +239,32 @@ if convOk then
   check("escorted convoy forced live", B.forced[mc.target] == true)
 end
 
+print("Helicopter missions stay near the helicopter")
+do
+  local far = MOCK.spawnPlayer(2, "UH-1H", senaki.x + 600000, senaki.z, "Faraway", true)
+  local fp = rec(far)
+  check("a helicopter is recognised", fp.heli == true)
+  local list = B.missionsFor(fp)
+  local maxNm = 0
+  for _, m in ipairs(list) do maxNm = math.max(maxNm, m._nm or 0) end
+  check("nothing in range: only the 3 nearest are offered", #list <= 3, #list)
+  local ap = rec(apache)
+  ap.heli = true                        -- (spawned above as a plain group)
+  local nearList = B.missionsFor(ap)
+  local allIn = #nearList > 0
+  for _, m in ipairs(nearList) do
+    if m._nm > DCC.config.missions.heloRangeKm / 1.852 + 1 then allIn = false end
+  end
+  check("Apache at Senaki: every mission within range, distance shown", allIn, #nearList)
+  for i = 2, #nearList do if nearList[i]._nm < nearList[i - 1]._nm then allIn = false end end
+  check("...nearest first", allIn)
+  check("a jet still sees the whole board", #B.missionsFor(rec(viper)) == #(function()
+    local n = {} for _, m in ipairs(war:openMissions("blue")) do if B.canFly(rec(viper), m) then n[#n + 1] = m end end return n end)())
+  check("the distance label does not leak into the war state", (function()
+    for _, m in pairs(war.state.missions) do if rawget(m, "_nm") then return false end end return true end)())
+  MOCK.fire({ id = world.event.S_EVENT_PLAYER_LEAVE_UNIT, initiator = far })
+end
+
 print("Leaving the slot")
 MOCK.click(hug.id, "Load troops")
 local carriedPid = rec(huey).troops[1]

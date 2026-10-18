@@ -361,9 +361,10 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
     m.triggerrules.triggers.append(end)
 
     # Options.
-    # "Allies only": the F10 map shows own units only; enemies appear only through the
-    # campaign's intel layer (dcc_dcs_intel.lua), which draws what each side has detected.
-    m.forced_options.options_view = ForcedOptions.Views.OnlyAllies
+    # F10 view "Fog of war" (optview_allies): own units, plus enemy units only while a
+    # friendly unit can see them. The campaign's intel layer (dcc_dcs_intel.lua) adds
+    # the last-known enemy positions on top. ("Allies only" = optview_onlyallies.)
+    m.forced_options.options_view = ForcedOptions.Views.Allies
     m.forced_options.civil_traffic = ForcedOptions.CivilTraffic.Off
     m.set_description_text(
         "Danica Dynamic Campaign - persistent war on " + theater_name + ".\n"
