@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.15.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.16.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.15.0",
+  version         = "0.16.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -264,6 +264,10 @@ DCC.config = {
       casSU = 20, casCooldownMin = 20,
       markMinutes = 15,          -- a map mark is good for this long
     },
+    farpKit = { types = { "CH-47Fbl1", "Mi-8MT", "Mi-8MTV2" },   -- who can lift it
+                weight = 3000.01,   -- kg (a Huey or Mi-24 can't sling it)
+                su = 30,            -- supply it costs at the base it is loaded at
+                km = 3 },           -- set down this close to a friendly town
     bridgeKitKm = 1.5, bridgeKitCrates = 2,
     mineTicks = 288, mineSpeed = 0.5, mineLoss = 0.15, mineRoadKm = 1.5,
     veterancy = { vetXp = 2, eliteXp = 5, vetBonus = 0.1, eliteBonus = 0.2 },
@@ -2685,7 +2689,8 @@ function hubGen.FARP(self, side, hub)
     local ns = self.state.nodes[id]
     if ns.side == side and self:canHaveFarp(id) and not self:farpAt(id) and (dist[id] or 9) <= 3 then
       out[#out + 1] = { type = "FARP", target = id, node = id, prio = 0,
-        label = "build a FARP at " .. self:nodeName(id) }
+        label = string.format("build a FARP at %s (FARP kit, or crates %d/%d SU)", self:nodeName(id),
+          math.floor(ns.farpSU or 0), self.cfg.world.farpBuildSU) }
     end
   end
   return out
@@ -3548,14 +3553,23 @@ function War:deliverCrate(side, id, su)
   if ok and self:canHaveFarp(id) and not ns.farp then
     ns.farpSU = (ns.farpSU or 0) + su
     local need = W(self).farpBuildSU
-    if ns.farpSU >= need then
-      ns.farp = { side = side, built = self.state.tick }
-      ns.farpSU = nil
-      self:log("farp_built", side, string.format("%s helicopters built a FARP at %s - rearm, refuel and spawn there",
-        side:upper(), self:nodeName(id)), { node = id })
-    end
+    if ns.farpSU >= need then self:buildFarp(id, side, "crates") end
   end
   return ok
+end
+
+-- A FARP goes up at town id: from supply crates, a FARP kit (Chinook / Mi-8)
+-- or a CTLD FOB. Returns false if the town cannot have one.
+function War:buildFarp(id, side, how, extra)
+  local ns = self.state.nodes[id]
+  if not ns or ns.side ~= side or not self:canHaveFarp(id) or self:farpAt(id) then return false end
+  ns.farp = { side = side, built = self.state.tick, how = how }
+  for k, v in pairs(extra or {}) do ns.farp[k] = v end
+  ns.farpSU = nil
+  local what = (how == "kit" and "flew in a FARP kit") or (how == "fob" and "built a FOB") or "built a FARP"
+  self:log("farp_built", side, string.format("%s helicopters %s at %s - rearm, refuel and spawn there",
+    side:upper(), what, self:nodeName(id)), { node = id })
+  return true
 end
 
 function War:farpAt(id)
@@ -3611,8 +3625,8 @@ gen.FARP = function(self, side)
     local ns = self.state.nodes[id]
     if ns.side == side and self:canHaveFarp(id) and not self:farpAt(id) and (dist[id] or 9) <= 2 then
       out[#out + 1] = { type = "FARP", target = id, node = id, prio = dist[id] or 9,
-        label = string.format("build a FARP at %s (%d/%d SU)", self:nodeName(id), math.floor(ns.farpSU or 0),
-          W(self).farpBuildSU) }
+        label = string.format("build a FARP at %s (FARP kit, or crates %d/%d SU)", self:nodeName(id),
+          math.floor(ns.farpSU or 0), W(self).farpBuildSU) }
     end
   end
   return out
@@ -10364,8 +10378,14 @@ function B.ctldHook()
     if spawnMethod == "menu_ctld" and spawnedBy and B.war then
       local u = ok(Unit.getByName, spawnedBy)
       if u then
+        -- some crates (the FARP kit) are only for the heavy lifters, and cost more
+        local only = type(descriptor) == "table" and descriptor.dccOnly
+        if only and not only[ok(u.getTypeName, u) or ""] then
+          say(u, descriptor.dccOnlyMsg or "This aircraft cannot lift that crate.")
+          return nil
+        end
         local paid
-        paid, node, su = charge(u, 1)
+        paid, node, su = charge(u, (type(descriptor) == "table" and descriptor.dccCharge) or 1)
         if not paid then return nil end
       end
     end
@@ -10531,12 +10551,7 @@ function B.ctldSubscribe()
     local side = sideOf(ev.fob and ev.fob.coalitionId)
     local war = B.war
     local node = side and ev.position and B.nearestNodeOf(ev.position, side, CC().fobFarpKm * 1000)
-    if node and war:canHaveFarp(node) and not war:farpAt(node) then
-      war.state.nodes[node].farp = { side = side, built = war.state.tick, ctld = ev.fob.name }
-      war.state.nodes[node].farpSU = nil
-      war:log("farp_built", side, string.format("%s helicopters built a FOB at %s - it is a FARP now",
-        side:upper(), war:nodeName(node)), { node = node })
-    end
+    if node then war:buildFarp(node, side, "fob", { ctld = ev.fob.name }) end
   end)
   on("OnFOBDestroyed", function(ev)
     local war = B.war
@@ -10590,7 +10605,7 @@ function B.ctldSetup()
   B.ctld.zones, B.ctld.zoneNode, B.ctld.field = {}, {}, {}
   B.ctldSyncZones()
   B.EFFECT.LOGISTICS = "F10 > CTLD: request a Supply crate at a friendly base, fly it to the target and unload it there."
-  B.EFFECT.FARP = "F10 > CTLD: bring FOB crates (or supply crates) to the town and build it there."
+  B.EFFECT.FARP = "Chinook / Mi-8: F10 > CTLD > Engineering > FARP kit, set it down within 3 km of the town. Or bring 3 supply crates (any lift helicopter), or build a CTLD FOB there."
   local n = 0
   for _ in pairs(B.ctld.zones) do n = n + 1 end
   U.log("CTLD %s integrated: %d base zones", tostring(ctld.VERSION), n)
@@ -11243,6 +11258,9 @@ do
 -- ----------------------------------------------------------------------------
 --   Engineers  - CTLD "Bridge kit" crates: 2 unpacked within 1.5 km of a
 --                downed bridge reopen its road.
+--   FARP kit   - one heavy CTLD crate (3 t, Chinook / Mi-8 only, 30 SU):
+--                set down or unpacked within 3 km of an own town, it makes
+--                the town a FARP at once (the FARP mission's quick way).
 --   Minefields - a CTLD minefield laid within 1.5 km of a road mines it for
 --                24 h: enemy columns slow down and take losses.
 --   Industry   - factories, power plants and refineries behind each side's
@@ -11314,13 +11332,70 @@ function B.bridgeKitUnpacked(crate, unpacker)
   tell(string.format("Engineers bridged the road %s - %s.", war:nodeName(br.a), war:nodeName(br.b)))
 end
 
+-- the own town nearest to p within maxM that can take a FARP
+function B.farpTownNear(p, side, maxM)
+  local war, best, bestD = B.war, nil, nil
+  for _, id in ipairs(war.T.order) do
+    local np = B.nodePos[id]
+    if np and war.state.nodes[id].side == side and war:canHaveFarp(id) then
+      local d = dist2D(p, np)
+      if d <= maxM and (not bestD or d < bestD) then best, bestD = id, d end
+    end
+  end
+  return best
+end
+
+-- A FARP kit on the ground (unloaded, sling-dropped or unpacked).
+-- loud = tell the crew why nothing happened. Returns true when it was used.
+function B.farpKitDown(crate, pos, loud)
+  local war, cm = B.war, CTLDCrateManager.getInstance()
+  local side = sideOfCoal(crate.coalition)
+  local function tell(text) trigger.action.outTextForCoalition(crate.coalition, text, 12) end
+  pos = pos or crate.position
+  if not (war and side and pos) then return false end
+  local km = XC().farpKit.km
+  local town = B.farpTownNear(pos, side, km * 1000)
+  if not town then
+    if loud then tell(string.format("A FARP kit goes down within %d km of a friendly town.", km)) end
+    return false
+  end
+  if war:farpAt(town) then
+    if loud then tell(war:nodeName(town) .. " already has a FARP - take the kit somewhere else.") end
+    return false
+  end
+  if not war:buildFarp(town, side, "kit") then return false end
+  ok(cm.destroyCrate, cm, crate.crateName)
+  tell(string.format("FARP kit delivered: %s is a FARP now - rearm, refuel and helicopter spawns.",
+    war:nodeName(town)))
+  return true
+end
+
+if B.ctldCrateDown then
+  local baseDown = B.ctldCrateDown
+  function B.ctldCrateDown(crate, pos)
+    if crate and crate.descriptor and crate.descriptor.dccFarp then
+      local s, r = pcall(B.farpKitDown, crate, pos, true)
+      if not s then U.log("ERROR farp kit: %s", tostring(r)) end
+      return s and r
+    end
+    return baseDown(crate, pos)
+  end
+end
+
 if B.ctldConfigure then
   local baseConfigure = B.ctldConfigure
   function B.ctldConfigure()
     baseConfigure()
     local crates = ctld.gs("spawnableCrates") or {}
+    local fk = XC().farpKit
+    local only = {}
+    for _, t in ipairs(fk.types) do only[t] = true end
     crates["Engineering"] = { { unit = "DCC_BRIDGEKIT", desc = "Bridge kit", weight = 1500.01, cratesRequired = 1,
-                                dccBridge = true } }
+                                dccBridge = true },
+                              { unit = "DCC_FARPKIT", desc = "FARP kit (Chinook / Mi-8)", weight = fk.weight,
+                                cratesRequired = 1, dccFarp = true, dccCharge = math.ceil(fk.su / DCC.config.ctld.crateSU),
+                                dccOnly = only,
+                                dccOnlyMsg = "A FARP kit weighs 3 t - only a Chinook or a Mi-8 can lift it." } }
     CTLDConfig.get():setSetting("spawnableCrates", crates)
   end
 end
@@ -11340,12 +11415,16 @@ if B.ctldHook then
         if B.war then ok(B.bridgeKitUnpacked, crate, unpacker) end
         return
       end
+      if crate and crate.descriptor and crate.descriptor.dccFarp then
+        if B.war then ok(B.farpKitDown, crate, crate.position, true) end
+        return
+      end
       return baseUnpack(self, crateName, unpacker)
     end
     local baseSU = CM._spawnUnpacked
     if baseSU then
       CM._spawnUnpacked = function(self, desc, ...)
-        if desc and desc.dccBridge then return nil end
+        if desc and (desc.dccBridge or desc.dccFarp) then return nil end
         return baseSU(self, desc, ...)
       end
     end

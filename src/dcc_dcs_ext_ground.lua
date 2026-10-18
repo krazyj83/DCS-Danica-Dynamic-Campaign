@@ -4,6 +4,9 @@
 -- ----------------------------------------------------------------------------
 --   Engineers  - CTLD "Bridge kit" crates: 2 unpacked within 1.5 km of a
 --                downed bridge reopen its road.
+--   FARP kit   - one heavy CTLD crate (3 t, Chinook / Mi-8 only, 30 SU):
+--                set down or unpacked within 3 km of an own town, it makes
+--                the town a FARP at once (the FARP mission's quick way).
 --   Minefields - a CTLD minefield laid within 1.5 km of a road mines it for
 --                24 h: enemy columns slow down and take losses.
 --   Industry   - factories, power plants and refineries behind each side's
@@ -75,13 +78,70 @@ function B.bridgeKitUnpacked(crate, unpacker)
   tell(string.format("Engineers bridged the road %s - %s.", war:nodeName(br.a), war:nodeName(br.b)))
 end
 
+-- the own town nearest to p within maxM that can take a FARP
+function B.farpTownNear(p, side, maxM)
+  local war, best, bestD = B.war, nil, nil
+  for _, id in ipairs(war.T.order) do
+    local np = B.nodePos[id]
+    if np and war.state.nodes[id].side == side and war:canHaveFarp(id) then
+      local d = dist2D(p, np)
+      if d <= maxM and (not bestD or d < bestD) then best, bestD = id, d end
+    end
+  end
+  return best
+end
+
+-- A FARP kit on the ground (unloaded, sling-dropped or unpacked).
+-- loud = tell the crew why nothing happened. Returns true when it was used.
+function B.farpKitDown(crate, pos, loud)
+  local war, cm = B.war, CTLDCrateManager.getInstance()
+  local side = sideOfCoal(crate.coalition)
+  local function tell(text) trigger.action.outTextForCoalition(crate.coalition, text, 12) end
+  pos = pos or crate.position
+  if not (war and side and pos) then return false end
+  local km = XC().farpKit.km
+  local town = B.farpTownNear(pos, side, km * 1000)
+  if not town then
+    if loud then tell(string.format("A FARP kit goes down within %d km of a friendly town.", km)) end
+    return false
+  end
+  if war:farpAt(town) then
+    if loud then tell(war:nodeName(town) .. " already has a FARP - take the kit somewhere else.") end
+    return false
+  end
+  if not war:buildFarp(town, side, "kit") then return false end
+  ok(cm.destroyCrate, cm, crate.crateName)
+  tell(string.format("FARP kit delivered: %s is a FARP now - rearm, refuel and helicopter spawns.",
+    war:nodeName(town)))
+  return true
+end
+
+if B.ctldCrateDown then
+  local baseDown = B.ctldCrateDown
+  function B.ctldCrateDown(crate, pos)
+    if crate and crate.descriptor and crate.descriptor.dccFarp then
+      local s, r = pcall(B.farpKitDown, crate, pos, true)
+      if not s then U.log("ERROR farp kit: %s", tostring(r)) end
+      return s and r
+    end
+    return baseDown(crate, pos)
+  end
+end
+
 if B.ctldConfigure then
   local baseConfigure = B.ctldConfigure
   function B.ctldConfigure()
     baseConfigure()
     local crates = ctld.gs("spawnableCrates") or {}
+    local fk = XC().farpKit
+    local only = {}
+    for _, t in ipairs(fk.types) do only[t] = true end
     crates["Engineering"] = { { unit = "DCC_BRIDGEKIT", desc = "Bridge kit", weight = 1500.01, cratesRequired = 1,
-                                dccBridge = true } }
+                                dccBridge = true },
+                              { unit = "DCC_FARPKIT", desc = "FARP kit (Chinook / Mi-8)", weight = fk.weight,
+                                cratesRequired = 1, dccFarp = true, dccCharge = math.ceil(fk.su / DCC.config.ctld.crateSU),
+                                dccOnly = only,
+                                dccOnlyMsg = "A FARP kit weighs 3 t - only a Chinook or a Mi-8 can lift it." } }
     CTLDConfig.get():setSetting("spawnableCrates", crates)
   end
 end
@@ -101,12 +161,16 @@ if B.ctldHook then
         if B.war then ok(B.bridgeKitUnpacked, crate, unpacker) end
         return
       end
+      if crate and crate.descriptor and crate.descriptor.dccFarp then
+        if B.war then ok(B.farpKitDown, crate, crate.position, true) end
+        return
+      end
       return baseUnpack(self, crateName, unpacker)
     end
     local baseSU = CM._spawnUnpacked
     if baseSU then
       CM._spawnUnpacked = function(self, desc, ...)
-        if desc and desc.dccBridge then return nil end
+        if desc and (desc.dccBridge or desc.dccFarp) then return nil end
         return baseSU(self, desc, ...)
       end
     end

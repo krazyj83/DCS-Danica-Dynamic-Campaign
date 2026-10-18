@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.15.0",
+  version         = "0.16.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -260,6 +260,10 @@ DCC.config = {
       casSU = 20, casCooldownMin = 20,
       markMinutes = 15,          -- a map mark is good for this long
     },
+    farpKit = { types = { "CH-47Fbl1", "Mi-8MT", "Mi-8MTV2" },   -- who can lift it
+                weight = 3000.01,   -- kg (a Huey or Mi-24 can't sling it)
+                su = 30,            -- supply it costs at the base it is loaded at
+                km = 3 },           -- set down this close to a friendly town
     bridgeKitKm = 1.5, bridgeKitCrates = 2,
     mineTicks = 288, mineSpeed = 0.5, mineLoss = 0.15, mineRoadKm = 1.5,
     veterancy = { vetXp = 2, eliteXp = 5, vetBonus = 0.1, eliteBonus = 0.2 },

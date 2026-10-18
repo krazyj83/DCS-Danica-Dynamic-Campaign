@@ -188,14 +188,23 @@ function War:deliverCrate(side, id, su)
   if ok and self:canHaveFarp(id) and not ns.farp then
     ns.farpSU = (ns.farpSU or 0) + su
     local need = W(self).farpBuildSU
-    if ns.farpSU >= need then
-      ns.farp = { side = side, built = self.state.tick }
-      ns.farpSU = nil
-      self:log("farp_built", side, string.format("%s helicopters built a FARP at %s - rearm, refuel and spawn there",
-        side:upper(), self:nodeName(id)), { node = id })
-    end
+    if ns.farpSU >= need then self:buildFarp(id, side, "crates") end
   end
   return ok
+end
+
+-- A FARP goes up at town id: from supply crates, a FARP kit (Chinook / Mi-8)
+-- or a CTLD FOB. Returns false if the town cannot have one.
+function War:buildFarp(id, side, how, extra)
+  local ns = self.state.nodes[id]
+  if not ns or ns.side ~= side or not self:canHaveFarp(id) or self:farpAt(id) then return false end
+  ns.farp = { side = side, built = self.state.tick, how = how }
+  for k, v in pairs(extra or {}) do ns.farp[k] = v end
+  ns.farpSU = nil
+  local what = (how == "kit" and "flew in a FARP kit") or (how == "fob" and "built a FOB") or "built a FARP"
+  self:log("farp_built", side, string.format("%s helicopters %s at %s - rearm, refuel and spawn there",
+    side:upper(), what, self:nodeName(id)), { node = id })
+  return true
 end
 
 function War:farpAt(id)
@@ -251,8 +260,8 @@ gen.FARP = function(self, side)
     local ns = self.state.nodes[id]
     if ns.side == side and self:canHaveFarp(id) and not self:farpAt(id) and (dist[id] or 9) <= 2 then
       out[#out + 1] = { type = "FARP", target = id, node = id, prio = dist[id] or 9,
-        label = string.format("build a FARP at %s (%d/%d SU)", self:nodeName(id), math.floor(ns.farpSU or 0),
-          W(self).farpBuildSU) }
+        label = string.format("build a FARP at %s (FARP kit, or crates %d/%d SU)", self:nodeName(id),
+          math.floor(ns.farpSU or 0), W(self).farpBuildSU) }
     end
   end
   return out

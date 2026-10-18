@@ -376,8 +376,14 @@ function B.ctldHook()
     if spawnMethod == "menu_ctld" and spawnedBy and B.war then
       local u = ok(Unit.getByName, spawnedBy)
       if u then
+        -- some crates (the FARP kit) are only for the heavy lifters, and cost more
+        local only = type(descriptor) == "table" and descriptor.dccOnly
+        if only and not only[ok(u.getTypeName, u) or ""] then
+          say(u, descriptor.dccOnlyMsg or "This aircraft cannot lift that crate.")
+          return nil
+        end
         local paid
-        paid, node, su = charge(u, 1)
+        paid, node, su = charge(u, (type(descriptor) == "table" and descriptor.dccCharge) or 1)
         if not paid then return nil end
       end
     end
@@ -543,12 +549,7 @@ function B.ctldSubscribe()
     local side = sideOf(ev.fob and ev.fob.coalitionId)
     local war = B.war
     local node = side and ev.position and B.nearestNodeOf(ev.position, side, CC().fobFarpKm * 1000)
-    if node and war:canHaveFarp(node) and not war:farpAt(node) then
-      war.state.nodes[node].farp = { side = side, built = war.state.tick, ctld = ev.fob.name }
-      war.state.nodes[node].farpSU = nil
-      war:log("farp_built", side, string.format("%s helicopters built a FOB at %s - it is a FARP now",
-        side:upper(), war:nodeName(node)), { node = node })
-    end
+    if node then war:buildFarp(node, side, "fob", { ctld = ev.fob.name }) end
   end)
   on("OnFOBDestroyed", function(ev)
     local war = B.war
@@ -602,7 +603,7 @@ function B.ctldSetup()
   B.ctld.zones, B.ctld.zoneNode, B.ctld.field = {}, {}, {}
   B.ctldSyncZones()
   B.EFFECT.LOGISTICS = "F10 > CTLD: request a Supply crate at a friendly base, fly it to the target and unload it there."
-  B.EFFECT.FARP = "F10 > CTLD: bring FOB crates (or supply crates) to the town and build it there."
+  B.EFFECT.FARP = "Chinook / Mi-8: F10 > CTLD > Engineering > FARP kit, set it down within 3 km of the town. Or bring 3 supply crates (any lift helicopter), or build a CTLD FOB there."
   local n = 0
   for _ in pairs(B.ctld.zones) do n = n + 1 end
   U.log("CTLD %s integrated: %d base zones", tostring(ctld.VERSION), n)

@@ -425,7 +425,8 @@ function hubGen.FARP(self, side, hub)
     local ns = self.state.nodes[id]
     if ns.side == side and self:canHaveFarp(id) and not self:farpAt(id) and (dist[id] or 9) <= 3 then
       out[#out + 1] = { type = "FARP", target = id, node = id, prio = 0,
-        label = "build a FARP at " .. self:nodeName(id) }
+        label = string.format("build a FARP at %s (FARP kit, or crates %d/%d SU)", self:nodeName(id),
+          math.floor(ns.farpSU or 0), self.cfg.world.farpBuildSU) }
     end
   end
   return out

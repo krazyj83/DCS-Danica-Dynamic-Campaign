@@ -297,6 +297,40 @@ local mined = false
 for k, m in pairs(war.state.mines) do if m.side == "blue" and k:find("kutaisi") then mined = true end end
 check("a CTLD minefield next to a road mines that road", mined)
 
+print("FARP kit (Chinook / Mi-8)")
+local farpDesc
+for _, list in pairs(ctld.gs("spawnableCrates")) do
+  for _, c in ipairs(list) do if c.dccFarp then farpDesc = c end end
+end
+check("a FARP kit crate in CTLD's catalogue", farpDesc ~= nil)
+local town
+for _, id in ipairs(war.T.order) do
+  if war.state.nodes[id].side == "blue" and war:canHaveFarp(id) and not war:farpAt(id) and B.nodePos[id] then
+    town = id; break
+  end
+end
+local kpos = B.nodePos.kutaisi
+war.state.nodes.kutaisi.supply = 200
+local hueyK = MOCK.spawnPlayer(BLUE, "UH-1H", kpos.x + 100, kpos.z, "Kit Huey", true)
+local refused = cm:spawnCrate(farpDesc, { x = kpos.x + 120, y = 0, z = kpos.z }, BLUE, hueyK:getName(), "menu_ctld")
+check("a Huey cannot load a FARP kit", refused == nil)
+local hook = MOCK.spawnPlayer(BLUE, "CH-47Fbl1", kpos.x + 100, kpos.z, "Kit Hook", true)
+local s0 = war.state.nodes.kutaisi.supply
+local kit = cm:spawnCrate(farpDesc, { x = kpos.x + 130, y = 0, z = kpos.z }, BLUE, hook:getName(), "menu_ctld")
+check("a Chinook can, and it costs 30 SU", kit ~= nil and math.abs((s0 - war.state.nodes.kutaisi.supply) - 30) < 0.01,
+  s0 - war.state.nodes.kutaisi.supply)
+-- unpacked in the middle of nowhere: nothing
+kit.position = { x = kpos.x + 90000, y = 0, z = kpos.z + 90000 }
+cm:unpackCrate(kit.crateName, hook)
+check("far from a town: no FARP", not war:farpAt(town))
+local tp = B.nodePos[town]
+kit.position = { x = tp.x + 1500, y = 0, z = tp.z }
+B.ctldCrateDown(kit, kit.position)
+check("set down 1.5 km from " .. town .. ": it is a FARP now", war:farpAt(town) and war.state.nodes[town].farp.how == "kit")
+local mk = MOCK.spawnPlayer(BLUE, "Mi-8MT", kpos.x + 100, kpos.z, "Kit Hip", true)
+check("a Mi-8 can lift one too", cm:spawnCrate(farpDesc, { x = kpos.x + 140, y = 0, z = kpos.z }, BLUE, mk:getName(),
+  "menu_ctld") ~= nil)
+
 print("A day of war with CTLD")
 for _ = 1, 288 do MOCK.advance(300) end
 check("no DCC script errors", errors == 0, errors)
