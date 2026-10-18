@@ -248,6 +248,17 @@ function B.brief(p, m)
   local lines = { string.format("MISSION %s - %s", m.type, m.label) }
   if pos then
     lines[#lines + 1] = "Target: " .. fmtLL(pos)
+    -- for typing into the jet or a DTC tool: seconds format and elevation
+    local lat, lon = coord.LOtoLL(wpos(pos))
+    local function dms(v, h1, h2)
+      local h = v >= 0 and h1 or h2
+      v = math.abs(v)
+      local d = math.floor(v); local mf = (v - d) * 60; local m = math.floor(mf)
+      return string.format("%s%02d°%02d'%04.1f\"", h, d, m, (mf - m) * 60)
+    end
+    local elev = ok(land.getHeight, { x = pos.x, y = pos.z }) or 0
+    lines[#lines + 1] = string.format("DMS %s %s  Elev %d ft / %d m", dms(lat, "N", "S"), dms(lon, "E", "W"),
+      math.floor(elev * 3.28084 + 0.5), math.floor(elev + 0.5))
     if alive(u) then
       local up = u:getPoint()
       local brg = (math.deg(math.atan2(pos.z - up.z, pos.x - up.x)) + 360) % 360

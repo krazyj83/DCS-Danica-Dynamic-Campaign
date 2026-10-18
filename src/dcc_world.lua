@@ -198,7 +198,7 @@ end
 function War:buildFarp(id, side, how, extra)
   local ns = self.state.nodes[id]
   if not ns or ns.side ~= side or not self:canHaveFarp(id) or self:farpAt(id) then return false end
-  ns.farp = { side = side, built = self.state.tick, how = how }
+  ns.farp = { side = side, built = self.state.tick, how = how, stock = W(self).farpStock }
   for k, v in pairs(extra or {}) do ns.farp[k] = v end
   ns.farpSU = nil
   local what = (how == "kit" and "flew in a FARP kit") or (how == "fob" and "built a FOB") or "built a FARP"
@@ -210,6 +210,50 @@ end
 function War:farpAt(id)
   local f = self.state.nodes[id].farp
   return f ~= nil and f.side == self.state.nodes[id].side
+end
+
+-- FARP stock: fuel, ammo and spares the FARP itself holds (SU). It runs down
+-- every tick; at 0 the FARP is dry - no helicopter spawns, empty shelves -
+-- until a helicopter brings crates (FARPSUP mission).
+function War:farpStock(id)
+  local f = self.state.nodes[id].farp
+  if not f then return 0 end
+  return f.stock or W(self).farpStock          -- saves from before v0.17 start full
+end
+
+function War:farpDry(id)
+  return self:farpAt(id) and self:farpStock(id) <= 0
+end
+
+function War:farpTick()
+  for _, id in ipairs(self.T.order) do
+    if self:farpAt(id) then
+      local f = self.state.nodes[id].farp
+      local before = self:farpStock(id)
+      f.stock = math.max(0, before - W(self).farpUsePerTick)
+      if before > 0 and f.stock <= 0 then
+        self:log("farp_dry", f.side, string.format("The %s FARP at %s has run dry - no rearm or helicopter spawns "
+          .. "until it is resupplied", f.side:upper(), self:nodeName(id)), { node = id })
+      end
+    end
+  end
+end
+
+-- Crates set down at a FARP town fill the FARP first, the rest goes to the town.
+local baseDeliverFarp = War.deliverCrate
+function War:deliverCrate(side, id, su)
+  local ns = self.state.nodes[id]
+  if ns.side ~= side or not self:farpAt(id) then return baseDeliverFarp(self, side, id, su) end
+  local f = ns.farp
+  local put = math.min(su, math.max(0, W(self).farpStock - self:farpStock(id)))
+  if put > 0 then
+    f.stock = self:farpStock(id) + put
+    self:log("airdrop", side, string.format("%s helicopters resupplied the FARP at %s (+%d SU, %d/%d)",
+      side:upper(), self:nodeName(id), math.floor(put + 0.5), math.floor(f.stock + 0.5), W(self).farpStock),
+      { node = id, su = put, farp = true })
+  end
+  if su - put > 0 then return baseDeliverFarp(self, side, id, su - put) end
+  return true
 end
 
 -- ===========================================================================
@@ -229,12 +273,13 @@ end
 
 War.MISSION_NEEDS.ANTISHIP = "A2G"
 War.MISSION_NEEDS.FARP = "LIFT"
+War.MISSION_NEEDS.FARPSUP = "LIFT"
 do
   local order = {}
   for _, t in ipairs(War.MISSION_ORDER) do
-    if t ~= "ANTISHIP" and t ~= "FARP" then order[#order + 1] = t end
+    if t ~= "ANTISHIP" and t ~= "FARP" and t ~= "FARPSUP" then order[#order + 1] = t end
     if t == "STRIKE" then order[#order + 1] = "ANTISHIP" end
-    if t == "LOGISTICS" then order[#order + 1] = "FARP" end
+    if t == "LOGISTICS" then order[#order + 1] = "FARP"; order[#order + 1] = "FARPSUP" end
   end
   War.MISSION_ORDER = order
 end
@@ -267,8 +312,22 @@ gen.FARP = function(self, side)
   return out
 end
 
+-- Resupply a FARP: own FARPs below half stock, the emptiest first.
+gen.FARPSUP = function(self, side)
+  local out, max = {}, W(self).farpStock
+  for _, id in ipairs(self.T.order) do
+    if self.state.nodes[id].side == side and self:farpAt(id) and self:farpStock(id) < max * W(self).farpLowShare then
+      local st = self:farpStock(id)
+      out[#out + 1] = { type = "FARPSUP", target = id, node = id, prio = st,
+        label = string.format("resupply the FARP at %s (%d/%d SU%s)", self:nodeName(id), math.floor(st + 0.5), max,
+          st <= 0 and ", DRY" or "") }
+    end
+  end
+  return out
+end
+
 -- Helicopter missions stay on the ground in a storm.
-local HELO = { CONVOY = true, CSAR = true, LOGISTICS = true, FARP = true }
+local HELO = { CONVOY = true, CSAR = true, LOGISTICS = true, FARP = true, FARPSUP = true }
 for t in pairs(HELO) do
   local g = gen[t]
   if g then
@@ -286,6 +345,12 @@ function War:missionOutcome(m, events)
   elseif m.type == "FARP" then
     if self.state.nodes[m.target].side ~= m.side then return "expired" end
     return self:farpAt(m.target) and "done" or "open"
+  elseif m.type == "FARPSUP" then
+    if not self:farpAt(m.target) or self.state.nodes[m.target].side ~= m.side then return "expired" end
+    for _, ev in ipairs(events) do
+      if ev.kind == "airdrop" and ev.farp and ev.node == m.target and ev.side == m.side then return "done" end
+    end
+    return "open"
   end
   return baseOutcome(self, m, events)
 end
@@ -303,6 +368,7 @@ end
 local baseOpsTick = War.opsTick
 function War:opsTick()
   baseOpsTick(self)
+  self:farpTick()
   self:weatherTick()
   self:decayThreat()
 end

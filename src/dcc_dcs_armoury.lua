@@ -161,7 +161,7 @@ end
 local ORDER = { basic = 1, guided = 2, advanced = 3 }
 
 local function warehousesOf(id, side)
-  local out = {}
+  local out = { farp = {} }
   local name = B.airbases and B.airbases[id]
   local ab = name and ok(Airbase.getByName, name)
   local w = ab and ok(ab.getWarehouse, ab)
@@ -169,7 +169,7 @@ local function warehousesOf(id, side)
   if B.war:canHaveFarp(id) and B.war:farpAt(id) then
     local fab = ok(Airbase.getByName, "DCC_FARP_" .. id .. "_" .. side)
     local fw = fab and ok(fab.getWarehouse, fab)
-    if fw then out[#out + 1] = fw end
+    if fw then out[#out + 1] = fw; out.farp[#out] = true end
   end
   return out
 end
@@ -194,6 +194,7 @@ function B.restockArmoury()
           local each = (t == "advanced" and cfg.advancedSU) or (t == "guided" and cfg.guidedSU) or 0
           if taken > 0 and each > 0 then ns.supply = math.max(0, (ns.supply or 0) - taken * each) end
           local target = (ORDER[t] <= ORDER[tier]) and (cfg.stock[t] or 0) * big or 0
+          if whs.farp[k] and war:farpDry(id) then target = 0 end      -- a dry FARP: empty shelves
           if cur ~= target then ok(w.setItem, w, name, target) end   -- top up, or off the shelf
           B.arm.last[key] = target
         end

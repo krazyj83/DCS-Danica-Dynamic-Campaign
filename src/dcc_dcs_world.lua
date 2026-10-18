@@ -185,7 +185,7 @@ function B.reconcileFarps()
         local wh, ab = farpWarehouse(id, side)
         local want = war:farpAt(id) and ns.side == side
         if wh then
-          local n = want and WC().farpHelos or 0
+          local n = (want and not war:farpDry(id)) and WC().farpHelos or 0   -- a dry FARP spawns nothing
           for _, t in ipairs(B.catalog.aircraft[side].helicopters or {}) do pcall(wh.setItem, wh, t, n) end
         end
         local rec = B.farps[id]
@@ -356,8 +356,11 @@ function B.drawOps(newMark, toVec3)
     if war:farpAt(id) then
       local p = B.nodePos[id]
       local col = DCC.config.colours[ns.side]
+      local st, max = war:farpStock(id), WC().farpStock
+      local txt = st <= 0 and "FARP (DRY)" or (st < max * WC().farpLowShare
+        and string.format("FARP %d/%d", math.floor(st + 0.5), max) or "FARP")
       trigger.action.textToAll(-1, newMark(), { x = p.x + 2500, y = p.y, z = p.z + 2500 }, col, { 0, 0, 0, 0.35 },
-        11, true, "FARP")
+        11, true, txt)
     elseif ns.farpSU then
       local p = B.nodePos[id]
       trigger.action.textToAll(B.COAL[ns.side], newMark(), { x = p.x + 2500, y = p.y, z = p.z + 2500 },

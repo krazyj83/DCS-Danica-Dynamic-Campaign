@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.16.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.17.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.16.0",
+  version         = "0.17.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -108,7 +108,7 @@ DCC.config = {
   missions = {
     perType = { CAS = 2, BAI = 3, STRIKE = 2, SEAD = 2, CAP = 1, ESCORT = 3,
                 CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1, ANTISHIP = 1, FARP = 2,
-                INTERCEPT = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
+                FARPSUP = 2, INTERCEPT = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
                 RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2 },
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
@@ -176,6 +176,9 @@ DCC.config = {
     capThreat      = 3,       -- ...and gets AI CAP over it
     threatDecayTicks = 36,    -- threat halves every 3 h
     farpBuildSU    = 30,      -- crates (10 SU each) to turn a town into a FARP
+    farpStock      = 40,      -- SU a FARP holds itself (a FARP kit or 4 crates fills it)
+    farpUsePerTick = 0.25,    -- ...used per tick (5 min): full to dry in ~13 h
+    farpLowShare   = 0.5,     -- below this a FARPSUP mission is posted
     farpHelos      = 2,       -- helicopters of each own type a FARP can spawn
     antishipChance = 0.4,     -- chance per hour of an AI strike on a known enemy ship
   },
@@ -2651,7 +2654,7 @@ end
 -- escorting any convoy passing through, FARPs near the front.
 --   hub = { node = id, km = range, caps = { HELO = true, LIFT = true, ... } }
 War.HUB_TYPES = { CAS = true, BAI = true, CONVOY = true, ESCORT = true, RECON = true, LOGISTICS = true,
-                  FARP = true, ARTY = true, FORT = true, COIN = true, BRIDGE = true }
+                  FARP = true, FARPSUP = true, ARTY = true, FORT = true, COIN = true, BRIDGE = true }
 local hubGen = {}
 War.hubGenerators = hubGen
 
@@ -3563,7 +3566,7 @@ end
 function War:buildFarp(id, side, how, extra)
   local ns = self.state.nodes[id]
   if not ns or ns.side ~= side or not self:canHaveFarp(id) or self:farpAt(id) then return false end
-  ns.farp = { side = side, built = self.state.tick, how = how }
+  ns.farp = { side = side, built = self.state.tick, how = how, stock = W(self).farpStock }
   for k, v in pairs(extra or {}) do ns.farp[k] = v end
   ns.farpSU = nil
   local what = (how == "kit" and "flew in a FARP kit") or (how == "fob" and "built a FOB") or "built a FARP"
@@ -3575,6 +3578,50 @@ end
 function War:farpAt(id)
   local f = self.state.nodes[id].farp
   return f ~= nil and f.side == self.state.nodes[id].side
+end
+
+-- FARP stock: fuel, ammo and spares the FARP itself holds (SU). It runs down
+-- every tick; at 0 the FARP is dry - no helicopter spawns, empty shelves -
+-- until a helicopter brings crates (FARPSUP mission).
+function War:farpStock(id)
+  local f = self.state.nodes[id].farp
+  if not f then return 0 end
+  return f.stock or W(self).farpStock          -- saves from before v0.17 start full
+end
+
+function War:farpDry(id)
+  return self:farpAt(id) and self:farpStock(id) <= 0
+end
+
+function War:farpTick()
+  for _, id in ipairs(self.T.order) do
+    if self:farpAt(id) then
+      local f = self.state.nodes[id].farp
+      local before = self:farpStock(id)
+      f.stock = math.max(0, before - W(self).farpUsePerTick)
+      if before > 0 and f.stock <= 0 then
+        self:log("farp_dry", f.side, string.format("The %s FARP at %s has run dry - no rearm or helicopter spawns "
+          .. "until it is resupplied", f.side:upper(), self:nodeName(id)), { node = id })
+      end
+    end
+  end
+end
+
+-- Crates set down at a FARP town fill the FARP first, the rest goes to the town.
+local baseDeliverFarp = War.deliverCrate
+function War:deliverCrate(side, id, su)
+  local ns = self.state.nodes[id]
+  if ns.side ~= side or not self:farpAt(id) then return baseDeliverFarp(self, side, id, su) end
+  local f = ns.farp
+  local put = math.min(su, math.max(0, W(self).farpStock - self:farpStock(id)))
+  if put > 0 then
+    f.stock = self:farpStock(id) + put
+    self:log("airdrop", side, string.format("%s helicopters resupplied the FARP at %s (+%d SU, %d/%d)",
+      side:upper(), self:nodeName(id), math.floor(put + 0.5), math.floor(f.stock + 0.5), W(self).farpStock),
+      { node = id, su = put, farp = true })
+  end
+  if su - put > 0 then return baseDeliverFarp(self, side, id, su - put) end
+  return true
 end
 
 -- ===========================================================================
@@ -3594,12 +3641,13 @@ end
 
 War.MISSION_NEEDS.ANTISHIP = "A2G"
 War.MISSION_NEEDS.FARP = "LIFT"
+War.MISSION_NEEDS.FARPSUP = "LIFT"
 do
   local order = {}
   for _, t in ipairs(War.MISSION_ORDER) do
-    if t ~= "ANTISHIP" and t ~= "FARP" then order[#order + 1] = t end
+    if t ~= "ANTISHIP" and t ~= "FARP" and t ~= "FARPSUP" then order[#order + 1] = t end
     if t == "STRIKE" then order[#order + 1] = "ANTISHIP" end
-    if t == "LOGISTICS" then order[#order + 1] = "FARP" end
+    if t == "LOGISTICS" then order[#order + 1] = "FARP"; order[#order + 1] = "FARPSUP" end
   end
   War.MISSION_ORDER = order
 end
@@ -3632,8 +3680,22 @@ gen.FARP = function(self, side)
   return out
 end
 
+-- Resupply a FARP: own FARPs below half stock, the emptiest first.
+gen.FARPSUP = function(self, side)
+  local out, max = {}, W(self).farpStock
+  for _, id in ipairs(self.T.order) do
+    if self.state.nodes[id].side == side and self:farpAt(id) and self:farpStock(id) < max * W(self).farpLowShare then
+      local st = self:farpStock(id)
+      out[#out + 1] = { type = "FARPSUP", target = id, node = id, prio = st,
+        label = string.format("resupply the FARP at %s (%d/%d SU%s)", self:nodeName(id), math.floor(st + 0.5), max,
+          st <= 0 and ", DRY" or "") }
+    end
+  end
+  return out
+end
+
 -- Helicopter missions stay on the ground in a storm.
-local HELO = { CONVOY = true, CSAR = true, LOGISTICS = true, FARP = true }
+local HELO = { CONVOY = true, CSAR = true, LOGISTICS = true, FARP = true, FARPSUP = true }
 for t in pairs(HELO) do
   local g = gen[t]
   if g then
@@ -3651,6 +3713,12 @@ function War:missionOutcome(m, events)
   elseif m.type == "FARP" then
     if self.state.nodes[m.target].side ~= m.side then return "expired" end
     return self:farpAt(m.target) and "done" or "open"
+  elseif m.type == "FARPSUP" then
+    if not self:farpAt(m.target) or self.state.nodes[m.target].side ~= m.side then return "expired" end
+    for _, ev in ipairs(events) do
+      if ev.kind == "airdrop" and ev.farp and ev.node == m.target and ev.side == m.side then return "done" end
+    end
+    return "open"
   end
   return baseOutcome(self, m, events)
 end
@@ -3668,6 +3736,7 @@ end
 local baseOpsTick = War.opsTick
 function War:opsTick()
   baseOpsTick(self)
+  self:farpTick()
   self:weatherTick()
   self:decayThreat()
 end
@@ -6457,6 +6526,17 @@ function B.brief(p, m)
   local lines = { string.format("MISSION %s - %s", m.type, m.label) }
   if pos then
     lines[#lines + 1] = "Target: " .. fmtLL(pos)
+    -- for typing into the jet or a DTC tool: seconds format and elevation
+    local lat, lon = coord.LOtoLL(wpos(pos))
+    local function dms(v, h1, h2)
+      local h = v >= 0 and h1 or h2
+      v = math.abs(v)
+      local d = math.floor(v); local mf = (v - d) * 60; local m = math.floor(mf)
+      return string.format("%s%02d°%02d'%04.1f\"", h, d, m, (mf - m) * 60)
+    end
+    local elev = ok(land.getHeight, { x = pos.x, y = pos.z }) or 0
+    lines[#lines + 1] = string.format("DMS %s %s  Elev %d ft / %d m", dms(lat, "N", "S"), dms(lon, "E", "W"),
+      math.floor(elev * 3.28084 + 0.5), math.floor(elev + 0.5))
     if alive(u) then
       local up = u:getPoint()
       local brg = (math.deg(math.atan2(pos.z - up.z, pos.x - up.x)) + 360) % 360
@@ -8379,7 +8459,7 @@ function B.reconcileFarps()
         local wh, ab = farpWarehouse(id, side)
         local want = war:farpAt(id) and ns.side == side
         if wh then
-          local n = want and WC().farpHelos or 0
+          local n = (want and not war:farpDry(id)) and WC().farpHelos or 0   -- a dry FARP spawns nothing
           for _, t in ipairs(B.catalog.aircraft[side].helicopters or {}) do pcall(wh.setItem, wh, t, n) end
         end
         local rec = B.farps[id]
@@ -8550,8 +8630,11 @@ function B.drawOps(newMark, toVec3)
     if war:farpAt(id) then
       local p = B.nodePos[id]
       local col = DCC.config.colours[ns.side]
+      local st, max = war:farpStock(id), WC().farpStock
+      local txt = st <= 0 and "FARP (DRY)" or (st < max * WC().farpLowShare
+        and string.format("FARP %d/%d", math.floor(st + 0.5), max) or "FARP")
       trigger.action.textToAll(-1, newMark(), { x = p.x + 2500, y = p.y, z = p.z + 2500 }, col, { 0, 0, 0, 0.35 },
-        11, true, "FARP")
+        11, true, txt)
     elseif ns.farpSU then
       local p = B.nodePos[id]
       trigger.action.textToAll(B.COAL[ns.side], newMark(), { x = p.x + 2500, y = p.y, z = p.z + 2500 },
@@ -10606,6 +10689,7 @@ function B.ctldSetup()
   B.ctldSyncZones()
   B.EFFECT.LOGISTICS = "F10 > CTLD: request a Supply crate at a friendly base, fly it to the target and unload it there."
   B.EFFECT.FARP = "Chinook / Mi-8: F10 > CTLD > Engineering > FARP kit, set it down within 3 km of the town. Or bring 3 supply crates (any lift helicopter), or build a CTLD FOB there."
+  B.EFFECT.FARPSUP = "F10 > CTLD > load supply crates, set them down within 3 km of the FARP. A FARP kit refills it completely. A dry FARP has no rearm and no helicopter spawns."
   local n = 0
   for _ in pairs(B.ctld.zones) do n = n + 1 end
   U.log("CTLD %s integrated: %d base zones", tostring(ctld.VERSION), n)
@@ -11360,8 +11444,15 @@ function B.farpKitDown(crate, pos, loud)
     return false
   end
   if war:farpAt(town) then
-    if loud then tell(war:nodeName(town) .. " already has a FARP - take the kit somewhere else.") end
-    return false
+    local max = DCC.config.world.farpStock
+    if war:farpStock(town) >= max then
+      if loud then tell("The FARP at " .. war:nodeName(town) .. " is full - take the kit somewhere else.") end
+      return false
+    end
+    war:deliverCrate(side, town, max - war:farpStock(town))   -- a kit refills a FARP completely
+    ok(cm.destroyCrate, cm, crate.crateName)
+    tell(string.format("FARP kit delivered: the FARP at %s is fully stocked again.", war:nodeName(town)))
+    return true
   end
   if not war:buildFarp(town, side, "kit") then return false end
   ok(cm.destroyCrate, cm, crate.crateName)
@@ -11602,7 +11693,8 @@ end
 -- "all": everyone sees it; "own": only the side it happened to
 local LOUD = { runway_closed = "all", runway_open = "own", industry_hit = "all", industry_up = "own", snatched = "all",
                partisans = "all", partisans_killed = "all", partisans_swept = "own", partisan_ambush = "all",
-               mined = "own", mine_hit = "all", ctld_vehicle = "own", ctld_aa = "own", helilift = "own" }
+               mined = "own", mine_hit = "all", ctld_vehicle = "own", ctld_aa = "own", helilift = "own",
+               farp_dry = "own" }
 local baseAnnounce = B.announce
 function B.announce(events)
   baseAnnounce(events)
@@ -11782,7 +11874,7 @@ end
 local ORDER = { basic = 1, guided = 2, advanced = 3 }
 
 local function warehousesOf(id, side)
-  local out = {}
+  local out = { farp = {} }
   local name = B.airbases and B.airbases[id]
   local ab = name and ok(Airbase.getByName, name)
   local w = ab and ok(ab.getWarehouse, ab)
@@ -11790,7 +11882,7 @@ local function warehousesOf(id, side)
   if B.war:canHaveFarp(id) and B.war:farpAt(id) then
     local fab = ok(Airbase.getByName, "DCC_FARP_" .. id .. "_" .. side)
     local fw = fab and ok(fab.getWarehouse, fab)
-    if fw then out[#out + 1] = fw end
+    if fw then out[#out + 1] = fw; out.farp[#out] = true end
   end
   return out
 end
@@ -11815,6 +11907,7 @@ function B.restockArmoury()
           local each = (t == "advanced" and cfg.advancedSU) or (t == "guided" and cfg.guidedSU) or 0
           if taken > 0 and each > 0 then ns.supply = math.max(0, (ns.supply or 0) - taken * each) end
           local target = (ORDER[t] <= ORDER[tier]) and (cfg.stock[t] or 0) * big or 0
+          if whs.farp[k] and war:farpDry(id) then target = 0 end      -- a dry FARP: empty shelves
           if cur ~= target then ok(w.setItem, w, name, target) end   -- top up, or off the shelf
           B.arm.last[key] = target
         end

@@ -387,7 +387,7 @@ end
 -- escorting any convoy passing through, FARPs near the front.
 --   hub = { node = id, km = range, caps = { HELO = true, LIFT = true, ... } }
 War.HUB_TYPES = { CAS = true, BAI = true, CONVOY = true, ESCORT = true, RECON = true, LOGISTICS = true,
-                  FARP = true, ARTY = true, FORT = true, COIN = true, BRIDGE = true }
+                  FARP = true, FARPSUP = true, ARTY = true, FORT = true, COIN = true, BRIDGE = true }
 local hubGen = {}
 War.hubGenerators = hubGen
 

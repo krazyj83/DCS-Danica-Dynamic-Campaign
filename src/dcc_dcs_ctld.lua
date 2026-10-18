@@ -604,6 +604,7 @@ function B.ctldSetup()
   B.ctldSyncZones()
   B.EFFECT.LOGISTICS = "F10 > CTLD: request a Supply crate at a friendly base, fly it to the target and unload it there."
   B.EFFECT.FARP = "Chinook / Mi-8: F10 > CTLD > Engineering > FARP kit, set it down within 3 km of the town. Or bring 3 supply crates (any lift helicopter), or build a CTLD FOB there."
+  B.EFFECT.FARPSUP = "F10 > CTLD > load supply crates, set them down within 3 km of the FARP. A FARP kit refills it completely. A dry FARP has no rearm and no helicopter spawns."
   local n = 0
   for _ in pairs(B.ctld.zones) do n = n + 1 end
   U.log("CTLD %s integrated: %d base zones", tostring(ctld.VERSION), n)

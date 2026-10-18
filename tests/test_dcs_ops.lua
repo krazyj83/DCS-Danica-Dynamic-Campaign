@@ -258,6 +258,11 @@ do
   check("Apache at Senaki: every mission within range, distance shown", allIn, #nearList)
   for i = 2, #nearList do if nearList[i]._nm < nearList[i - 1]._nm then allIn = false end end
   check("...nearest first", allIn)
+  B.brief(ap, nearList[1])
+  local gt = MOCK.groupTexts[ap.gid] or {}
+  local last = gt[#gt] or ""
+  check("the brief gives DDM, DMS, MGRS and elevation for the jet / DTC", last:find("DMS N", 1, true)
+    and last:find("Elev", 1, true) and last:find("MGRS", 1, true), last)
   check("a jet still sees the whole board", #B.missionsFor(rec(viper)) == #(function()
     local n = {} for _, m in ipairs(war:openMissions("blue")) do if B.canFly(rec(viper), m) then n[#n + 1] = m end end return n end)())
   check("the distance label does not leak into the war state", (function()

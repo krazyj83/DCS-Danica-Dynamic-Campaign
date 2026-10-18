@@ -331,6 +331,37 @@ local mk = MOCK.spawnPlayer(BLUE, "Mi-8MT", kpos.x + 100, kpos.z, "Kit Hip", tru
 check("a Mi-8 can lift one too", cm:spawnCrate(farpDesc, { x = kpos.x + 140, y = 0, z = kpos.z }, BLUE, mk:getName(),
   "menu_ctld") ~= nil)
 
+print("FARP resupply")
+check("a new FARP is full", war:farpStock(town) == DCC.config.world.farpStock)
+for _ = 1, 170 do war:farpTick() end
+check("...and runs dry in ~13 h", war:farpDry(town))
+war:missionsTick()
+local sup
+for _, m in pairs(war.state.missions) do if m.type == "FARPSUP" and m.target == town and m.status == "open" then sup = m end end
+check("a FARPSUP mission for the dry FARP", sup ~= nil and sup.label:find("DRY", 1, true) ~= nil, sup and sup.label)
+B.reconcileFarps()
+local fab = Airbase.getByName("DCC_FARP_" .. town .. "_blue")
+local fwh = fab and fab:getWarehouse()
+local heliN = 0
+if fwh then for t, n in pairs(fwh.items or {}) do if not t:find("^weapons") then heliN = heliN + n end end end
+check("a dry FARP spawns no helicopters", fwh == nil or heliN == 0, heliN)
+local supDesc
+for _, list in pairs(ctld.gs("spawnableCrates")) do
+  for _, c in ipairs(list) do if c.dccSupply then supDesc = c end end
+end
+local sc = cm:spawnCrate(supDesc, { x = tp.x + 800, y = 0, z = tp.z }, BLUE, nil, "crate_spawn")
+local townSU = war.state.nodes[town].supply
+B.ctldCrateDown(sc, sc.position)
+check("a supply crate at the FARP fills the FARP, not the town", war:farpStock(town) == DCC.config.ctld.supplyCrateSU
+  and math.abs(war.state.nodes[town].supply - townSU) < 0.01)
+war:missionsTick()
+check("...and completes the FARPSUP mission", war.state.missions[sup.id].status == "done")
+B.reconcileFarps()
+check("no longer dry", not war:farpDry(town))
+local kit2 = cm:spawnCrate(farpDesc, { x = tp.x + 900, y = 0, z = tp.z }, BLUE, nil, "crate_spawn")
+B.ctldCrateDown(kit2, kit2.position)
+check("a FARP kit at a FARP refills it completely", war:farpStock(town) == DCC.config.world.farpStock)
+
 print("A day of war with CTLD")
 for _ = 1, 288 do MOCK.advance(300) end
 check("no DCC script errors", errors == 0, errors)

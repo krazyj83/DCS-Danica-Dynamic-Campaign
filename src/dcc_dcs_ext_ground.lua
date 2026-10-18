@@ -106,8 +106,15 @@ function B.farpKitDown(crate, pos, loud)
     return false
   end
   if war:farpAt(town) then
-    if loud then tell(war:nodeName(town) .. " already has a FARP - take the kit somewhere else.") end
-    return false
+    local max = DCC.config.world.farpStock
+    if war:farpStock(town) >= max then
+      if loud then tell("The FARP at " .. war:nodeName(town) .. " is full - take the kit somewhere else.") end
+      return false
+    end
+    war:deliverCrate(side, town, max - war:farpStock(town))   -- a kit refills a FARP completely
+    ok(cm.destroyCrate, cm, crate.crateName)
+    tell(string.format("FARP kit delivered: the FARP at %s is fully stocked again.", war:nodeName(town)))
+    return true
   end
   if not war:buildFarp(town, side, "kit") then return false end
   ok(cm.destroyCrate, cm, crate.crateName)
@@ -348,7 +355,8 @@ end
 -- "all": everyone sees it; "own": only the side it happened to
 local LOUD = { runway_closed = "all", runway_open = "own", industry_hit = "all", industry_up = "own", snatched = "all",
                partisans = "all", partisans_killed = "all", partisans_swept = "own", partisan_ambush = "all",
-               mined = "own", mine_hit = "all", ctld_vehicle = "own", ctld_aa = "own", helilift = "own" }
+               mined = "own", mine_hit = "all", ctld_vehicle = "own", ctld_aa = "own", helilift = "own",
+               farp_dry = "own" }
 local baseAnnounce = B.announce
 function B.announce(events)
   baseAnnounce(events)

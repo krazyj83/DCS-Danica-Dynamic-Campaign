@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.16.0",
+  version         = "0.17.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -104,7 +104,7 @@ DCC.config = {
   missions = {
     perType = { CAS = 2, BAI = 3, STRIKE = 2, SEAD = 2, CAP = 1, ESCORT = 3,
                 CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1, ANTISHIP = 1, FARP = 2,
-                INTERCEPT = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
+                FARPSUP = 2, INTERCEPT = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
                 RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2 },
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
@@ -172,6 +172,9 @@ DCC.config = {
     capThreat      = 3,       -- ...and gets AI CAP over it
     threatDecayTicks = 36,    -- threat halves every 3 h
     farpBuildSU    = 30,      -- crates (10 SU each) to turn a town into a FARP
+    farpStock      = 40,      -- SU a FARP holds itself (a FARP kit or 4 crates fills it)
+    farpUsePerTick = 0.25,    -- ...used per tick (5 min): full to dry in ~13 h
+    farpLowShare   = 0.5,     -- below this a FARPSUP mission is posted
     farpHelos      = 2,       -- helicopters of each own type a FARP can spawn
     antishipChance = 0.4,     -- chance per hour of an AI strike on a known enemy ship
   },
