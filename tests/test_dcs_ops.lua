@@ -263,6 +263,31 @@ do
   check("the distance label does not leak into the war state", (function()
     for _, m in pairs(war.state.missions) do if rawget(m, "_nm") then return false end end return true end)())
   MOCK.fire({ id = world.event.S_EVENT_PLAYER_LEAVE_UNIT, initiator = far })
+
+  -- a Huey at the base furthest from the front still gets local work
+  local dist, rear = war:frontDistance("blue"), nil
+  for _, id in ipairs(war.T.order) do
+    if war.state.nodes[id].side == "blue" and B.nodePos[id]
+       and (not rear or (dist[id] or 0) > (dist[rear] or 0)) then rear = id end
+  end
+  local rp = B.nodePos[rear]
+  local rh = MOCK.spawnPlayer(2, "UH-1H", rp.x + 300, rp.z, "Rear", true)
+  local local_, hubN = B.missionsFor(rec(rh)), 0
+  local inRange = #local_ > 0
+  for _, m in ipairs(local_) do
+    if m.hub then hubN = hubN + 1 end
+    if m._nm > DCC.config.missions.heloRangeKm / 1.852 + 1 then inRange = false end
+  end
+  check("rear-base Huey: local missions made for it at once", hubN > 0 and inRange, rear .. " " .. #local_)
+  local kinds = {}
+  for _, m in ipairs(local_) do kinds[m.type] = true end
+  check("...only types a Huey can fly (no CAS/BAI)", not kinds.CAS and not kinds.BAI)
+  MOCK.fire({ id = world.event.S_EVENT_PLAYER_LEAVE_UNIT, initiator = rh })
+  local left = 0
+  for _, m in pairs(war.state.missions) do if m.hub == rear and m.status == "open" then left = left + 1 end end
+  check("...and withdrawn when it leaves (nobody took them)", left == 0, left)
+  check("an A-10 is a slow mover with a 120 nm board", rec(hog).slow == true and B.localRangeKm(rec(hog)) == 222)
+  check("a Viper is not limited", B.localRangeKm(rec(viper)) == nil)
 end
 
 print("Leaving the slot")

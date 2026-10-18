@@ -115,7 +115,9 @@ function B.registerPlayer(u)
   p.heli = d and d.category == Unit.Category.HELICOPTER or false
   local sp = u:getPoint()
   p.spawn = { x = sp.x, y = 0, z = sp.z }     -- helicopters get missions near here
+  p.slow = not p.heli and B.isSlowType(p.type)
   B.players[uname] = p
+  B.updateHubs(true)
   DCC.pilots:get(p.key, name)
   B.buildMenu(p)
   return p
@@ -144,6 +146,40 @@ function B.clearPlayer(uname, how)
   end
   if p.menu then ok(missionCommands.removeItemForGroup, p.gid, p.menu) end
   B.players[uname] = nil
+  B.updateHubs(true)                     -- its untaken local missions are withdrawn
+end
+
+-- Slow movers (A-10, Su-25, trainers) get a wider "local" range than helicopters.
+function B.isSlowType(t)
+  for _, s in ipairs(DCC.config.missions.slowTypes or {}) do if s == t then return true end end
+  return false
+end
+
+-- The range a player's mission board is limited to, in km (nil = whole board).
+function B.localRangeKm(p)
+  local mc = DCC.config.missions
+  if p.heli then return mc.heloRangeKm or 110 end
+  if p.slow then return mc.slowRangeKm or 222 end
+  return nil
+end
+
+-- Tell the war where helicopters and slow movers are, so it creates missions
+-- near them (War:hubMissions). fill = update the local missions right away.
+function B.updateHubs(fill)
+  local hubs, seen = { blue = {}, red = {} }, {}
+  for _, p in pairs(B.players) do
+    local km = B.localRangeKm(p)
+    if km and p.spawn and hubs[p.side] then
+      local node = B.nearestNodeOf(p.spawn, p.side) or B.nearestNodeOf(p.spawn)
+      local key = p.side .. "|" .. tostring(node) .. "|" .. p.type
+      if node and not seen[key] then
+        seen[key] = true
+        table.insert(hubs[p.side], { node = node, km = km, caps = B.caps(p) })
+      end
+    end
+  end
+  for side, list in pairs(hubs) do B.war:setHubs(side, list) end
+  if fill then ok(B.war.hubMissions, B.war) end
 end
 
 -- ===========================================================================
@@ -286,15 +322,17 @@ function B.showSquadrons(uname)
 end
 
 -- The missions this aircraft is offered. Helicopters only see missions within
--- missions.heloRangeKm of where they spawned, nearest first (a 300 nm CSAR is no
--- use to a Huey); if nothing is that close, the 3 nearest are offered instead.
+-- missions.heloRangeKm of where they spawned (slow movers: slowRangeKm), nearest
+-- first (a 300 nm CSAR is no use to a Huey); if nothing is that close, the 3
+-- nearest are offered instead.
 function B.missionsFor(p)
   local out = {}
   for _, m in ipairs(B.war:openMissions(p.side)) do
     if B.canFly(p, m) then out[#out + 1] = m end
   end
-  if not p.heli or not p.spawn then return out end
-  local range = (DCC.config.missions.heloRangeKm or 110) * 1000
+  local rangeKm = B.localRangeKm(p)
+  if not rangeKm or not p.spawn then return out end
+  local range = rangeKm * 1000
   local list = {}
   for _, m in ipairs(out) do
     local pos = B.missionPos(m)

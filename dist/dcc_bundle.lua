@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.14.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.15.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.14.0",
+  version         = "0.15.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -111,6 +111,10 @@ DCC.config = {
                 INTERCEPT = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
                 RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2 },
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
+    slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
+    slowTypes       = { "A-10A", "A-10C", "A-10C_2", "Su-25", "Su-25T", "L-39ZA", "C-101CC", "MB-339A",
+                        "MB-339APAN", "OV-10A", "Yak-52" },
+    hubSupplyBelow  = 0.7,    -- local supply runs go to own bases below this share of their cap
     capMinutes      = 20,     -- CAP: time on station that completes the mission
     capRadiusKm     = 40,
     reconRadiusKm   = 8,      -- recon: overfly within this distance...
@@ -2601,7 +2605,7 @@ function War:missionsTick()
     for _, m in pairs(st.missions) do
       if m.side == side and m.status == "open" then
         have[m.type .. ":" .. tostring(m.target)] = true
-        have[m.type] = (have[m.type] or 0) + 1
+        if not m.hub then have[m.type] = (have[m.type] or 0) + 1 end   -- local extras don't fill the board
       end
     end
     for _, t in ipairs(War.MISSION_ORDER) do
@@ -2622,6 +2626,130 @@ function War:missionsTick()
               needs = c.needs or War.MISSION_NEEDS[t] }
             have[key] = true
             have[t] = (have[t] or 0) + 1
+          end
+        end
+      end
+    end
+  end
+  -- 3. Local missions near where helicopters and slow movers spawned.
+  self:hubMissions()
+end
+
+-- ---------------------------------------------------------------------------
+-- Hubs: local missions for helicopters and slow aircraft
+-- ---------------------------------------------------------------------------
+-- The board above is built from the whole front, so a Huey at a rear base can
+-- find every mission 300 nm away. The bridge reports where such players are
+-- (setHubs); for each hub and each mission type that player can fly, if no open
+-- mission of that type lies within the hub's range, the nearest candidate is
+-- added on top of the normal board (m.hub). Some types get a relaxed local
+-- generator so a rear base still has work: supply runs to any low base nearby,
+-- escorting any convoy passing through, FARPs near the front.
+--   hub = { node = id, km = range, caps = { HELO = true, LIFT = true, ... } }
+War.HUB_TYPES = { CAS = true, BAI = true, CONVOY = true, ESCORT = true, RECON = true, LOGISTICS = true,
+                  FARP = true, ARTY = true, FORT = true, COIN = true, BRIDGE = true }
+local hubGen = {}
+War.hubGenerators = hubGen
+
+function hubGen.LOGISTICS(self, side, hub)
+  local out = {}
+  for _, id in ipairs(self.T.order) do
+    local ns = self.state.nodes[id]
+    if ns.side == side and id ~= hub.node and not self.T.nodes[id].depot
+       and (ns.supply or 0) < self:supplyCap(id) * (M(self).hubSupplyBelow or 0.7) then
+      out[#out + 1] = { type = "LOGISTICS", target = id, node = id, prio = 0,
+        label = "supply run to " .. self:nodeName(id) }
+    end
+  end
+  return out
+end
+
+function hubGen.CONVOY(self, side, hub)
+  local out = {}
+  for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
+    local mv = self.state.moves[mid]
+    if mv.side == side and mv.kind == "convoy" and mv.status == "moving" and mv.progress < 0.6
+       and not self:onSea(mv) then
+      out[#out + 1] = { type = "CONVOY", target = mid, node = mv.to, near = { mv.from, mv.to }, prio = 0,
+        label = string.format("convoy %s > %s", self:nodeName(mv.from), self:nodeName(mv.to)) }
+    end
+  end
+  return out
+end
+
+function hubGen.FARP(self, side, hub)
+  if not self.canHaveFarp or (self.isStorm and self:isStorm()) then return {} end
+  local dist = self:frontDistance(side)
+  local out = {}
+  for _, id in ipairs(self.T.order) do
+    local ns = self.state.nodes[id]
+    if ns.side == side and self:canHaveFarp(id) and not self:farpAt(id) and (dist[id] or 9) <= 3 then
+      out[#out + 1] = { type = "FARP", target = id, node = id, prio = 0,
+        label = "build a FARP at " .. self:nodeName(id) }
+    end
+  end
+  return out
+end
+
+function War:setHubs(side, hubs)
+  self.hubs = self.hubs or {}
+  self.hubs[side] = hubs or {}
+end
+
+function War:hubKm(hub, c)
+  local a = self.T.nodes[hub.node]
+  local best = math.huge
+  for _, id in ipairs(c.near or { c.node }) do
+    local b = id and self.T.nodes[id]
+    if a and b then best = math.min(best, U.distKm(a, b)) end
+  end
+  return best
+end
+
+function War:hubMissions()
+  local st = self.state
+  st.missions = st.missions or {}
+  for _, side in ipairs(SIDES) do
+    local hubs = (self.hubs and self.hubs[side]) or {}
+    local live = {}
+    for _, h in ipairs(hubs) do live[h.node] = true end
+    -- local missions nobody took, for a hub that is gone, are withdrawn
+    for _, id in ipairs(U.sortedKeys(st.missions)) do
+      local m = st.missions[id]
+      if m.side == side and m.hub and m.status == "open" and not live[m.hub] and not next(m.taken) then
+        st.missions[id] = nil
+      end
+    end
+    for _, hub in ipairs(hubs) do
+      for _, t in ipairs(War.MISSION_ORDER) do
+        local g = gen[t]
+        if War.HUB_TYPES[t] and g and (M(self).perType[t] or 0) > 0 then
+          local near, have = false, {}
+          for _, m in pairs(st.missions) do
+            if m.side == side and m.status == "open" then
+              have[t .. ":" .. tostring(m.target)] = true
+              if m.type == t and self:hubKm(hub, m) <= hub.km then near = true end
+            end
+          end
+          if not near then
+            local cands = g(self, side)
+            if hubGen[t] then for _, c in ipairs(hubGen[t](self, side, hub)) do cands[#cands + 1] = c end end
+            local best, bestKm
+            for _, c in ipairs(cands) do
+              local needs = c.needs or War.MISSION_NEEDS[t]
+              local key = t .. ":" .. tostring(c.target)
+              local km = self:hubKm(hub, c)
+              if (needs == "ANY" or (hub.caps or {})[needs]) and not have[key] and km <= hub.km
+                 and (not bestKm or km < bestKm or (km == bestKm and tostring(c.target) < tostring(best.target))) then
+                best, bestKm = c, km
+              end
+            end
+            if best then
+              local mid = self:newId("x")
+              st.missions[mid] = { id = mid, side = side, type = t, target = best.target, node = best.node,
+                label = best.label, base = best.base or {}, created = st.tick, taken = {}, status = "open",
+                needs = best.needs or War.MISSION_NEEDS[t], hub = hub.node, near = best.near }
+            end
           end
         end
       end
@@ -6182,7 +6310,9 @@ function B.registerPlayer(u)
   p.heli = d and d.category == Unit.Category.HELICOPTER or false
   local sp = u:getPoint()
   p.spawn = { x = sp.x, y = 0, z = sp.z }     -- helicopters get missions near here
+  p.slow = not p.heli and B.isSlowType(p.type)
   B.players[uname] = p
+  B.updateHubs(true)
   DCC.pilots:get(p.key, name)
   B.buildMenu(p)
   return p
@@ -6211,6 +6341,40 @@ function B.clearPlayer(uname, how)
   end
   if p.menu then ok(missionCommands.removeItemForGroup, p.gid, p.menu) end
   B.players[uname] = nil
+  B.updateHubs(true)                     -- its untaken local missions are withdrawn
+end
+
+-- Slow movers (A-10, Su-25, trainers) get a wider "local" range than helicopters.
+function B.isSlowType(t)
+  for _, s in ipairs(DCC.config.missions.slowTypes or {}) do if s == t then return true end end
+  return false
+end
+
+-- The range a player's mission board is limited to, in km (nil = whole board).
+function B.localRangeKm(p)
+  local mc = DCC.config.missions
+  if p.heli then return mc.heloRangeKm or 110 end
+  if p.slow then return mc.slowRangeKm or 222 end
+  return nil
+end
+
+-- Tell the war where helicopters and slow movers are, so it creates missions
+-- near them (War:hubMissions). fill = update the local missions right away.
+function B.updateHubs(fill)
+  local hubs, seen = { blue = {}, red = {} }, {}
+  for _, p in pairs(B.players) do
+    local km = B.localRangeKm(p)
+    if km and p.spawn and hubs[p.side] then
+      local node = B.nearestNodeOf(p.spawn, p.side) or B.nearestNodeOf(p.spawn)
+      local key = p.side .. "|" .. tostring(node) .. "|" .. p.type
+      if node and not seen[key] then
+        seen[key] = true
+        table.insert(hubs[p.side], { node = node, km = km, caps = B.caps(p) })
+      end
+    end
+  end
+  for side, list in pairs(hubs) do B.war:setHubs(side, list) end
+  if fill then ok(B.war.hubMissions, B.war) end
 end
 
 -- ===========================================================================
@@ -6353,15 +6517,17 @@ function B.showSquadrons(uname)
 end
 
 -- The missions this aircraft is offered. Helicopters only see missions within
--- missions.heloRangeKm of where they spawned, nearest first (a 300 nm CSAR is no
--- use to a Huey); if nothing is that close, the 3 nearest are offered instead.
+-- missions.heloRangeKm of where they spawned (slow movers: slowRangeKm), nearest
+-- first (a 300 nm CSAR is no use to a Huey); if nothing is that close, the 3
+-- nearest are offered instead.
 function B.missionsFor(p)
   local out = {}
   for _, m in ipairs(B.war:openMissions(p.side)) do
     if B.canFly(p, m) then out[#out + 1] = m end
   end
-  if not p.heli or not p.spawn then return out end
-  local range = (DCC.config.missions.heloRangeKm or 110) * 1000
+  local rangeKm = B.localRangeKm(p)
+  if not rangeKm or not p.spawn then return out end
+  local range = rangeKm * 1000
   local list = {}
   for _, m in ipairs(out) do
     local pos = B.missionPos(m)

@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.14.0",
+  version         = "0.15.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -107,6 +107,10 @@ DCC.config = {
                 INTERCEPT = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
                 RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2 },
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
+    slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
+    slowTypes       = { "A-10A", "A-10C", "A-10C_2", "Su-25", "Su-25T", "L-39ZA", "C-101CC", "MB-339A",
+                        "MB-339APAN", "OV-10A", "Yak-52" },
+    hubSupplyBelow  = 0.7,    -- local supply runs go to own bases below this share of their cap
     capMinutes      = 20,     -- CAP: time on station that completes the mission
     capRadiusKm     = 40,
     reconRadiusKm   = 8,      -- recon: overfly within this distance...

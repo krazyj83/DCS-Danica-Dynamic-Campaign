@@ -345,7 +345,7 @@ function War:missionsTick()
     for _, m in pairs(st.missions) do
       if m.side == side and m.status == "open" then
         have[m.type .. ":" .. tostring(m.target)] = true
-        have[m.type] = (have[m.type] or 0) + 1
+        if not m.hub then have[m.type] = (have[m.type] or 0) + 1 end   -- local extras don't fill the board
       end
     end
     for _, t in ipairs(War.MISSION_ORDER) do
@@ -366,6 +366,130 @@ function War:missionsTick()
               needs = c.needs or War.MISSION_NEEDS[t] }
             have[key] = true
             have[t] = (have[t] or 0) + 1
+          end
+        end
+      end
+    end
+  end
+  -- 3. Local missions near where helicopters and slow movers spawned.
+  self:hubMissions()
+end
+
+-- ---------------------------------------------------------------------------
+-- Hubs: local missions for helicopters and slow aircraft
+-- ---------------------------------------------------------------------------
+-- The board above is built from the whole front, so a Huey at a rear base can
+-- find every mission 300 nm away. The bridge reports where such players are
+-- (setHubs); for each hub and each mission type that player can fly, if no open
+-- mission of that type lies within the hub's range, the nearest candidate is
+-- added on top of the normal board (m.hub). Some types get a relaxed local
+-- generator so a rear base still has work: supply runs to any low base nearby,
+-- escorting any convoy passing through, FARPs near the front.
+--   hub = { node = id, km = range, caps = { HELO = true, LIFT = true, ... } }
+War.HUB_TYPES = { CAS = true, BAI = true, CONVOY = true, ESCORT = true, RECON = true, LOGISTICS = true,
+                  FARP = true, ARTY = true, FORT = true, COIN = true, BRIDGE = true }
+local hubGen = {}
+War.hubGenerators = hubGen
+
+function hubGen.LOGISTICS(self, side, hub)
+  local out = {}
+  for _, id in ipairs(self.T.order) do
+    local ns = self.state.nodes[id]
+    if ns.side == side and id ~= hub.node and not self.T.nodes[id].depot
+       and (ns.supply or 0) < self:supplyCap(id) * (M(self).hubSupplyBelow or 0.7) then
+      out[#out + 1] = { type = "LOGISTICS", target = id, node = id, prio = 0,
+        label = "supply run to " .. self:nodeName(id) }
+    end
+  end
+  return out
+end
+
+function hubGen.CONVOY(self, side, hub)
+  local out = {}
+  for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
+    local mv = self.state.moves[mid]
+    if mv.side == side and mv.kind == "convoy" and mv.status == "moving" and mv.progress < 0.6
+       and not self:onSea(mv) then
+      out[#out + 1] = { type = "CONVOY", target = mid, node = mv.to, near = { mv.from, mv.to }, prio = 0,
+        label = string.format("convoy %s > %s", self:nodeName(mv.from), self:nodeName(mv.to)) }
+    end
+  end
+  return out
+end
+
+function hubGen.FARP(self, side, hub)
+  if not self.canHaveFarp or (self.isStorm and self:isStorm()) then return {} end
+  local dist = self:frontDistance(side)
+  local out = {}
+  for _, id in ipairs(self.T.order) do
+    local ns = self.state.nodes[id]
+    if ns.side == side and self:canHaveFarp(id) and not self:farpAt(id) and (dist[id] or 9) <= 3 then
+      out[#out + 1] = { type = "FARP", target = id, node = id, prio = 0,
+        label = "build a FARP at " .. self:nodeName(id) }
+    end
+  end
+  return out
+end
+
+function War:setHubs(side, hubs)
+  self.hubs = self.hubs or {}
+  self.hubs[side] = hubs or {}
+end
+
+function War:hubKm(hub, c)
+  local a = self.T.nodes[hub.node]
+  local best = math.huge
+  for _, id in ipairs(c.near or { c.node }) do
+    local b = id and self.T.nodes[id]
+    if a and b then best = math.min(best, U.distKm(a, b)) end
+  end
+  return best
+end
+
+function War:hubMissions()
+  local st = self.state
+  st.missions = st.missions or {}
+  for _, side in ipairs(SIDES) do
+    local hubs = (self.hubs and self.hubs[side]) or {}
+    local live = {}
+    for _, h in ipairs(hubs) do live[h.node] = true end
+    -- local missions nobody took, for a hub that is gone, are withdrawn
+    for _, id in ipairs(U.sortedKeys(st.missions)) do
+      local m = st.missions[id]
+      if m.side == side and m.hub and m.status == "open" and not live[m.hub] and not next(m.taken) then
+        st.missions[id] = nil
+      end
+    end
+    for _, hub in ipairs(hubs) do
+      for _, t in ipairs(War.MISSION_ORDER) do
+        local g = gen[t]
+        if War.HUB_TYPES[t] and g and (M(self).perType[t] or 0) > 0 then
+          local near, have = false, {}
+          for _, m in pairs(st.missions) do
+            if m.side == side and m.status == "open" then
+              have[t .. ":" .. tostring(m.target)] = true
+              if m.type == t and self:hubKm(hub, m) <= hub.km then near = true end
+            end
+          end
+          if not near then
+            local cands = g(self, side)
+            if hubGen[t] then for _, c in ipairs(hubGen[t](self, side, hub)) do cands[#cands + 1] = c end end
+            local best, bestKm
+            for _, c in ipairs(cands) do
+              local needs = c.needs or War.MISSION_NEEDS[t]
+              local key = t .. ":" .. tostring(c.target)
+              local km = self:hubKm(hub, c)
+              if (needs == "ANY" or (hub.caps or {})[needs]) and not have[key] and km <= hub.km
+                 and (not bestKm or km < bestKm or (km == bestKm and tostring(c.target) < tostring(best.target))) then
+                best, bestKm = c, km
+              end
+            end
+            if best then
+              local mid = self:newId("x")
+              st.missions[mid] = { id = mid, side = side, type = t, target = best.target, node = best.node,
+                label = best.label, base = best.base or {}, created = st.tick, taken = {}, status = "open",
+                needs = best.needs or War.MISSION_NEEDS[t], hub = hub.node, near = best.near }
+            end
           end
         end
       end
