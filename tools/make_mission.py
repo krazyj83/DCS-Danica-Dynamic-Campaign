@@ -20,6 +20,9 @@ What the mission contains:
     The engine configures and starts CTLD itself (src/dcc_dcs_ctld.lua).
     --no-ctld leaves CTLD out (the engine's own helicopter Cargo menu is used).
   * Options: F10 map in fog-of-war mode, civil traffic off.
+  * DTC cartridges (F-16C, F/A-18C) from the templates in dtc/: radio presets and
+    displays as made in the Mission Editor; the Hornet gets every airbase and town
+    as a steerpoint. Default cartridge in every client slot of those types.
 
 Needs pydcs:  pip install git+https://github.com/pydcs/dcs.git
               (or clone it and set PYTHONPATH to the clone)
@@ -30,8 +33,12 @@ Usage:
     python tools/make_mission.py --theater Caucasus --era modern --out my.miz
 """
 import argparse
+import copy
+import glob
+import json
 import os
 import sys
+import zipfile
 
 from lupa import lua51
 
@@ -44,7 +51,7 @@ from dcs.coalition import Coalition
 from dcs.forcedoptions import ForcedOptions
 from dcs.mission import StartType
 from dcs.triggers import TriggerStart
-from dcs import mapping, ships, task as dtask, unit as dunit
+from dcs import flyingunit, mapping, ships, task as dtask, unit as dunit
 from dcs.terrain.terrain import Warehouse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -246,6 +253,69 @@ def fix_radio_frequencies(m):
         print(f"  radio: {fixed} aircraft groups set to their type's default frequency")
 
 
+# ---------------------------------------------------------------------------
+# DTC (Data Transfer Cartridge): one cartridge per DTC-capable type, built from
+# the templates in dtc/ (made in the Mission Editor, exported as .dtc). The
+# map's airbases and towns become the Hornet's steerpoints; every client slot of
+# that type gets the cartridge as its default. pydcs has no DTC support, so the
+# unit's dict() is extended and the files are added to the .miz after saving.
+# ---------------------------------------------------------------------------
+DTC_DIR = os.path.join(ROOT, "dtc")
+
+_base_unit_dict = flyingunit.FlyingUnit.dict
+
+
+def _unit_dict_with_dtc(self):
+    d = _base_unit_dict(self)
+    name = getattr(self, "dcc_dtc", None)
+    if name:
+        d["DTC"] = {"Cartridges": {1: {"name": name, "default": True}}}
+    return d
+
+
+flyingunit.FlyingUnit.dict = _unit_dict_with_dtc
+
+
+def build_dtcs(m, theater, theater_name):
+    """Returns {path in the .miz: json text} and gives client slots their cartridge."""
+    files, names = {}, {}
+    nodes = sorted(theater["nodes"], key=lambda n: (n.get("kind") != "airbase", n["name"]))
+    for fn in sorted(glob.glob(os.path.join(DTC_DIR, "*.dtc"))):
+        d = json.load(open(fn, encoding="utf-8"))
+        typ = d["type"]
+        name = f"DCC {theater_name} {typ}"
+        d["name"] = name
+        data = d["data"]
+        data["name"], data["terrain"], data["type"] = name, theater_name, typ
+        wy = data.get("WYPT")
+        if wy and wy.get("NAV_PTS"):
+            proto = wy["NAV_PTS"][0]
+            pts = []
+            limit = (wy.get("NAV_SETTINGS", {}).get("AA_Waypoint", {}).get("AA_WP_Number") or 60) - 1
+            for i, n in enumerate(nodes[:limit], start=1):
+                p = latlon_point(m, n["lat"], n["lon"])
+                pt = copy.deepcopy(proto)
+                pt.update({"id": f"STPT{i}", "idOA": f"OA{i}", "idOA_Line": f"OA{i}Line", "wypt_num": i,
+                           "x": p.x, "y": p.y, "alt": 0, "note": "", "text_note": n["name"]})
+                pts.append(pt)
+            wy["NAV_PTS"] = pts
+            wy["NAV_ROUTE"] = [[], [], []]
+            wy["terrain"] = theater_name
+        files[f"DTC/{name}.dtc"] = json.dumps(d, indent=1)
+        names[typ] = name
+    slots = 0
+    for coal in m.coalition.values():
+        for country in coal.countries.values():
+            for g in list(country.plane_group) + list(country.helicopter_group):
+                for u in g.units:
+                    if u.unit_type.id in names and u.skill in (dunit.Skill.Client, dunit.Skill.Player):
+                        u.dcc_dtc = names[u.unit_type.id]
+                        slots += 1
+    if files:
+        print(f"  DTC: {', '.join(sorted(names))} cartridges, default in {slots} client slots")
+    return files
+
+
 def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", test=False):
     theater, catalog = load_data(theater_name, era)
     if theater_name not in TERRAINS:
@@ -372,8 +442,13 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
         "F10 > Other > Campaign > Campaign status for the situation.")
 
     fix_radio_frequencies(m)
+    dtc_files = build_dtcs(m, theater, theater_name)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     m.save(out)
+    if dtc_files:
+        with zipfile.ZipFile(out, "a", compression=zipfile.ZIP_DEFLATED) as z:
+            for path, text in dtc_files.items():
+                z.writestr(path, text)
 
     print(f"Wrote {out}")
     for side in ("blue", "red"):
