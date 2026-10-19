@@ -29,6 +29,7 @@ dofile(DCC_ROOT .. "/src/dcc_dcs_ground.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ctld.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ext_air.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ext_ground.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_ext2.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_armoury.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
@@ -129,7 +130,9 @@ if hv then
   DCC.onTick()
   check("HVAA complete", war.state.missions[hv.id].status == "done")
 end
-check("RED gets a new AWACS from the pool", (function() DCC.onTick(); return B.awacs.red ~= nil end)())
+check("a lost AWACS: none for 2 h", (function() DCC.onTick(); return B.awacs.red == nil end)())
+war.state.hvaDown.red.awacs = war.state.tick
+check("then RED gets a new AWACS from the pool", (function() DCC.onTick(); return B.awacs.red ~= nil end)())
 
 print("Recon photos")
 local rm

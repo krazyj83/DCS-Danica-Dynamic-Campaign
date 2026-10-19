@@ -29,6 +29,7 @@ ENGINE = [
     "src/dcc_air.lua",
     "src/dcc_ground.lua",
     "src/dcc_ext.lua",
+    "src/dcc_ext2.lua",
     "src/dcc_front.lua",
     "src/dcc_territory.lua",
     "src/dcc_persist.lua",
@@ -45,6 +46,7 @@ ENGINE = [
     "src/dcc_dcs_ctld.lua",
     "src/dcc_dcs_ext_air.lua",
     "src/dcc_dcs_ext_ground.lua",
+    "src/dcc_dcs_ext2.lua",
     "src/dcc_dcs_armoury.lua",
     "src/dcc_main.lua",
 ]

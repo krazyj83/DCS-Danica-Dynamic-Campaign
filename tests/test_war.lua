@@ -163,11 +163,9 @@ do
   check("no supply, no attack", w2:assaultAffordable("zugdidi") == 0)
   check("out of supply removes the defender bonus", w2:bonusOf("zugdidi") == 1)
 
-  -- Killing the convoys that feed BLUE's main effort weakens BLUE's offensive.
-  local base = DCC.War.new(T, C, cfg, 303)
-  for _ = 1, 300 do base:tick() end
-  local text = J.encode(base:snapshot())
-  local function offensive(interdict)
+  -- Killing the convoys that feed BLUE's main effort weakens BLUE's offensive
+  -- (summed over a few wars: a single war is too noisy to judge).
+  local function offensive(text, interdict)
     local wx = DCC.War.restore(T, C, cfg, J.decode(text))
     local sent = 0
     for _ = 1, 288 do
@@ -185,7 +183,13 @@ do
     end
     return sent
   end
-  local normal, cut = offensive(false), offensive(true)
+  local normal, cut = 0, 0
+  for _, seed in ipairs({ 303, 11, 42 }) do
+    local base = DCC.War.new(T, C, cfg, seed)
+    for _ = 1, 300 do base:tick() end
+    local text = J.encode(base:snapshot())
+    normal, cut = normal + offensive(text, false), cut + offensive(text, true)
+  end
   check("killing convoys delays the assault they feed", cut < normal, cut .. " vs " .. normal)
 end
 

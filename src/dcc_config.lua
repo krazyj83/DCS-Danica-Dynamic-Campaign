@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.17.0",
+  version         = "0.18.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -104,7 +104,7 @@ DCC.config = {
   missions = {
     perType = { CAS = 2, BAI = 3, STRIKE = 2, SEAD = 2, CAP = 1, ESCORT = 3,
                 CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1, ANTISHIP = 1, FARP = 2,
-                FARPSUP = 2, INTERCEPT = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
+                FARPSUP = 2, INTERCEPT = 3, HVAESCORT = 2, PKGESCORT = 2, MEDEVAC = 2, POW = 2, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
                 RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2 },
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
@@ -302,6 +302,43 @@ DCC.config = {
     },
     -- kg, for CTLD's load checks (Mi-8 3 t, Chinook 11 t)
     vehicleWeights = { ["UAZ-469"] = 1600, ["Tigr_233036"] = 7200 },
+  },
+
+  -- More air and ground war (v0.18, src/dcc_ext2.lua + dcc_dcs_ext2.lua) ---------
+  ext2 = {
+    -- 2. tankers and AWACS: escorted by players, hunted by the enemy
+    hvaDownTicks    = 24,      -- a lost tanker / AWACS: none for 2 h
+    hvaEscortKm     = 40,      -- HVAESCORT: stay this close...
+    hvaEscortMin    = 20,      -- ...for this many minutes
+    huntMinutes     = 90,      -- mean time between enemy fighter sweeps at an HVA (when players are on)
+    huntWarnKm      = 150,     -- the HVA's side is warned when the hunters launch
+    -- 3. strike packages
+    pkgEscortKm     = 25,      -- PKGESCORT: be this close to the target while the strike goes in
+    pkgTypes        = { STRIKE = true, INDUSTRY = true, EWR = true, RUNWAY = true },
+    -- 4. enemy reacts to aces
+    aceKills        = 3,       -- air kills in one sortie that get a player hunted
+    aceCooldownMin  = 30,
+    -- 5. artillery duels
+    harassSU        = 0.4,     -- supply a shelled base loses per tick (5 min)
+    harassLogTicks  = 12,      -- "is shelling" message at most once an hour per battery
+    shellKm         = 15,      -- impacts are only shown when a player is this close
+    -- 6. convoys
+    secondAmbushAt  = 0.3,     -- a second ambush this much further along the road
+    liveAmbushChance = 0.3,    -- a live, unescorted front convoy near players: chance of an ambush
+    -- 7 + 9. prisoners and wounded (helicopter pick-ups)
+    powPerSurrender = 6, powPerCapture = 3, powTicks = 36,
+    medevacPerBattle = 4, medevacTicks = 18, medevacHeal = 0.1,
+    maxPickups      = 4,       -- open pick-ups per side
+    pickupLandM     = 250,     -- land this close to pick up
+    -- 8. heavy sling loads (Chinook / Mi-8)
+    heavyTypes      = { "CH-47Fbl1", "Mi-8MT", "Mi-8MTV2" },
+    generatorBoost  = 0.25, generatorTicks = 288,   -- +25 % supply cap for 24 h
+    heavyKm         = 3,
+    -- 10. CSAR under fire
+    searchAfterMin  = 10,      -- an enemy search party sets out after this long...
+    searchKm        = 30,      -- ...from the nearest enemy base within this range
+    searchSpeed     = 4,       -- m/s (on foot / light vehicle, cross country)
+    searchCatchM    = 120,     -- this close to the pilot: captured
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------
