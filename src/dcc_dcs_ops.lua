@@ -135,7 +135,7 @@ end
 function B.clearPlayer(uname, how)
   local p = B.players[uname]
   if not p then return end
-  if p.mission then B.war:leaveMission(p.mission, p.key) end
+  if p.mission then B.leaveTeam(p, how == "lost" and "lost" or "left the slot") end
   if #p.troops > 0 then
     for _, pid in ipairs(p.troops) do
       if how == "lost" then B.war:loseCarried(pid) else B.war:returnCarried(pid) end
@@ -272,6 +272,12 @@ function B.brief(p, m)
       p.marks[#p.marks + 1] = B.markId
     end
   end
+  local team = B.teamOf(m)
+  if #team > 1 then
+    local names = {}
+    for _, w in ipairs(team) do names[#names + 1] = w.name .. (w.type and (" (" .. w.type .. ")") or "") end
+    lines[#lines + 1] = "Flight: " .. table.concat(names, ", ")
+  end
   lines[#lines + 1] = EFFECT[m.type] or ""
   trigger.action.outTextForGroup(p.gid, table.concat(lines, "\n"), 30)
 end
@@ -284,12 +290,31 @@ function B.takeMission(args)
     trigger.action.outTextForGroup(p.gid, "That mission is no longer open.", 10)
     return B.buildMenu(p)
   end
-  if p.mission and p.mission ~= args.mid then B.war:leaveMission(p.mission, p.key) end
+  if p.mission == args.mid then return B.brief(p, m) end
+  if p.mission then B.leaveTeam(p, "switched missions") end
   p.mission, p.capSeconds = m.id, 0
+  local others = {}
+  for _, w in ipairs(B.teamOf(m)) do
+    if w.p ~= p then others[#others + 1] = w.name .. (w.type and (" (" .. w.type .. ")") or "") end
+  end
+  B.tellTeam(m, p, string.format("%s (%s) joined your %s mission: %s.", p.name, p.type, m.type, m.label))
   B.updateForced()                       -- the target spawns for real right away
   if m.type == "CONVOY" then B.spawnAmbush(m) end
   B.brief(p, m)
-  B.buildMenu(p)
+  if #others > 0 then
+    trigger.action.outTextForGroup(p.gid, "Flying with: " .. table.concat(others, ", ")
+      .. ". Coordinate on your radio / SRS - everyone on the mission gets the credit.", 20)
+  end
+  B.refreshMenus()                         -- everyone's board shows the new flight member
+end
+
+-- p leaves its mission (abandon, switch, slot change): the rest of the flight is told.
+function B.leaveTeam(p, why)
+  local m = p.mission and B.war.state.missions[p.mission]
+  B.war:leaveMission(p.mission, p.key)
+  if m and m.status == "open" then
+    B.tellTeam(m, p, string.format("%s left your %s mission (%s).", p.name, m.type, why))
+  end
 end
 
 function B.myMission(uname)
@@ -307,10 +332,10 @@ end
 function B.abandon(uname)
   local p = B.players[uname]
   if not p or not p.mission then return end
-  B.war:leaveMission(p.mission, p.key)
+  B.leaveTeam(p, "abandoned")
   p.mission = nil
   trigger.action.outTextForGroup(p.gid, "Mission abandoned.", 10)
-  B.buildMenu(p)
+  B.refreshMenus()
 end
 
 function B.showRecord(uname)
@@ -329,6 +354,40 @@ function B.showSquadrons(uname)
   local p = B.players[uname]
   if p then
     trigger.action.outTextForGroup(p.gid, "TOP SQUADRONS\n" .. table.concat(DCC.pilots:topSquadrons(10), "\n"), 30)
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- Flying together: any number of pilots may take the same mission. The board
+-- shows who is on it, "Join a flight" lists missions other pilots of your side
+-- are flying, and the flight is told when someone joins or leaves.
+-- ---------------------------------------------------------------------------
+-- The pilots on mission m: { { name, type (aircraft or nil if not in a slot), p } }
+function B.teamOf(m)
+  local out = {}
+  for key, name in pairs(m.taken or {}) do
+    local who = { name = name }
+    for _, p in pairs(B.players) do
+      if p.key == key and p.mission == m.id then who.type, who.p = p.type, p end
+    end
+    out[#out + 1] = who
+  end
+  table.sort(out, function(a, b) return a.name < b.name end)
+  return out
+end
+
+function B.teamText(m, max)
+  local t = B.teamOf(m)
+  if #t == 0 then return "" end
+  local names = {}
+  for i, w in ipairs(t) do if i <= (max or 3) then names[#names + 1] = w.name end end
+  return string.format(" [%d: %s%s]", #t, table.concat(names, ", "), #t > (max or 3) and ", ..." or "")
+end
+
+-- Tell everyone else on mission m (except p) something.
+function B.tellTeam(m, p, text)
+  for _, w in ipairs(B.teamOf(m)) do
+    if w.p and w.p ~= p then trigger.action.outTextForGroup(w.p.gid, text, 15) end
   end
 end
 
@@ -375,13 +434,28 @@ function B.buildMenu(p)
     if not byType[m.type] then byType[m.type] = {}; order[#order + 1] = m.type end
     table.insert(byType[m.type], m)
   end
+  -- missions other pilots of this side are flying now, whatever the distance
+  local joinable = {}
+  for _, m in ipairs(B.war:openMissions(p.side)) do
+    if B.canFly(p, m) and next(m.taken) and p.mission ~= m.id then joinable[#joinable + 1] = m end
+  end
+  if #joinable > 0 then
+    local sub = missionCommands.addSubMenuForGroup(p.gid, string.format("Join a flight (%d)", #joinable), root)
+    for i, m in ipairs(joinable) do
+      if i <= 9 then
+        missionCommands.addCommandForGroup(p.gid, m.type .. ": " .. m.label .. B.teamText(m, 2), sub, B.takeMission,
+          { unit = p.unit, mid = m.id })
+      end
+    end
+  end
   for _, t in ipairs(order) do
     local sub = missionCommands.addSubMenuForGroup(p.gid, string.format("%s (%d)", t, #byType[t]), root)
     for i, m in ipairs(byType[t]) do
       if i <= 9 then
         local mark = (p.mission == m.id) and "> " or ""
         local far = m._nm and string.format(" (%d nm)", m._nm) or ""
-        missionCommands.addCommandForGroup(p.gid, mark .. m.type .. ": " .. m.label .. far, sub, B.takeMission,
+        missionCommands.addCommandForGroup(p.gid, mark .. m.type .. ": " .. m.label .. far .. B.teamText(m, 2), sub,
+          B.takeMission,
           { unit = p.unit, mid = m.id })
       end
     end
@@ -1020,12 +1094,18 @@ end
 
 -- Credits for missions finished in the model.
 function B.onMissionDone(m, outcome)
+  local n = 0
+  for _ in pairs(m.taken) do n = n + 1 end
   for key, name in pairs(m.taken) do
-    if outcome == "done" then DCC.pilots:mission(key, m.type, name) end
+    if outcome == "done" then
+      DCC.pilots:mission(key, m.type, name)
+      if n >= 2 then DCC.pilots:add(key, "team", 1, name) end      -- flew it together
+    end
     for _, p in pairs(B.players) do
       if p.key == key and p.mission == m.id then
-        trigger.action.outTextForGroup(p.gid, string.format("Mission %s: %s %s.",
-          outcome == "done" and "COMPLETE" or outcome:upper(), m.type, m.label), 15)
+        trigger.action.outTextForGroup(p.gid, string.format("Mission %s: %s %s.%s",
+          outcome == "done" and "COMPLETE" or outcome:upper(), m.type, m.label,
+          (outcome == "done" and n >= 2) and string.format(" Team bonus - %d pilots.", n) or ""), 15)
         p.mission = nil
       end
     end

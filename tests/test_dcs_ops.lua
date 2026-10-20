@@ -296,6 +296,37 @@ do
   check("a Viper is not limited", B.localRangeKm(rec(viper)) == nil)
 end
 
+print("Flying together")
+do
+  local a, ag = MOCK.spawnPlayer(2, "F-16C_50", kp.x + 50, kp.z, "Anna")
+  local b, bg = MOCK.spawnPlayer(2, "F-16C_50", kp.x + 80, kp.z, "Bo")
+  local m
+  for _, om in ipairs(war:openMissions("blue")) do
+    if not m and om.type ~= "CAP" and B.canFly(rec(a), om) and not next(om.taken) then m = om end
+  end
+  B.takeMission({ unit = a:getName(), mid = m.id })
+  local items = table.concat(MOCK.menuItems(bg.id), " | ")
+  check("Bo's board: Join a flight, with Anna on it", items:find("Join a flight (", 1, true) ~= nil
+    and items:find("[1: Anna]", 1, true) ~= nil, items)
+  check("Bo joins with one click", MOCK.click(bg.id, "[1: Anna]") and m.taken[rec(b).key] ~= nil
+    and m.taken[rec(a).key] ~= nil)
+  local annaTexts = table.concat(MOCK.groupTexts[ag.id] or {}, " / ")
+  check("Anna is told Bo joined", annaTexts:find("Bo (F-16C_50) joined", 1, true) ~= nil)
+  local boTexts = table.concat(MOCK.groupTexts[bg.id] or {}, " / ")
+  check("Bo is told who he flies with", boTexts:find("Flying with: Anna", 1, true) ~= nil)
+  check("the brief lists the flight", boTexts:find("Flight: Anna (F-16C_50), Bo (F-16C_50)", 1, true) ~= nil)
+  local c, cg = MOCK.spawnPlayer(2, "F-16C_50", kp.x + 90, kp.z, "Cid")
+  B.takeMission({ unit = c:getName(), mid = m.id })
+  B.abandon(c:getName())
+  check("leaving is announced to the flight", MOCK.lastGroupText(ag.id):find("Cid left your", 1, true) ~= nil)
+  check("...and Cid is off the mission", m.taken[rec(c).key] == nil)
+  war:finishMission(m, "done")
+  check("done together: both credited, team bonus", DCC.pilots.data.pilots.Anna.team == 1
+    and DCC.pilots.data.pilots.Bo.team == 1 and (DCC.pilots.data.pilots.Cid.team or 0) == 0)
+  check("...and told", MOCK.lastGroupText(bg.id):find("Team bonus - 2 pilots", 1, true) ~= nil, MOCK.lastGroupText(bg.id))
+  for _, u in ipairs({ a, b, c }) do MOCK.fire({ id = world.event.S_EVENT_PLAYER_LEAVE_UNIT, initiator = u }) end
+end
+
 print("Leaving the slot")
 MOCK.click(hug.id, "Load troops")
 local carriedPid = rec(huey).troops[1]
