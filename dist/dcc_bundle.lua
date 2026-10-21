@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.20.2 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.21.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.20.2",
+  version         = "0.21.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -13589,9 +13589,10 @@ DCC_CATALOGS.modern = {
                       "Mirage-F1CE", "Mirage-F1BE", "F-5E-3", "F-5E-3_FC", "AJS37", "F-100D", "F-86F Sabre", "F-86F_FC",
                       "C-101CC", "C-101EB", "MB-339A", "MB-339APAN", "Hawk", "C-130J-30", "Christen Eagle II",
                       "P-51D", "P-51D-30-NA", "TF-51D", "P-47D-30", "P-47D-30bl1", "P-47D-40", "SpitfireLFMkIX",
-                      "SpitfireLFMkIXCW", "MosquitoFBMkVI", "F4U-1D" },
+                      "SpitfireLFMkIXCW", "MosquitoFBMkVI", "F4U-1D",
+                      "A-4E-C" },                                  -- mod: Community A-4E
       helicopters = { "AH-64D_BLK_II", "UH-1H", "OH58D", "CH-47Fbl1", "SA342M", "SA342L", "SA342Mistral",
-                      "SA342Minigun" },
+                      "SA342Minigun", "UH-60L" },                  -- mod: UH-60L Black Hawk
     },
     red = {
       planes      = { "Su-27", "Su-33", "MiG-29S", "MiG-29A", "MiG-29G", "MiG-29 Fulcrum", "J-11A", "JF-17",
@@ -13661,6 +13662,8 @@ DCC_CATALOGS.modern = {
     ["Yak-52"]        = {},
     ["Ka-50"]         = { A2G = true, HELO = true },
     ["F-14BU"]        = { A2A = true, A2G = true },
+    ["A-4E-C"]        = { A2A = true, A2G = true },           -- mod
+    ["UH-60L"]        = { HELO = true, LIFT = true },         -- mod
     ["F-14A-135-GR-Early"] = { A2A = true, A2G = true },
     ["F-14A-95-GR"]   = { A2A = true, A2G = true },
     ["Mirage-F1BE"]   = { A2A = true, A2G = true },
@@ -13696,6 +13699,7 @@ DCC_CATALOGS.modern = {
     ["Mi-8MT"]    = { crates = 2, troops = 1 },
     ["Mi-24P"]    = { crates = 0, troops = 1 },
     ["CH-47Fbl1"] = { crates = 4, troops = 2 },
+    ["UH-60L"]    = { crates = 1, troops = 1 },
   },
 
   -- AI aircraft. tools/make_mission.py builds a late-activated template group

@@ -13,8 +13,9 @@ What the mission contains:
     every base (at least 1 each - a DCS dynamic-spawn quirk); the engine then
     zeroes the enemy's types and stocks the owner's, and repeats that on every
     capture, so the choice always follows ownership.
-  * FIXED CLIENT SLOTS at each side's depots (one per type in `fixedSlots`,
-    or every type if unset). These work in single player too.
+  * FIXED CLIENT SLOTS, one per type (in `fixedSlots`, or every type if unset) at
+    each depot while its parking lasts; types that fit at no depot get one at the
+    side's next airbase with room. These work in single player too.
   * One trigger: MISSION START -> DO SCRIPT (ctld.dontInitialize = true),
     DO SCRIPT FILE vendor/ctld/CTLD.lua, DO SCRIPT FILE dist/dcc_bundle.lua.
     The engine configures and starts CTLD itself (src/dcc_dcs_ctld.lua).
@@ -53,6 +54,11 @@ from dcs.mission import StartType
 from dcs.triggers import TriggerStart
 from dcs import flyingunit, mapping, ships, task as dtask, unit as dunit
 from dcs.terrain.terrain import Warehouse
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from mod_types import MOD_TYPES  # noqa: E402
+
+WITH_MODS = True
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -93,6 +99,9 @@ def type_index():
             cls = getattr(mod, name)
             if isinstance(cls, type) and hasattr(cls, "id") and hasattr(cls, "flyable"):
                 idx[cls.id] = cls
+    if WITH_MODS:
+        for cls in MOD_TYPES:            # community mods (tools/mod_types.py)
+            idx[cls.id] = cls
     return idx
 
 
@@ -345,6 +354,7 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
 
     report = {"blue": [], "red": []}
     missing_airports = []
+    bases = {"blue": [], "red": []}
 
     for node in theater["nodes"]:
         if node.get("kind") != "airbase" or not node.get("airbase"):
@@ -369,24 +379,42 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
             n = own if s == side else 1
             for kind in ("planes", "helicopters"):
                 for t in air[s].get(kind, []):
+                    if t not in types:
+                        continue                 # unknown to pydcs, or a mod left out (--no-mods)
                     warehouse[kind][t] = {"initialAmount": max(n, warehouse[kind].get(t, {}).get("initialAmount", 0))}
         ap.aircrafts = warehouse
 
-        # Fixed client slots at depots.
-        if node.get("depot"):
-            wanted = fixed[side] if fixed else all_types(side)
-            for t in wanted:
-                cls = types.get(t)
-                if cls is None:
-                    continue
-                gname = f"{side.upper()} {node['name']} {t}"
-                try:
-                    g = m.flight_group_from_airport(cjtf[side], gname, cls, ap,
-                                                    start_type=StartType.Cold, group_size=1)
-                    g.set_client()
-                    report[side].append(f"{t} @ {node['name']}")
-                except Exception as exc:  # usually: no free parking for this type
-                    print(f"  no slot for {t} at {node['name']}: {exc}")
+        bases[side].append((0 if node.get("depot") else 1, node["name"], ap))
+
+    # Fixed client slots: one per type at every depot (as far as its parking goes);
+    # a type that fits at no depot gets one at the side's first other airbase with room.
+    for side in ("blue", "red"):
+        wanted = fixed[side] if fixed else all_types(side)
+        depots = sorted([b for b in bases[side] if b[0] == 0], key=lambda b: b[1])
+        others = sorted([b for b in bases[side] if b[0] == 1], key=lambda b: b[1])
+
+        def place(t, name, ap):
+            try:
+                g = m.flight_group_from_airport(cjtf[side], f"{side.upper()} {name} {t}", types[t], ap,
+                                                start_type=StartType.Cold, group_size=1)
+                g.set_client()
+                report[side].append(f"{t} @ {name}")
+                return True
+            except Exception:  # usually: no free parking for this type here
+                return False
+
+        homeless = []
+        for t in wanted:
+            if t not in types:
+                continue
+            placed = False
+            for _, name, ap in depots:
+                placed = place(t, name, ap) or placed
+            if not placed:
+                homeless.append(t)
+        for t in homeless:
+            if not any(place(t, name, ap) for _, name, ap in others):
+                print(f"  no fixed slot for {t} ({side}): no parking left - dynamic spawn only")
 
     # AI aircraft templates (phase 3): late-activated, never fly themselves.
     # The engine clones them for CAP, CAS and intercept sorties.
@@ -467,9 +495,13 @@ def main():
     ap.add_argument("--armoury", choices=["takeoff", "warehouse"], default="warehouse",
                     help="warehouse (default): limited munitions, shelves stocked by base supply; "
                          "takeoff: unlimited munitions, recall at take-off")
+    ap.add_argument("--no-mods", action="store_true",
+                    help="leave the community mod aircraft (A-4E-C, UH-60L) out")
     ap.add_argument("--test", action="store_true",
                     help="armoury test mission: own saves (DCC_test), no rotation, F10 > Armoury test")
     a = ap.parse_args()
+    global WITH_MODS
+    WITH_MODS = not a.no_mods
     suffix = "_ArmouryTest" if a.test else ""
     out = a.out or os.path.join(ROOT, "dist", f"DCC_{a.theater}{suffix}.miz")
     build(a.theater, a.era, out, a.bundle, use_ctld=not a.no_ctld, armoury=a.armoury, test=a.test)
