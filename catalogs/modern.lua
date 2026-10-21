@@ -71,7 +71,7 @@ DCC_CATALOGS.modern = {
     -- every flyable type in DCS, any era, by who flew it in real life (WWII Allies BLUE, Axis
     -- and Soviet RED). Types this DCS install does not have are skipped when the mission is built.
     blue = {
-      planes      = { "FA-18C_hornet", "F-16C_50", "F-15ESE", "F-15C", "F-14B", "F-14A-135-GR", "F-14A-135-GR-Early",
+      planes      = { "FA-18C_hornet", "F-16C_50", "F-15ESE", "F-15C", "F-14B", "F-14BU", "F-14A-135-GR", "F-14A-135-GR-Early",
                       "F-14A-95-GR", "F-4E-45MC", "A-10C_2", "A-10C", "A-10A", "AV8BNA", "M-2000C", "Mirage-F1EE",
                       "Mirage-F1CE", "Mirage-F1BE", "F-5E-3", "F-5E-3_FC", "AJS37", "F-100D", "F-86F Sabre", "F-86F_FC",
                       "C-101CC", "C-101EB", "MB-339A", "MB-339APAN", "Hawk", "C-130J-30", "Christen Eagle II",
@@ -147,6 +147,7 @@ DCC_CATALOGS.modern = {
     ["L-39C"]         = {},
     ["Yak-52"]        = {},
     ["Ka-50"]         = { A2G = true, HELO = true },
+    ["F-14BU"]        = { A2A = true, A2G = true },
     ["F-14A-135-GR-Early"] = { A2A = true, A2G = true },
     ["F-14A-95-GR"]   = { A2A = true, A2G = true },
     ["Mirage-F1BE"]   = { A2A = true, A2G = true },
