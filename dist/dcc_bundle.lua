@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.20.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.20.1 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.20.0",
+  version         = "0.20.1",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -114,7 +114,10 @@ DCC.config = {
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
     slowTypes       = { "A-10A", "A-10C", "A-10C_2", "Su-25", "Su-25T", "L-39ZA", "C-101CC", "MB-339A",
-                        "MB-339APAN", "OV-10A", "Yak-52", "Hawk", "L-39C" },
+                        "MB-339APAN", "OV-10A", "Yak-52", "Hawk", "L-39C",
+                        "C-101EB", "Christen Eagle II", "P-51D", "P-51D-30-NA", "TF-51D", "P-47D-30",
+                        "P-47D-30bl1", "P-47D-40", "SpitfireLFMkIX", "SpitfireLFMkIXCW", "MosquitoFBMkVI",
+                        "F4U-1D", "Bf-109K-4", "FW-190D9", "FW-190A8", "I-16", "La-7" },
     hubSupplyBelow  = 0.7,    -- local supply runs go to own bases below this share of their cap
     capMinutes      = 20,     -- CAP: time on station that completes the mission
     capRadiusKm     = 40,
@@ -13578,17 +13581,22 @@ DCC_CATALOGS.modern = {
 
   -- Player aircraft (dynamic spawn stock per airbase, and fixed depot slots).
   aircraft = {
-    -- every flyable modern-era type, by who flies it in real life (WWII and Korea types left out)
+    -- every flyable type in DCS, any era, by who flew it in real life (WWII Allies BLUE, Axis
+    -- and Soviet RED). Types this DCS install does not have are skipped when the mission is built.
     blue = {
-      planes      = { "FA-18C_hornet", "F-16C_50", "F-15ESE", "F-15C", "F-14B", "F-14A-135-GR", "F-4E-45MC",
-                      "A-10C_2", "A-10C", "A-10A", "AV8BNA", "M-2000C", "Mirage-F1EE", "Mirage-F1CE", "F-5E-3",
-                      "AJS37", "C-101CC", "MB-339A", "Hawk", "C-130J-30" },
+      planes      = { "FA-18C_hornet", "F-16C_50", "F-15ESE", "F-15C", "F-14B", "F-14A-135-GR", "F-14A-135-GR-Early",
+                      "F-14A-95-GR", "F-4E-45MC", "A-10C_2", "A-10C", "A-10A", "AV8BNA", "M-2000C", "Mirage-F1EE",
+                      "Mirage-F1CE", "Mirage-F1BE", "F-5E-3", "F-5E-3_FC", "AJS37", "F-100D", "F-86F Sabre", "F-86F_FC",
+                      "C-101CC", "C-101EB", "MB-339A", "MB-339APAN", "Hawk", "C-130J-30", "Christen Eagle II",
+                      "P-51D", "P-51D-30-NA", "TF-51D", "P-47D-30", "P-47D-30bl1", "P-47D-40", "SpitfireLFMkIX",
+                      "SpitfireLFMkIXCW", "MosquitoFBMkVI", "F4U-1D" },
       helicopters = { "AH-64D_BLK_II", "UH-1H", "OH58D", "CH-47Fbl1", "SA342M", "SA342L", "SA342Mistral",
                       "SA342Minigun" },
     },
     red = {
       planes      = { "Su-27", "Su-33", "MiG-29S", "MiG-29A", "MiG-29G", "MiG-29 Fulcrum", "J-11A", "JF-17",
-                      "Su-25T", "Su-25", "MiG-21Bis", "MiG-19P", "L-39ZA", "L-39C", "Yak-52" },
+                      "Su-25T", "Su-25", "MiG-21Bis", "MiG-19P", "MiG-15bis", "MiG-15bis_FC", "L-39ZA", "L-39C",
+                      "Yak-52", "Bf-109K-4", "FW-190D9", "FW-190A8", "I-16", "La-7" },
       helicopters = { "Ka-50_3", "Ka-50", "Mi-24P", "Mi-8MT" },
     },
   },
@@ -13652,6 +13660,33 @@ DCC_CATALOGS.modern = {
     ["L-39C"]         = {},
     ["Yak-52"]        = {},
     ["Ka-50"]         = { A2G = true, HELO = true },
+    ["F-14A-135-GR-Early"] = { A2A = true, A2G = true },
+    ["F-14A-95-GR"]   = { A2A = true, A2G = true },
+    ["Mirage-F1BE"]   = { A2A = true, A2G = true },
+    ["F-5E-3_FC"]     = { A2A = true, A2G = true },
+    ["F-100D"]        = { A2G = true },
+    ["F-86F Sabre"]   = { A2A = true, A2G = true },
+    ["F-86F_FC"]      = { A2A = true, A2G = true },
+    ["C-101EB"]       = {},
+    ["MB-339APAN"]    = { A2G = true },
+    ["Christen Eagle II"] = {},
+    ["P-51D"]         = { A2A = true, A2G = true },
+    ["P-51D-30-NA"]   = { A2A = true, A2G = true },
+    ["TF-51D"]        = {},
+    ["P-47D-30"]      = { A2A = true, A2G = true },
+    ["P-47D-30bl1"]   = { A2A = true, A2G = true },
+    ["P-47D-40"]      = { A2A = true, A2G = true },
+    ["SpitfireLFMkIX"]   = { A2A = true, A2G = true },
+    ["SpitfireLFMkIXCW"] = { A2A = true, A2G = true },
+    ["MosquitoFBMkVI"] = { A2G = true },
+    ["F4U-1D"]        = { A2A = true, A2G = true },
+    ["MiG-15bis"]     = { A2A = true },
+    ["MiG-15bis_FC"]  = { A2A = true },
+    ["Bf-109K-4"]     = { A2A = true },
+    ["FW-190D9"]      = { A2A = true, A2G = true },
+    ["FW-190A8"]      = { A2A = true, A2G = true },
+    ["I-16"]          = { A2A = true },
+    ["La-7"]          = { A2A = true },
   },
 
   -- What a transport helicopter carries: supply crates and troop platoons.
