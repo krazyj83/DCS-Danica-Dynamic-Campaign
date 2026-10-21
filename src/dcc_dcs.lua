@@ -57,6 +57,79 @@ local function isWater(x, z)
   return t == land.SurfaceType.WATER or t == land.SurfaceType.SHALLOW_WATER
 end
 
+-- ---------------------------------------------------------------------------
+-- Ground units never stand in the sea: every ground group and static object
+-- spawned by any script (ours, CTLD) is moved to the nearest dry land, and
+-- its waypoints too. Coastal towns, sea crossings and offsets near the shore
+-- otherwise put units in the water.
+-- ---------------------------------------------------------------------------
+function B.landNear(x, z)
+  if not isWater(x, z) then return x, z end
+  for r = 100, 6000, 100 do
+    for k = 0, 15 do
+      local a = k * math.pi / 8
+      local nx, nz = x + r * math.cos(a), z + r * math.sin(a)
+      if not isWater(nx, nz) then return nx, nz end
+    end
+  end
+  return x, z
+end
+
+function B.dryGroundData(data)
+  local moved = 0
+  for _, u in ipairs(data.units or {}) do
+    if u.x and u.y then
+      local nx, nz = B.landNear(u.x, u.y)
+      if nx ~= u.x or nz ~= u.y then u.x, u.y, moved = nx, nz, moved + 1 end
+    end
+  end
+  for _, p in ipairs((data.route and data.route.points) or {}) do
+    if p.x and p.y then p.x, p.y = B.landNear(p.x, p.y) end
+  end
+  return moved
+end
+
+if coalition and coalition.addGroup and not coalition.dccDry then
+  local rawAddGroup, rawAddStatic = coalition.addGroup, coalition.addStaticObject
+  coalition.addGroup = function(country, category, data)
+    if Group and category == Group.Category.GROUND and type(data) == "table" then
+      local okD, n = pcall(B.dryGroundData, data)
+      if okD and n > 0 and DCC.util then DCC.util.log("%s: %d units moved out of the water", tostring(data.name), n) end
+    end
+    return rawAddGroup(country, category, data)
+  end
+  if rawAddStatic then
+    coalition.addStaticObject = function(country, data)
+      if type(data) == "table" and data.x and data.y and data.category ~= "Ships" and data.category ~= "Heliports" then
+        data.x, data.y = B.landNear(data.x, data.y)
+      end
+      return rawAddStatic(country, data)
+    end
+  end
+  coalition.dccDry = true
+end
+
+-- Messages stay at least config.messageSeconds on screen (CTLD's included).
+if trigger and trigger.action and not trigger.action.dccMinTime then
+  local function minTime(fn, durIdx)
+    local raw = trigger.action[fn]
+    if not raw then return end
+    trigger.action[fn] = function(...)
+      local n = select("#", ...)
+      local args = { ... }
+      local min = (DCC.config and DCC.config.messageSeconds) or 10
+      if n < durIdx then n = durIdx end
+      if type(args[durIdx]) ~= "number" or args[durIdx] < min then args[durIdx] = min end
+      return raw(unpack(args, 1, n))
+    end
+  end
+  minTime("outText", 2)
+  for _, fn in ipairs({ "outTextForCoalition", "outTextForGroup", "outTextForUnit", "outTextForCountry" }) do
+    minTime(fn, 3)
+  end
+  trigger.action.dccMinTime = true
+end
+
 local function pidNumber(pid) return tonumber(tostring(pid):match("%d+")) or 1 end
 
 -- ---------------------------------------------------------------------------

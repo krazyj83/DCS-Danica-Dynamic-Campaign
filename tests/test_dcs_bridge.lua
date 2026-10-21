@@ -63,7 +63,9 @@ local kut = MOCK.airbases["Kutaisi"].wh
 -- Kutaisi is a BLUE depot: depots hold 8 of each type
 check("BLUE base: BLUE aircraft stocked", kut:getItemCount("FA-18C_hornet") == 8, kut:getItemCount("FA-18C_hornet"))
 check("BLUE base: RED-only aircraft removed", kut:getItemCount("Su-27") == 0)
-check("type flown by both sides stays", kut:getItemCount("Su-25T") == 8, kut:getItemCount("Su-25T"))
+check("every BLUE type on the shelf (F-15C, M-2000C, Gazelle)", kut:getItemCount("F-15C") == 8
+  and kut:getItemCount("M-2000C") == 8 and kut:getItemCount("SA342L") == 8, kut:getItemCount("F-15C"))
+check("...and no RED type (Su-25T is RED now)", kut:getItemCount("Su-25T") == 0 and kut:getItemCount("Ka-50") == 0)
 local bat = MOCK.airbases["Batumi"].wh
 check("depot holds more", bat:getItemCount("F-16C_50") == 8, bat:getItemCount("F-16C_50"))
 local soc = MOCK.airbases["Sochi-Adler"].wh

@@ -68,13 +68,18 @@ DCC_CATALOGS.modern = {
 
   -- Player aircraft (dynamic spawn stock per airbase, and fixed depot slots).
   aircraft = {
+    -- every flyable modern-era type, by who flies it in real life (WWII and Korea types left out)
     blue = {
-      planes      = { "FA-18C_hornet", "F-16C_50", "F-15ESE", "A-10C_2", "F-14B", "AV8BNA", "F-4E-45MC", "Su-25T" },
-      helicopters = { "AH-64D_BLK_II", "UH-1H", "OH58D", "CH-47Fbl1", "SA342M" },
+      planes      = { "FA-18C_hornet", "F-16C_50", "F-15ESE", "F-15C", "F-14B", "F-14A-135-GR", "F-4E-45MC",
+                      "A-10C_2", "A-10C", "A-10A", "AV8BNA", "M-2000C", "Mirage-F1EE", "Mirage-F1CE", "F-5E-3",
+                      "AJS37", "C-101CC", "MB-339A", "Hawk", "C-130J-30" },
+      helicopters = { "AH-64D_BLK_II", "UH-1H", "OH58D", "CH-47Fbl1", "SA342M", "SA342L", "SA342Mistral",
+                      "SA342Minigun" },
     },
     red = {
-      planes      = { "Su-27", "Su-33", "MiG-29S", "J-11A", "JF-17", "Su-25", "Su-25T", "MiG-21Bis" },
-      helicopters = { "Ka-50_3", "Mi-24P", "Mi-8MT" },
+      planes      = { "Su-27", "Su-33", "MiG-29S", "MiG-29A", "MiG-29G", "MiG-29 Fulcrum", "J-11A", "JF-17",
+                      "Su-25T", "Su-25", "MiG-21Bis", "MiG-19P", "L-39ZA", "L-39C", "Yak-52" },
+      helicopters = { "Ka-50_3", "Ka-50", "Mi-24P", "Mi-8MT" },
     },
   },
 
@@ -113,6 +118,30 @@ DCC_CATALOGS.modern = {
     ["UH-1H"]         = { HELO = true, LIFT = true },
     ["Mi-8MT"]        = { HELO = true, LIFT = true },
     ["CH-47Fbl1"]     = { LIFT = true },
+    ["F-15C"]         = { A2A = true },
+    ["F-14A-135-GR"]  = { A2A = true, A2G = true },
+    ["A-10C"]         = { A2G = true },
+    ["A-10A"]         = { A2G = true },
+    ["M-2000C"]       = { A2A = true, A2G = true },
+    ["Mirage-F1EE"]   = { A2A = true, A2G = true },
+    ["Mirage-F1CE"]   = { A2A = true, A2G = true },
+    ["F-5E-3"]        = { A2A = true, A2G = true },
+    ["AJS37"]         = { A2G = true },
+    ["C-101CC"]       = { A2G = true },
+    ["MB-339A"]       = { A2G = true },
+    ["Hawk"]          = { A2G = true },
+    ["C-130J-30"]     = {},                       -- recon only (it flies CTLD cargo)
+    ["SA342L"]        = { A2G = true, HELO = true },
+    ["SA342Mistral"]  = { HELO = true },
+    ["SA342Minigun"]  = { HELO = true },
+    ["MiG-29A"]       = { A2A = true },
+    ["MiG-29G"]       = { A2A = true },
+    ["MiG-29 Fulcrum"] = { A2A = true, A2G = true },
+    ["MiG-19P"]       = { A2A = true },
+    ["L-39ZA"]        = { A2G = true },
+    ["L-39C"]         = {},
+    ["Yak-52"]        = {},
+    ["Ka-50"]         = { A2G = true, HELO = true },
   },
 
   -- What a transport helicopter carries: supply crates and troop platoons.

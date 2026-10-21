@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.19.0",
+  version         = "0.20.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -18,6 +18,7 @@ DCC.config = {
   -- Time ------------------------------------------------------------------
   tickSeconds      = 300,   -- one war step = 5 minutes of mission time
   liveCheckSeconds = 30,    -- how often live (spawned) units are polled
+  messageSeconds   = 10,    -- every message stays on screen at least this long (CTLD's too)
 
   -- Movement ----------------------------------------------------------------
   groundSpeedKmh   = 30,    -- average road speed for abstract (unspawned) moves
@@ -109,7 +110,7 @@ DCC.config = {
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
     slowTypes       = { "A-10A", "A-10C", "A-10C_2", "Su-25", "Su-25T", "L-39ZA", "C-101CC", "MB-339A",
-                        "MB-339APAN", "OV-10A", "Yak-52" },
+                        "MB-339APAN", "OV-10A", "Yak-52", "Hawk", "L-39C" },
     hubSupplyBelow  = 0.7,    -- local supply runs go to own bases below this share of their cap
     capMinutes      = 20,     -- CAP: time on station that completes the mission
     capRadiusKm     = 40,

@@ -427,8 +427,10 @@ function B.buildMenu(p)
   if p.menu then ok(missionCommands.removeItemForGroup, p.gid, p.menu) end
   local root = missionCommands.addSubMenuForGroup(p.gid, "Missions")
   p.menu = root
-  -- One submenu per mission type this aircraft can fly ("SEAD (2)"), so the
-  -- F10 page never overflows (DCS shows at most 10 items per page).
+  -- DCS shows at most 10 items per F10 page and its own paging is unreliable,
+  -- so no level here ever holds more than 10: the mission types go into
+  -- "Mission board", 9 per page with "More missions" as the 10th.
+  --   Missions > Join a flight | Mission board | My mission | Pilot records | Cargo | (JTAC)
   local byType, order = {}, {}
   for _, m in ipairs(B.missionsFor(p)) do
     if not byType[m.type] then byType[m.type] = {}; order[#order + 1] = m.type end
@@ -442,29 +444,36 @@ function B.buildMenu(p)
   if #joinable > 0 then
     local sub = missionCommands.addSubMenuForGroup(p.gid, string.format("Join a flight (%d)", #joinable), root)
     for i, m in ipairs(joinable) do
-      if i <= 9 then
+      if i <= 10 then
         missionCommands.addCommandForGroup(p.gid, m.type .. ": " .. m.label .. B.teamText(m, 2), sub, B.takeMission,
           { unit = p.unit, mid = m.id })
       end
     end
   end
-  for _, t in ipairs(order) do
-    local sub = missionCommands.addSubMenuForGroup(p.gid, string.format("%s (%d)", t, #byType[t]), root)
-    for i, m in ipairs(byType[t]) do
-      if i <= 9 then
+  local total = 0
+  for _, t in ipairs(order) do total = total + #byType[t] end
+  local page = missionCommands.addSubMenuForGroup(p.gid, string.format("Mission board (%d)", total), root)
+  for i, t in ipairs(order) do
+    if i > 1 and (i - 1) % 9 == 0 then
+      page = missionCommands.addSubMenuForGroup(p.gid, "More missions", page)
+    end
+    local sub = missionCommands.addSubMenuForGroup(p.gid, string.format("%s (%d)", t, #byType[t]), page)
+    for k, m in ipairs(byType[t]) do
+      if k <= 10 then
         local mark = (p.mission == m.id) and "> " or ""
         local far = m._nm and string.format(" (%d nm)", m._nm) or ""
         missionCommands.addCommandForGroup(p.gid, mark .. m.type .. ": " .. m.label .. far .. B.teamText(m, 2), sub,
-          B.takeMission,
-          { unit = p.unit, mid = m.id })
+          B.takeMission, { unit = p.unit, mid = m.id })
       end
     end
   end
-  missionCommands.addCommandForGroup(p.gid, "My mission (brief again)", root, B.myMission, p.unit)
-  missionCommands.addCommandForGroup(p.gid, "Abandon mission", root, B.abandon, p.unit)
-  missionCommands.addCommandForGroup(p.gid, "My pilot record", root, B.showRecord, p.unit)
-  missionCommands.addCommandForGroup(p.gid, "Leaderboard", root, B.showLeaderboard, p.unit)
-  missionCommands.addCommandForGroup(p.gid, "Squadron leaderboard", root, B.showSquadrons, p.unit)
+  local mine = missionCommands.addSubMenuForGroup(p.gid, "My mission", root)
+  missionCommands.addCommandForGroup(p.gid, "My mission (brief again)", mine, B.myMission, p.unit)
+  missionCommands.addCommandForGroup(p.gid, "Abandon mission", mine, B.abandon, p.unit)
+  local rec = missionCommands.addSubMenuForGroup(p.gid, "Pilot records", root)
+  missionCommands.addCommandForGroup(p.gid, "My pilot record", rec, B.showRecord, p.unit)
+  missionCommands.addCommandForGroup(p.gid, "Leaderboard", rec, B.showLeaderboard, p.unit)
+  missionCommands.addCommandForGroup(p.gid, "Squadron leaderboard", rec, B.showSquadrons, p.unit)
   local lift = (cat().lift or {})[p.type]
   if lift and not B.ctldActive then           -- with CTLD in the mission, CTLD's own menu does cargo
     local c = missionCommands.addSubMenuForGroup(p.gid, "Cargo", root)

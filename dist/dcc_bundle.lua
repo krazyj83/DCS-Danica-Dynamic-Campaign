@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.19.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.20.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.19.0",
+  version         = "0.20.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -22,6 +22,7 @@ DCC.config = {
   -- Time ------------------------------------------------------------------
   tickSeconds      = 300,   -- one war step = 5 minutes of mission time
   liveCheckSeconds = 30,    -- how often live (spawned) units are polled
+  messageSeconds   = 10,    -- every message stays on screen at least this long (CTLD's too)
 
   -- Movement ----------------------------------------------------------------
   groundSpeedKmh   = 30,    -- average road speed for abstract (unspawned) moves
@@ -113,7 +114,7 @@ DCC.config = {
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
     slowTypes       = { "A-10A", "A-10C", "A-10C_2", "Su-25", "Su-25T", "L-39ZA", "C-101CC", "MB-339A",
-                        "MB-339APAN", "OV-10A", "Yak-52" },
+                        "MB-339APAN", "OV-10A", "Yak-52", "Hawk", "L-39C" },
     hubSupplyBelow  = 0.7,    -- local supply runs go to own bases below this share of their cap
     capMinutes      = 20,     -- CAP: time on station that completes the mission
     capRadiusKm     = 40,
@@ -5993,6 +5994,79 @@ local function isWater(x, z)
   return t == land.SurfaceType.WATER or t == land.SurfaceType.SHALLOW_WATER
 end
 
+-- ---------------------------------------------------------------------------
+-- Ground units never stand in the sea: every ground group and static object
+-- spawned by any script (ours, CTLD) is moved to the nearest dry land, and
+-- its waypoints too. Coastal towns, sea crossings and offsets near the shore
+-- otherwise put units in the water.
+-- ---------------------------------------------------------------------------
+function B.landNear(x, z)
+  if not isWater(x, z) then return x, z end
+  for r = 100, 6000, 100 do
+    for k = 0, 15 do
+      local a = k * math.pi / 8
+      local nx, nz = x + r * math.cos(a), z + r * math.sin(a)
+      if not isWater(nx, nz) then return nx, nz end
+    end
+  end
+  return x, z
+end
+
+function B.dryGroundData(data)
+  local moved = 0
+  for _, u in ipairs(data.units or {}) do
+    if u.x and u.y then
+      local nx, nz = B.landNear(u.x, u.y)
+      if nx ~= u.x or nz ~= u.y then u.x, u.y, moved = nx, nz, moved + 1 end
+    end
+  end
+  for _, p in ipairs((data.route and data.route.points) or {}) do
+    if p.x and p.y then p.x, p.y = B.landNear(p.x, p.y) end
+  end
+  return moved
+end
+
+if coalition and coalition.addGroup and not coalition.dccDry then
+  local rawAddGroup, rawAddStatic = coalition.addGroup, coalition.addStaticObject
+  coalition.addGroup = function(country, category, data)
+    if Group and category == Group.Category.GROUND and type(data) == "table" then
+      local okD, n = pcall(B.dryGroundData, data)
+      if okD and n > 0 and DCC.util then DCC.util.log("%s: %d units moved out of the water", tostring(data.name), n) end
+    end
+    return rawAddGroup(country, category, data)
+  end
+  if rawAddStatic then
+    coalition.addStaticObject = function(country, data)
+      if type(data) == "table" and data.x and data.y and data.category ~= "Ships" and data.category ~= "Heliports" then
+        data.x, data.y = B.landNear(data.x, data.y)
+      end
+      return rawAddStatic(country, data)
+    end
+  end
+  coalition.dccDry = true
+end
+
+-- Messages stay at least config.messageSeconds on screen (CTLD's included).
+if trigger and trigger.action and not trigger.action.dccMinTime then
+  local function minTime(fn, durIdx)
+    local raw = trigger.action[fn]
+    if not raw then return end
+    trigger.action[fn] = function(...)
+      local n = select("#", ...)
+      local args = { ... }
+      local min = (DCC.config and DCC.config.messageSeconds) or 10
+      if n < durIdx then n = durIdx end
+      if type(args[durIdx]) ~= "number" or args[durIdx] < min then args[durIdx] = min end
+      return raw(unpack(args, 1, n))
+    end
+  end
+  minTime("outText", 2)
+  for _, fn in ipairs({ "outTextForCoalition", "outTextForGroup", "outTextForUnit", "outTextForCountry" }) do
+    minTime(fn, 3)
+  end
+  trigger.action.dccMinTime = true
+end
+
 local function pidNumber(pid) return tonumber(tostring(pid):match("%d+")) or 1 end
 
 -- ---------------------------------------------------------------------------
@@ -7124,8 +7198,10 @@ function B.buildMenu(p)
   if p.menu then ok(missionCommands.removeItemForGroup, p.gid, p.menu) end
   local root = missionCommands.addSubMenuForGroup(p.gid, "Missions")
   p.menu = root
-  -- One submenu per mission type this aircraft can fly ("SEAD (2)"), so the
-  -- F10 page never overflows (DCS shows at most 10 items per page).
+  -- DCS shows at most 10 items per F10 page and its own paging is unreliable,
+  -- so no level here ever holds more than 10: the mission types go into
+  -- "Mission board", 9 per page with "More missions" as the 10th.
+  --   Missions > Join a flight | Mission board | My mission | Pilot records | Cargo | (JTAC)
   local byType, order = {}, {}
   for _, m in ipairs(B.missionsFor(p)) do
     if not byType[m.type] then byType[m.type] = {}; order[#order + 1] = m.type end
@@ -7139,29 +7215,36 @@ function B.buildMenu(p)
   if #joinable > 0 then
     local sub = missionCommands.addSubMenuForGroup(p.gid, string.format("Join a flight (%d)", #joinable), root)
     for i, m in ipairs(joinable) do
-      if i <= 9 then
+      if i <= 10 then
         missionCommands.addCommandForGroup(p.gid, m.type .. ": " .. m.label .. B.teamText(m, 2), sub, B.takeMission,
           { unit = p.unit, mid = m.id })
       end
     end
   end
-  for _, t in ipairs(order) do
-    local sub = missionCommands.addSubMenuForGroup(p.gid, string.format("%s (%d)", t, #byType[t]), root)
-    for i, m in ipairs(byType[t]) do
-      if i <= 9 then
+  local total = 0
+  for _, t in ipairs(order) do total = total + #byType[t] end
+  local page = missionCommands.addSubMenuForGroup(p.gid, string.format("Mission board (%d)", total), root)
+  for i, t in ipairs(order) do
+    if i > 1 and (i - 1) % 9 == 0 then
+      page = missionCommands.addSubMenuForGroup(p.gid, "More missions", page)
+    end
+    local sub = missionCommands.addSubMenuForGroup(p.gid, string.format("%s (%d)", t, #byType[t]), page)
+    for k, m in ipairs(byType[t]) do
+      if k <= 10 then
         local mark = (p.mission == m.id) and "> " or ""
         local far = m._nm and string.format(" (%d nm)", m._nm) or ""
         missionCommands.addCommandForGroup(p.gid, mark .. m.type .. ": " .. m.label .. far .. B.teamText(m, 2), sub,
-          B.takeMission,
-          { unit = p.unit, mid = m.id })
+          B.takeMission, { unit = p.unit, mid = m.id })
       end
     end
   end
-  missionCommands.addCommandForGroup(p.gid, "My mission (brief again)", root, B.myMission, p.unit)
-  missionCommands.addCommandForGroup(p.gid, "Abandon mission", root, B.abandon, p.unit)
-  missionCommands.addCommandForGroup(p.gid, "My pilot record", root, B.showRecord, p.unit)
-  missionCommands.addCommandForGroup(p.gid, "Leaderboard", root, B.showLeaderboard, p.unit)
-  missionCommands.addCommandForGroup(p.gid, "Squadron leaderboard", root, B.showSquadrons, p.unit)
+  local mine = missionCommands.addSubMenuForGroup(p.gid, "My mission", root)
+  missionCommands.addCommandForGroup(p.gid, "My mission (brief again)", mine, B.myMission, p.unit)
+  missionCommands.addCommandForGroup(p.gid, "Abandon mission", mine, B.abandon, p.unit)
+  local rec = missionCommands.addSubMenuForGroup(p.gid, "Pilot records", root)
+  missionCommands.addCommandForGroup(p.gid, "My pilot record", rec, B.showRecord, p.unit)
+  missionCommands.addCommandForGroup(p.gid, "Leaderboard", rec, B.showLeaderboard, p.unit)
+  missionCommands.addCommandForGroup(p.gid, "Squadron leaderboard", rec, B.showSquadrons, p.unit)
   local lift = (cat().lift or {})[p.type]
   if lift and not B.ctldActive then           -- with CTLD in the mission, CTLD's own menu does cargo
     local c = missionCommands.addSubMenuForGroup(p.gid, "Cargo", root)
@@ -13495,13 +13578,18 @@ DCC_CATALOGS.modern = {
 
   -- Player aircraft (dynamic spawn stock per airbase, and fixed depot slots).
   aircraft = {
+    -- every flyable modern-era type, by who flies it in real life (WWII and Korea types left out)
     blue = {
-      planes      = { "FA-18C_hornet", "F-16C_50", "F-15ESE", "A-10C_2", "F-14B", "AV8BNA", "F-4E-45MC", "Su-25T" },
-      helicopters = { "AH-64D_BLK_II", "UH-1H", "OH58D", "CH-47Fbl1", "SA342M" },
+      planes      = { "FA-18C_hornet", "F-16C_50", "F-15ESE", "F-15C", "F-14B", "F-14A-135-GR", "F-4E-45MC",
+                      "A-10C_2", "A-10C", "A-10A", "AV8BNA", "M-2000C", "Mirage-F1EE", "Mirage-F1CE", "F-5E-3",
+                      "AJS37", "C-101CC", "MB-339A", "Hawk", "C-130J-30" },
+      helicopters = { "AH-64D_BLK_II", "UH-1H", "OH58D", "CH-47Fbl1", "SA342M", "SA342L", "SA342Mistral",
+                      "SA342Minigun" },
     },
     red = {
-      planes      = { "Su-27", "Su-33", "MiG-29S", "J-11A", "JF-17", "Su-25", "Su-25T", "MiG-21Bis" },
-      helicopters = { "Ka-50_3", "Mi-24P", "Mi-8MT" },
+      planes      = { "Su-27", "Su-33", "MiG-29S", "MiG-29A", "MiG-29G", "MiG-29 Fulcrum", "J-11A", "JF-17",
+                      "Su-25T", "Su-25", "MiG-21Bis", "MiG-19P", "L-39ZA", "L-39C", "Yak-52" },
+      helicopters = { "Ka-50_3", "Ka-50", "Mi-24P", "Mi-8MT" },
     },
   },
 
@@ -13540,6 +13628,30 @@ DCC_CATALOGS.modern = {
     ["UH-1H"]         = { HELO = true, LIFT = true },
     ["Mi-8MT"]        = { HELO = true, LIFT = true },
     ["CH-47Fbl1"]     = { LIFT = true },
+    ["F-15C"]         = { A2A = true },
+    ["F-14A-135-GR"]  = { A2A = true, A2G = true },
+    ["A-10C"]         = { A2G = true },
+    ["A-10A"]         = { A2G = true },
+    ["M-2000C"]       = { A2A = true, A2G = true },
+    ["Mirage-F1EE"]   = { A2A = true, A2G = true },
+    ["Mirage-F1CE"]   = { A2A = true, A2G = true },
+    ["F-5E-3"]        = { A2A = true, A2G = true },
+    ["AJS37"]         = { A2G = true },
+    ["C-101CC"]       = { A2G = true },
+    ["MB-339A"]       = { A2G = true },
+    ["Hawk"]          = { A2G = true },
+    ["C-130J-30"]     = {},                       -- recon only (it flies CTLD cargo)
+    ["SA342L"]        = { A2G = true, HELO = true },
+    ["SA342Mistral"]  = { HELO = true },
+    ["SA342Minigun"]  = { HELO = true },
+    ["MiG-29A"]       = { A2A = true },
+    ["MiG-29G"]       = { A2A = true },
+    ["MiG-29 Fulcrum"] = { A2A = true, A2G = true },
+    ["MiG-19P"]       = { A2A = true },
+    ["L-39ZA"]        = { A2G = true },
+    ["L-39C"]         = {},
+    ["Yak-52"]        = {},
+    ["Ka-50"]         = { A2G = true, HELO = true },
   },
 
   -- What a transport helicopter carries: supply crates and troop platoons.

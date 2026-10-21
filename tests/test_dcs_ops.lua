@@ -327,6 +327,47 @@ do
   for _, u in ipairs({ a, b, c }) do MOCK.fire({ id = world.event.S_EVENT_PLAYER_LEAVE_UNIT, initiator = u }) end
 end
 
+print("F10 menu never more than 10 items per level")
+do
+  local v2, vg2 = MOCK.spawnPlayer(2, "F-16C_50", kp.x + 60, kp.z, "Pager")
+  local types = { "CAS", "BAI", "STRIKE", "SEAD", "CAP", "ESCORT", "PKGESCORT", "HVAESCORT", "INTERCEPT", "TANKER",
+                  "HVAA", "EWR", "ARTY", "FORT", "BRIDGE", "RUNWAY", "INDUSTRY", "COIN", "RECON" }
+  local fake = {}
+  for i, t in ipairs(types) do
+    for k = 1, 12 do
+      local id = "xpage" .. i .. "_" .. k
+      war.state.missions[id] = { id = id, side = "blue", type = t, target = id, node = "kutaisi", label = "test " .. k,
+        base = {}, created = war.state.tick, taken = {}, status = "open" }
+      war.state.missions[id].needs = DCC.War.MISSION_NEEDS[t] or "ANY"
+      fake[#fake + 1] = id
+    end
+  end
+  B.buildMenu(rec(v2))
+  local count, worst = {}, 0
+  for _, it in ipairs(MOCK.groupMenus[vg2.id] or {}) do
+    local key = it.parent or "root"
+    count[key] = (count[key] or 0) + 1
+    worst = math.max(worst, count[key])
+  end
+  check("19 mission types x 12: still at most 10 per menu level", worst <= 10, worst)
+  local items = table.concat(MOCK.menuItems(vg2.id), " | ")
+  check("...with 'More missions' paging", items:find("More missions", 1, true) ~= nil)
+  for _, id in ipairs(fake) do war.state.missions[id] = nil end
+  MOCK.fire({ id = world.event.S_EVENT_PLAYER_LEAVE_UNIT, initiator = v2 })
+end
+
+print("Nothing spawns in the water")
+do
+  local realSurface = land.getSurfaceType
+  land.getSurfaceType = function(p) return (p.x < -1e6) and land.SurfaceType.WATER or land.SurfaceType.LAND end
+  coalition.addGroup(B.countryId("blue"), Group.Category.GROUND, { name = "WETGROUP", task = "Ground Nothing",
+    units = { { name = "WET_1", type = "Soldier M4", x = -1e6 - 300, y = 5000, heading = 0 } },
+    route = { points = { { x = -1e6 - 300, y = 5000, type = "Turning Point", action = "Off Road", speed = 0 } } } })
+  local u = MOCK.groups.WETGROUP.units[1]
+  check("a ground unit spawned in the sea is moved ashore", u.x >= -1e6, u.x)
+  land.getSurfaceType = realSurface
+end
+
 print("Leaving the slot")
 MOCK.click(hug.id, "Load troops")
 local carriedPid = rec(huey).troops[1]
