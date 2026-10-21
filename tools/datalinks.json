@@ -1,0 +1,241 @@
+{
+ "FA-18C_hornet": {
+  "Link16": {
+   "settings": {
+    "FF1_Channel": 2,
+    "FF2_Channel": 3,
+    "transmitPower": 0,
+    "AIC_Channel": 1,
+    "VOCA_Channel": 4,
+    "VOCB_Channel": 5
+   },
+   "network": {
+    "teamMembers": [
+     {
+      "missionUnitId": 1
+     }
+    ],
+    "donors": {}
+   }
+  }
+ },
+ "F-16C_50": {
+  "Link16": {
+   "settings": {
+    "flightLead": true,
+    "transmitPower": 3,
+    "specialChannel": 1,
+    "fighterChannel": 1,
+    "missionChannel": 1
+   },
+   "network": {
+    "teamMembers": [
+     {
+      "missionUnitId": 2,
+      "TDOA": true
+     }
+    ],
+    "donors": {}
+   }
+  }
+ },
+ "A-10C_2": {
+  "SADL": {
+   "settings": {
+    "flightLead": true,
+    "AirKey": 10,
+    "GatewayKey": 8
+   },
+   "network": {
+    "teamMembers": [
+     {
+      "missionUnitId": 4
+     }
+    ],
+    "donors": {}
+   }
+  }
+ },
+ "AH-64D_BLK_II": {
+  "IDM": {
+   "settings": {
+    "presets": [
+     {
+      "primaryFreq": 1,
+      "NoAcknowledgmentRetries": 2,
+      "LB_Net": true,
+      "presetName": "PRESET 1",
+      "callSign": "PRE 1",
+      "autoAcknowledgment": true
+     },
+     {
+      "primaryFreq": 2,
+      "NoAcknowledgmentRetries": 2,
+      "LB_Net": true,
+      "presetName": "PRESET 2",
+      "callSign": "PRE 2",
+      "autoAcknowledgment": true
+     },
+     {
+      "primaryFreq": 3,
+      "NoAcknowledgmentRetries": 2,
+      "LB_Net": true,
+      "presetName": "PRESET 3",
+      "callSign": "PRE 3",
+      "autoAcknowledgment": true
+     },
+     {
+      "primaryFreq": 4,
+      "NoAcknowledgmentRetries": 2,
+      "LB_Net": true,
+      "presetName": "PRESET 4",
+      "callSign": "PRE 4",
+      "autoAcknowledgment": true
+     },
+     {
+      "primaryFreq": 0,
+      "NoAcknowledgmentRetries": 2,
+      "LB_Net": true,
+      "presetName": "PRESET 5",
+      "callSign": "PRE 5",
+      "autoAcknowledgment": true
+     },
+     {
+      "primaryFreq": 0,
+      "NoAcknowledgmentRetries": 2,
+      "LB_Net": true,
+      "presetName": "PRESET 6",
+      "callSign": "PRE 6",
+      "autoAcknowledgment": true
+     },
+     {
+      "primaryFreq": 0,
+      "NoAcknowledgmentRetries": 2,
+      "LB_Net": true,
+      "presetName": "PRESET 7",
+      "callSign": "PRE 7",
+      "autoAcknowledgment": true
+     },
+     {
+      "primaryFreq": 0,
+      "NoAcknowledgmentRetries": 2,
+      "LB_Net": true,
+      "presetName": "PRESET 8",
+      "callSign": "PRE 8",
+      "autoAcknowledgment": true
+     },
+     {
+      "primaryFreq": 0,
+      "NoAcknowledgmentRetries": 2,
+      "LB_Net": false,
+      "presetName": "PRESET 9",
+      "callSign": "PRE 9",
+      "autoAcknowledgment": true
+     },
+     {
+      "primaryFreq": 0,
+      "NoAcknowledgmentRetries": 2,
+      "LB_Net": false,
+      "presetName": "PRESET10",
+      "callSign": "PRE10",
+      "autoAcknowledgment": true
+     }
+    ]
+   },
+   "network": {
+    "presets": [
+     {
+      "members": [
+       {
+        "PRI_value": true,
+        "TM_value": true,
+        "missionUnitId": 9
+       }
+      ]
+     },
+     {
+      "members": [
+       {
+        "PRI_value": true,
+        "TM_value": true,
+        "missionUnitId": 9
+       }
+      ]
+     },
+     {
+      "members": [
+       {
+        "PRI_value": true,
+        "TM_value": true,
+        "missionUnitId": 9
+       }
+      ]
+     },
+     {
+      "members": [
+       {
+        "PRI_value": true,
+        "TM_value": true,
+        "missionUnitId": 9
+       }
+      ]
+     },
+     {
+      "members": [
+       {
+        "PRI_value": true,
+        "TM_value": true,
+        "missionUnitId": 9
+       }
+      ]
+     },
+     {
+      "members": [
+       {
+        "PRI_value": true,
+        "TM_value": true,
+        "missionUnitId": 9
+       }
+      ]
+     },
+     {
+      "members": [
+       {
+        "PRI_value": true,
+        "TM_value": true,
+        "missionUnitId": 9
+       }
+      ]
+     },
+     {
+      "members": [
+       {
+        "PRI_value": true,
+        "TM_value": true,
+        "missionUnitId": 9
+       }
+      ]
+     },
+     {
+      "members": [
+       {
+        "PRI_value": true,
+        "TM_value": true,
+        "missionUnitId": 9
+       }
+      ]
+     },
+     {
+      "members": [
+       {
+        "PRI_value": true,
+        "TM_value": true,
+        "missionUnitId": 9
+       }
+      ]
+     }
+    ]
+   }
+  }
+ }
+}

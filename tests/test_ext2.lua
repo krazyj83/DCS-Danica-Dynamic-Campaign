@@ -178,6 +178,7 @@ local viper, vg = MOCK.spawnPlayer(BLUE, "F-16C_50", kp.x, kp.z, "Morten")
 viper.air = true
 DCC.onTick()
 check("BLUE tanker up", B.assets.blue.tanker ~= nil)
+check("...on the datalink too", (MOCK.groups[B.assets.blue.tanker.group].commands or {}).EPLRS == true)
 local realHunt = X.huntMinutes
 X.huntMinutes = 0.0001
 B.planHunts()

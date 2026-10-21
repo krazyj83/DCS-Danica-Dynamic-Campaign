@@ -63,6 +63,17 @@ end
 -- its waypoints too. Coastal towns, sea crossings and offsets near the shore
 -- otherwise put units in the water.
 -- ---------------------------------------------------------------------------
+-- EPLRS (datalink) on for a group, by name.
+function B.datalinkOn(gname)
+  local okE = pcall(function()
+    local g = Group.getByName(gname)
+    if not g or not g:isExist() then return end
+    local c = g:getController()
+    c:setCommand({ id = "EPLRS", params = { value = true, groupId = g:getID() } })
+  end)
+  return okE
+end
+
 function B.landNear(x, z)
   if not isWater(x, z) then return x, z end
   for r = 100, 6000, 100 do
@@ -96,7 +107,18 @@ if coalition and coalition.addGroup and not coalition.dccDry then
       local okD, n = pcall(B.dryGroundData, data)
       if okD and n > 0 and DCC.util then DCC.util.log("%s: %d units moved out of the water", tostring(data.name), n) end
     end
-    return rawAddGroup(country, category, data)
+    local g = rawAddGroup(country, category, data)
+    -- Aircraft spawned by script have no EPLRS (the Mission Editor switches it on for
+    -- every group): without it an AWACS / tanker / fighter shares nothing on the
+    -- datalink, so F-16 / F/A-18 / A-10C II players see no AWACS tracks.
+    if Group and (category == Group.Category.AIRPLANE or category == Group.Category.HELICOPTER)
+       and type(data) == "table" and data.name then
+      B.datalinkOn(data.name)
+      if timer and timer.scheduleFunction then
+        timer.scheduleFunction(function() B.datalinkOn(data.name) end, nil, timer.getTime() + 2)
+      end
+    end
+    return g
   end
   if rawAddStatic then
     coalition.addStaticObject = function(country, data)

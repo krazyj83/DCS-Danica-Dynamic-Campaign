@@ -103,6 +103,7 @@ check("dead radar no longer sees", B.airContacts.red[viper:getName()] == nil or 
 print("AWACS")
 DCC.onTick()
 local blueAwacs, redAwacs = B.awacs.blue, B.awacs.red
+check("AWACS on the datalink (EPLRS on)", blueAwacs and (MOCK.groups[blueAwacs.group].commands or {}).EPLRS == true)
 check("both sides put an AWACS up while players are online", blueAwacs ~= nil and redAwacs ~= nil)
 check("AWACS state in the model", war:awacsUp("red") and war:awacsUp("blue"))
 local ra = redAwacs and MOCK.groups[redAwacs.group]

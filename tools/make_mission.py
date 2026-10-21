@@ -279,7 +279,63 @@ def _unit_dict_with_dtc(self):
     name = getattr(self, "dcc_dtc", None)
     if name:
         d["DTC"] = {"Cartridges": {1: {"name": name, "default": True}}}
+    links = getattr(self, "dcc_datalinks", None)
+    if links:
+        d["datalinks"] = links
     return d
+
+
+# ---------------------------------------------------------------------------
+# Datalinks. pydcs leaves a client slot without a Link 16 STN and without the
+# "datalinks" block the Mission Editor writes, so the jet joins no network and
+# sees no AWACS / flight tracks. tools/datalinks.json holds the Mission Editor's
+# own blocks per type (Link 16: F/A-18C, F-16C; SADL: A-10C II; IDM: AH-64D);
+# every client slot gets one, with its own unit as team member, plus a unique
+# STN and voice callsign like the Mission Editor gives.
+# ---------------------------------------------------------------------------
+DATALINKS = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "datalinks.json"),
+                           encoding="utf-8"))
+DATALINKS.setdefault("F-15ESE", DATALINKS.get("F-16C_50"))      # Link 16, same block
+
+
+def _own_ids(v, uid):
+    """Every missionUnitId in a Mission Editor datalink block -> this unit; lists -> Lua tables."""
+    if isinstance(v, dict):
+        return {k: (uid if k == "missionUnitId" else _own_ids(x, uid)) for k, x in v.items()}
+    if isinstance(v, list):
+        return {i + 1: _own_ids(x, uid) for i, x in enumerate(v)}
+    return v
+
+
+def assign_datalinks(m):
+    stn, n = 0o201, 0
+    for coal in m.coalition.values():
+        for country in coal.countries.values():
+            for g in list(country.plane_group) + list(country.helicopter_group):
+                for u in g.units:
+                    if u.skill not in (dunit.Skill.Client, dunit.Skill.Player):
+                        continue
+                    t = u.unit_type
+                    props = getattr(t, "property_defaults", None) or {}
+                    if "STN_L16" in props:
+                        u.set_property("STN_L16", f"{stn:05o}")
+                        stn += 1
+                    if "VoiceCallsignLabel" in props:
+                        cs = getattr(u, "callsign_dict", None) or {}
+                        letters = "".join(ch for ch in str(cs.get("name", "Enfield")) if ch.isalpha()) or "Enfield"
+                        u.set_property("VoiceCallsignLabel", (letters[0] + letters[-1]).upper())
+                        u.set_property("VoiceCallsignNumber", f"{cs.get(2, 1)}{cs.get(3, 1)}")
+                    tpl = DATALINKS.get(t.id)
+                    if tpl:
+                        links = _own_ids(copy.deepcopy(tpl), u.id)
+                        for link in links.values():
+                            net = link.get("network")
+                            if isinstance(net, dict) and "teamMembers" in net:
+                                net["teamMembers"] = {i + 1: {"missionUnitId": x.id} for i, x in enumerate(g.units)}
+                                net["donors"] = {}
+                        u.dcc_datalinks = links
+                        n += 1
+    print(f"  datalinks: {n} client slots on a network, {stn - 0o201} Link 16 STNs")
 
 
 flyingunit.FlyingUnit.dict = _unit_dict_with_dtc
@@ -470,6 +526,7 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
         "F10 > Other > Campaign > Campaign status for the situation.")
 
     fix_radio_frequencies(m)
+    assign_datalinks(m)
     dtc_files = build_dtcs(m, theater, theater_name)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     m.save(out)
