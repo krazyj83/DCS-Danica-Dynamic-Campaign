@@ -48,7 +48,7 @@ end
 B.escorts  = {}   -- convoy move id -> escort group name
 B.farps    = {}   -- node id -> { side, crew = group name, mark }
 B.naval    = {}   -- ship id -> { group, side, leg }
-B.fogKind  = nil
+B.fogNow   = nil
 
 -- ===========================================================================
 -- 1. Night and weather
@@ -62,20 +62,39 @@ function B.updateNight()
   B.war.night = (h >= cfg.nightStartHour or h < cfg.nightEndHour)
 end
 
+-- Fog for a weather severity: none up to fogFromSev, then thickening through
+-- the rain value (at rain severity) to the storm value (at 1).
+function B.fogAt(sev)
+  local cfg, S = WC(), DCC.War.WEATHER_SEV
+  local from = cfg.fogFromSev or 0.45
+  if sev <= from then return 0, 0 end
+  local rain, storm = cfg.fog.rain, cfg.fog.storm
+  if sev <= S.rain then
+    local f = (sev - from) / (S.rain - from)
+    return 10000 + (rain[1] - 10000) * f, 100 + (rain[2] - 100) * f
+  end
+  local f = math.min(1, (sev - S.rain) / (S.storm - S.rain))
+  return rain[1] + (storm[1] - rain[1]) * f, rain[2] + (storm[2] - rain[2]) * f
+end
+
+-- Every tick: the fog follows the weather severity. Where DCS can animate fog
+-- (world.weather.setFogAnimation) it eases to the new value over the tick, so
+-- it rolls in and lifts instead of jumping.
 function B.applyWeather()
-  local kind = B.war:weatherKind()
-  if kind == B.fogKind then return end
-  B.fogKind = kind
   local wx = world and world.weather
   if not wx or not wx.setFogVisibilityDistance then return end   -- older DCS: nothing to do
-  local f = WC().fog[kind]
-  if f then
-    pcall(wx.setFogThickness, f[2])
-    pcall(wx.setFogVisibilityDistance, f[1])
-  else
-    pcall(wx.setFogThickness, 0)
-    pcall(wx.setFogVisibilityDistance, 0)
+  local vis, thick = B.fogAt(B.war:weatherSeverity())
+  vis, thick = math.floor(vis + 0.5), math.floor(thick + 0.5)
+  local last = B.fogNow
+  if last and last.vis == vis and last.thick == thick then return end
+  B.fogNow = { vis = vis, thick = thick }
+  if wx.setFogAnimation and last then
+    -- one key after the tick: DCS eases from the fog as it is now (0 = no fog)
+    local okA = pcall(wx.setFogAnimation, { { DCC.config.tickSeconds, vis, thick } })
+    if okA then return end
   end
+  pcall(wx.setFogThickness, thick)
+  pcall(wx.setFogVisibilityDistance, vis)
 end
 
 -- ===========================================================================
@@ -374,8 +393,9 @@ local baseStatus = B.opsStatusLines
 function B.opsStatusLines(side)
   local lines = baseStatus(side)
   local war = B.war
-  lines[#lines + 1] = string.format("Weather: %s%s.", DCC.War.WEATHER_TEXT[war:weatherKind()],
-    war:isNight() and ", night" or "")
+  local trend = war:weatherTrend()
+  lines[#lines + 1] = string.format("Weather: %s%s%s.", DCC.War.WEATHER_TEXT[war:weatherKind()],
+    trend ~= "" and (", " .. trend) or "", war:isNight() and ", night" or "")
   local a, b, v = war:worstRoad(side)
   if a then lines[#lines + 1] = string.format("Most dangerous road: %s - %s (AI escorts and CAP there)",
     war:nodeName(a), war:nodeName(b)) end
@@ -428,7 +448,7 @@ B.visualFactor = function(air) return B.war:visualFactor(air) end
 local baseInit = B.init
 function B.init(war, theater, catalog)
   baseInit(war, theater, catalog)
-  B.escorts, B.farps, B.naval, B.fogKind = {}, {}, {}, nil
+  B.escorts, B.farps, B.naval, B.fogNow = {}, {}, {}, nil
   B.updateNight()
   B.initNaval()
 end

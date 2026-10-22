@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.21.1 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.22.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.21.1",
+  version         = "0.22.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -167,13 +167,16 @@ DCC.config = {
 
   -- Weather, night, AI adaptation, FARPs, ships, JTAC, public feed (after phase 5)
   world = {
-    weatherTicks   = 72,      -- the weather may change every 6 h
+    weatherFrontTicks = { 24, 72 },  -- a new weather front every 2-6 h...
+    weatherDrift   = 0.02,    -- ...and the sky turns toward it this much per tick (5 min):
+                              --   clear -> rain takes ~3 h, rain -> storm ~1.5 h
     speedFactor    = { rain = 0.8, storm = 0.6 },      -- ground columns
     battleFactor   = { rain = 0.85, storm = 0.7 },     -- dice battles bleed slower
     visualFactor   = { overcast = 0.9, rain = 0.6, storm = 0.4 },
     nightVisual    = 0.5,     -- eyes at night (NVGs help, but not that much)
     nightStartHour = 20,  nightEndHour = 6,             -- mission clock
     fog            = { rain = { 4000, 400 }, storm = { 1500, 900 } },  -- DCS fog: visibility m, thickness m
+    fogFromSev     = 0.45,    -- fog starts this far toward rain (light haze, 10 km), thickens from there
     escortThreat   = 2,       -- road threat that gets convoys an air-defence escort
     rerouteThreat  = 2,       -- ...and makes the AI prefer another road
     reroutePenalty = 400,     -- (planning cost per threat point; one step nearer the front = 1000)
@@ -3472,38 +3475,102 @@ War.WEATHER_TEXT = {
   storm = "storm - helicopters grounded",
 }
 
+-- Weather is one number, severity 0..1, that drifts a little every tick toward a
+-- target (the next weather front). Every few hours a new front is picked from the
+-- table above; the sky then turns over an hour or two, not at once:
+--   clear 0 - overcast 0.33 - rain 0.66 - storm 1   (kind = nearest band)
+-- Everything that depends on the weather (column speed, battles, eyes, fog)
+-- follows the severity smoothly between those points.
+War.WEATHER_SEV = { clear = 0, overcast = 0.33, rain = 0.66, storm = 1 }
+local KINDS = { "clear", "overcast", "rain", "storm" }
+
+local function kindOf(sev)
+  if sev >= 0.85 then return "storm" elseif sev >= 0.5 then return "rain"
+  elseif sev >= 0.18 then return "overcast" end
+  return "clear"
+end
+War.weatherKindOf = kindOf
+
+function War:weatherSeverity()
+  local w = self.state.weather or {}
+  return w.sev or War.WEATHER_SEV[w.kind or "clear"] or 0
+end
+
 function War:weatherKind() return self.state.weather and self.state.weather.kind or "clear" end
 function War:isStorm() return self:weatherKind() == "storm" end
 function War:isNight() return self.night == true end   -- set by the bridge, not saved
 
-function War:weatherTick()
-  local w, cfg = self.state.weather, W(self)
-  if self.state.tick - w.since < cfg.weatherTicks then return end
-  local roll, acc, nextKind = self.rng:next(), 0, w.kind
-  for _, opt in ipairs(War.WEATHER_NEXT[w.kind]) do
-    acc = acc + opt[2]
-    if roll < acc then nextKind = opt[1]; break end
+-- "getting worse", "clearing" or "" (steady)
+function War:weatherTrend()
+  local w = self.state.weather or {}
+  local t, s = w.target, self:weatherSeverity()
+  if not t or math.abs(t - s) < 0.05 then return "" end
+  return t > s and "getting worse" or "clearing"
+end
+
+-- A value from a per-kind table ({ rain = 0.8, ... }, missing = 1) at the current
+-- severity, interpolated between the kinds either side of it.
+function War:weatherValue(tbl, sev)
+  sev = sev or self:weatherSeverity()
+  for i = 1, #KINDS - 1 do
+    local a, b = KINDS[i], KINDS[i + 1]
+    local sa, sb = War.WEATHER_SEV[a], War.WEATHER_SEV[b]
+    if sev <= sb then
+      local f = math.max(0, math.min(1, (sev - sa) / (sb - sa)))
+      local va, vb = tbl[a] or 1, tbl[b] or 1
+      return va + (vb - va) * f
+    end
   end
-  local changed = nextKind ~= w.kind
-  self.state.weather = { kind = nextKind, since = self.state.tick }
-  if changed then
-    self:log("weather", nil, string.format("Weather on %s: %s.", self.T.name, War.WEATHER_TEXT[nextKind]))
+  return tbl.storm or 1
+end
+
+function War:weatherTick()
+  local cfg = W(self)
+  local w = self.state.weather or { kind = "clear", since = self.state.tick }
+  self.state.weather = w
+  w.sev = w.sev or War.WEATHER_SEV[w.kind] or 0
+  -- a new front: every frontTicks (random between the two), from the Markov table
+  if not w.target or not w.nextFront or self.state.tick >= w.nextFront then
+    local from = kindOf(w.target or w.sev)
+    local roll, acc, nextKind = self.rng:next(), 0, from
+    for _, opt in ipairs(War.WEATHER_NEXT[from]) do
+      acc = acc + opt[2]
+      if roll < acc then nextKind = opt[1]; break end
+    end
+    local jitter = (self.rng:next() - 0.5) * 0.12
+    w.target = math.max(0, math.min(1, War.WEATHER_SEV[nextKind] + jitter))
+    local lo, hi = cfg.weatherFrontTicks[1], cfg.weatherFrontTicks[2]
+    w.nextFront = self.state.tick + lo + math.floor(self.rng:next() * (hi - lo + 1))
+    if kindOf(w.target) ~= kindOf(w.sev) then
+      local hours = math.abs(w.target - w.sev) / cfg.weatherDrift * self.cfg.tickSeconds / 3600
+      self:log("weather_front", nil, string.format("Forecast for %s: %s within about %d h.", self.T.name,
+        War.WEATHER_TEXT[kindOf(w.target)], math.max(1, math.floor(hours + 0.5))))
+    end
+  end
+  -- drift toward it, with a little noise on the way
+  local step = cfg.weatherDrift * (0.6 + 0.8 * self.rng:next())
+  local d = w.target - w.sev
+  if math.abs(d) <= step then w.sev = w.target else w.sev = w.sev + (d > 0 and step or -step) end
+  local kind = kindOf(w.sev)
+  if kind ~= w.kind then
+    w.kind, w.since = kind, self.state.tick
+    self:log("weather", nil, string.format("Weather on %s: %s.", self.T.name, War.WEATHER_TEXT[kind]))
   end
 end
 
 -- Ground column speed and dice battles in bad weather.
 function War:moveSpeedFactor(mv)
   if mv.kind == "airlift" then return 1 end
-  return W(self).speedFactor[self:weatherKind()] or 1
+  return self:weatherValue(W(self).speedFactor)
 end
 
 function War:battleFactor()
-  return W(self).battleFactor[self:weatherKind()] or 1
+  return self:weatherValue(W(self).battleFactor)
 end
 
 -- Visual detection range multiplier (players' eyes).
 function War:visualFactor(air)
-  local f = W(self).visualFactor[self:weatherKind()] or 1
+  local f = self:weatherValue(W(self).visualFactor)
   if self:isNight() then f = f * W(self).nightVisual end
   return f
 end
@@ -8929,7 +8996,7 @@ end
 B.escorts  = {}   -- convoy move id -> escort group name
 B.farps    = {}   -- node id -> { side, crew = group name, mark }
 B.naval    = {}   -- ship id -> { group, side, leg }
-B.fogKind  = nil
+B.fogNow   = nil
 
 -- ===========================================================================
 -- 1. Night and weather
@@ -8943,20 +9010,39 @@ function B.updateNight()
   B.war.night = (h >= cfg.nightStartHour or h < cfg.nightEndHour)
 end
 
+-- Fog for a weather severity: none up to fogFromSev, then thickening through
+-- the rain value (at rain severity) to the storm value (at 1).
+function B.fogAt(sev)
+  local cfg, S = WC(), DCC.War.WEATHER_SEV
+  local from = cfg.fogFromSev or 0.45
+  if sev <= from then return 0, 0 end
+  local rain, storm = cfg.fog.rain, cfg.fog.storm
+  if sev <= S.rain then
+    local f = (sev - from) / (S.rain - from)
+    return 10000 + (rain[1] - 10000) * f, 100 + (rain[2] - 100) * f
+  end
+  local f = math.min(1, (sev - S.rain) / (S.storm - S.rain))
+  return rain[1] + (storm[1] - rain[1]) * f, rain[2] + (storm[2] - rain[2]) * f
+end
+
+-- Every tick: the fog follows the weather severity. Where DCS can animate fog
+-- (world.weather.setFogAnimation) it eases to the new value over the tick, so
+-- it rolls in and lifts instead of jumping.
 function B.applyWeather()
-  local kind = B.war:weatherKind()
-  if kind == B.fogKind then return end
-  B.fogKind = kind
   local wx = world and world.weather
   if not wx or not wx.setFogVisibilityDistance then return end   -- older DCS: nothing to do
-  local f = WC().fog[kind]
-  if f then
-    pcall(wx.setFogThickness, f[2])
-    pcall(wx.setFogVisibilityDistance, f[1])
-  else
-    pcall(wx.setFogThickness, 0)
-    pcall(wx.setFogVisibilityDistance, 0)
+  local vis, thick = B.fogAt(B.war:weatherSeverity())
+  vis, thick = math.floor(vis + 0.5), math.floor(thick + 0.5)
+  local last = B.fogNow
+  if last and last.vis == vis and last.thick == thick then return end
+  B.fogNow = { vis = vis, thick = thick }
+  if wx.setFogAnimation and last then
+    -- one key after the tick: DCS eases from the fog as it is now (0 = no fog)
+    local okA = pcall(wx.setFogAnimation, { { DCC.config.tickSeconds, vis, thick } })
+    if okA then return end
   end
+  pcall(wx.setFogThickness, thick)
+  pcall(wx.setFogVisibilityDistance, vis)
 end
 
 -- ===========================================================================
@@ -9255,8 +9341,9 @@ local baseStatus = B.opsStatusLines
 function B.opsStatusLines(side)
   local lines = baseStatus(side)
   local war = B.war
-  lines[#lines + 1] = string.format("Weather: %s%s.", DCC.War.WEATHER_TEXT[war:weatherKind()],
-    war:isNight() and ", night" or "")
+  local trend = war:weatherTrend()
+  lines[#lines + 1] = string.format("Weather: %s%s%s.", DCC.War.WEATHER_TEXT[war:weatherKind()],
+    trend ~= "" and (", " .. trend) or "", war:isNight() and ", night" or "")
   local a, b, v = war:worstRoad(side)
   if a then lines[#lines + 1] = string.format("Most dangerous road: %s - %s (AI escorts and CAP there)",
     war:nodeName(a), war:nodeName(b)) end
@@ -9309,7 +9396,7 @@ B.visualFactor = function(air) return B.war:visualFactor(air) end
 local baseInit = B.init
 function B.init(war, theater, catalog)
   baseInit(war, theater, catalog)
-  B.escorts, B.farps, B.naval, B.fogKind = {}, {}, {}, nil
+  B.escorts, B.farps, B.naval, B.fogNow = {}, {}, {}, nil
   B.updateNight()
   B.initNaval()
 end
@@ -12884,6 +12971,9 @@ function B.announce(events)
   for _, ev in ipairs(events) do
     if OWN[ev.kind] and ev.side and B.COAL[ev.side] then
       trigger.action.outTextForCoalition(B.COAL[ev.side], "Command: " .. ev.text, 12)
+    end
+    if ev.kind == "weather" or ev.kind == "weather_front" then
+      trigger.action.outText("Met office: " .. ev.text, 15)          -- everyone flies in it
     end
     if ev.kind == "package_done" and ev.crew then
       for key, name in pairs(ev.crew) do DCC.pilots:add(key, "packages", 1, name) end

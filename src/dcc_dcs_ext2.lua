@@ -565,6 +565,9 @@ function B.announce(events)
     if OWN[ev.kind] and ev.side and B.COAL[ev.side] then
       trigger.action.outTextForCoalition(B.COAL[ev.side], "Command: " .. ev.text, 12)
     end
+    if ev.kind == "weather" or ev.kind == "weather_front" then
+      trigger.action.outText("Met office: " .. ev.text, 15)          -- everyone flies in it
+    end
     if ev.kind == "package_done" and ev.crew then
       for key, name in pairs(ev.crew) do DCC.pilots:add(key, "packages", 1, name) end
     end

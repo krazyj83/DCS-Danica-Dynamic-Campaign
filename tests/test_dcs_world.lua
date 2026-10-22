@@ -59,6 +59,18 @@ check("storm shown as fog", MOCK.fog and MOCK.fog.visibility == DCC.config.world
 war.state.weather = { kind = "clear", since = war.state.tick }
 B.applyWeather()
 check("clear: fog off", MOCK.fog.visibility == 0)
+local anim
+world.weather.setFogAnimation = function(a) anim = a end
+war.state.weather = { kind = "rain", sev = 0.66 }
+B.applyWeather()
+check("fog rolls in: DCS animates it over the tick", anim and anim[1][1] == DCC.config.tickSeconds
+  and anim[1][2] == DCC.config.world.fog.rain[1])
+war.state.weather = { kind = "overcast", sev = 0.3 }
+B.applyWeather()
+check("...and lifts again", anim[1][2] == 0)
+world.weather.setFogAnimation = nil
+war.state.weather = { kind = "clear", since = war.state.tick }
+B.applyWeather()
 check("weather in the status", table.concat(B.opsStatusLines("blue"), " "):find("Weather: clear skies", 1, true) ~= nil)
 
 print("Storm grounds AI attack sorties")

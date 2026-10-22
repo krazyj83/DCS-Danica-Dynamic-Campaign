@@ -202,6 +202,8 @@ B.pollHunts()
 check("hunters gone: threat cleared", war.state.hvaThreat["blue|tanker"] == nil)
 
 print(" Aces")
+war.state.airPool.red.fighter = 20          -- plenty of RED fighters, whatever the war did so far
+war.state.airPool.blue.fighter = 20
 local bandits = {}
 for i = 1, 3 do
   local g = MOCK.groups[B.spawnSortie("red", "fighter", "CAP", { x = kp.x + 30000, y = 0, z = kp.z }, { node = "kutaisi" })]

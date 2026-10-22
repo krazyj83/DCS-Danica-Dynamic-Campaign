@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.21.1",
+  version         = "0.22.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -163,13 +163,16 @@ DCC.config = {
 
   -- Weather, night, AI adaptation, FARPs, ships, JTAC, public feed (after phase 5)
   world = {
-    weatherTicks   = 72,      -- the weather may change every 6 h
+    weatherFrontTicks = { 24, 72 },  -- a new weather front every 2-6 h...
+    weatherDrift   = 0.02,    -- ...and the sky turns toward it this much per tick (5 min):
+                              --   clear -> rain takes ~3 h, rain -> storm ~1.5 h
     speedFactor    = { rain = 0.8, storm = 0.6 },      -- ground columns
     battleFactor   = { rain = 0.85, storm = 0.7 },     -- dice battles bleed slower
     visualFactor   = { overcast = 0.9, rain = 0.6, storm = 0.4 },
     nightVisual    = 0.5,     -- eyes at night (NVGs help, but not that much)
     nightStartHour = 20,  nightEndHour = 6,             -- mission clock
     fog            = { rain = { 4000, 400 }, storm = { 1500, 900 } },  -- DCS fog: visibility m, thickness m
+    fogFromSev     = 0.45,    -- fog starts this far toward rain (light haze, 10 km), thickens from there
     escortThreat   = 2,       -- road threat that gets convoys an air-defence escort
     rerouteThreat  = 2,       -- ...and makes the AI prefer another road
     reroutePenalty = 400,     -- (planning cost per threat point; one step nearer the front = 1000)

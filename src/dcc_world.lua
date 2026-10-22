@@ -62,38 +62,102 @@ War.WEATHER_TEXT = {
   storm = "storm - helicopters grounded",
 }
 
+-- Weather is one number, severity 0..1, that drifts a little every tick toward a
+-- target (the next weather front). Every few hours a new front is picked from the
+-- table above; the sky then turns over an hour or two, not at once:
+--   clear 0 - overcast 0.33 - rain 0.66 - storm 1   (kind = nearest band)
+-- Everything that depends on the weather (column speed, battles, eyes, fog)
+-- follows the severity smoothly between those points.
+War.WEATHER_SEV = { clear = 0, overcast = 0.33, rain = 0.66, storm = 1 }
+local KINDS = { "clear", "overcast", "rain", "storm" }
+
+local function kindOf(sev)
+  if sev >= 0.85 then return "storm" elseif sev >= 0.5 then return "rain"
+  elseif sev >= 0.18 then return "overcast" end
+  return "clear"
+end
+War.weatherKindOf = kindOf
+
+function War:weatherSeverity()
+  local w = self.state.weather or {}
+  return w.sev or War.WEATHER_SEV[w.kind or "clear"] or 0
+end
+
 function War:weatherKind() return self.state.weather and self.state.weather.kind or "clear" end
 function War:isStorm() return self:weatherKind() == "storm" end
 function War:isNight() return self.night == true end   -- set by the bridge, not saved
 
-function War:weatherTick()
-  local w, cfg = self.state.weather, W(self)
-  if self.state.tick - w.since < cfg.weatherTicks then return end
-  local roll, acc, nextKind = self.rng:next(), 0, w.kind
-  for _, opt in ipairs(War.WEATHER_NEXT[w.kind]) do
-    acc = acc + opt[2]
-    if roll < acc then nextKind = opt[1]; break end
+-- "getting worse", "clearing" or "" (steady)
+function War:weatherTrend()
+  local w = self.state.weather or {}
+  local t, s = w.target, self:weatherSeverity()
+  if not t or math.abs(t - s) < 0.05 then return "" end
+  return t > s and "getting worse" or "clearing"
+end
+
+-- A value from a per-kind table ({ rain = 0.8, ... }, missing = 1) at the current
+-- severity, interpolated between the kinds either side of it.
+function War:weatherValue(tbl, sev)
+  sev = sev or self:weatherSeverity()
+  for i = 1, #KINDS - 1 do
+    local a, b = KINDS[i], KINDS[i + 1]
+    local sa, sb = War.WEATHER_SEV[a], War.WEATHER_SEV[b]
+    if sev <= sb then
+      local f = math.max(0, math.min(1, (sev - sa) / (sb - sa)))
+      local va, vb = tbl[a] or 1, tbl[b] or 1
+      return va + (vb - va) * f
+    end
   end
-  local changed = nextKind ~= w.kind
-  self.state.weather = { kind = nextKind, since = self.state.tick }
-  if changed then
-    self:log("weather", nil, string.format("Weather on %s: %s.", self.T.name, War.WEATHER_TEXT[nextKind]))
+  return tbl.storm or 1
+end
+
+function War:weatherTick()
+  local cfg = W(self)
+  local w = self.state.weather or { kind = "clear", since = self.state.tick }
+  self.state.weather = w
+  w.sev = w.sev or War.WEATHER_SEV[w.kind] or 0
+  -- a new front: every frontTicks (random between the two), from the Markov table
+  if not w.target or not w.nextFront or self.state.tick >= w.nextFront then
+    local from = kindOf(w.target or w.sev)
+    local roll, acc, nextKind = self.rng:next(), 0, from
+    for _, opt in ipairs(War.WEATHER_NEXT[from]) do
+      acc = acc + opt[2]
+      if roll < acc then nextKind = opt[1]; break end
+    end
+    local jitter = (self.rng:next() - 0.5) * 0.12
+    w.target = math.max(0, math.min(1, War.WEATHER_SEV[nextKind] + jitter))
+    local lo, hi = cfg.weatherFrontTicks[1], cfg.weatherFrontTicks[2]
+    w.nextFront = self.state.tick + lo + math.floor(self.rng:next() * (hi - lo + 1))
+    if kindOf(w.target) ~= kindOf(w.sev) then
+      local hours = math.abs(w.target - w.sev) / cfg.weatherDrift * self.cfg.tickSeconds / 3600
+      self:log("weather_front", nil, string.format("Forecast for %s: %s within about %d h.", self.T.name,
+        War.WEATHER_TEXT[kindOf(w.target)], math.max(1, math.floor(hours + 0.5))))
+    end
+  end
+  -- drift toward it, with a little noise on the way
+  local step = cfg.weatherDrift * (0.6 + 0.8 * self.rng:next())
+  local d = w.target - w.sev
+  if math.abs(d) <= step then w.sev = w.target else w.sev = w.sev + (d > 0 and step or -step) end
+  local kind = kindOf(w.sev)
+  if kind ~= w.kind then
+    w.kind, w.since = kind, self.state.tick
+    self:log("weather", nil, string.format("Weather on %s: %s.", self.T.name, War.WEATHER_TEXT[kind]))
   end
 end
 
 -- Ground column speed and dice battles in bad weather.
 function War:moveSpeedFactor(mv)
   if mv.kind == "airlift" then return 1 end
-  return W(self).speedFactor[self:weatherKind()] or 1
+  return self:weatherValue(W(self).speedFactor)
 end
 
 function War:battleFactor()
-  return W(self).battleFactor[self:weatherKind()] or 1
+  return self:weatherValue(W(self).battleFactor)
 end
 
 -- Visual detection range multiplier (players' eyes).
 function War:visualFactor(air)
-  local f = W(self).visualFactor[self:weatherKind()] or 1
+  local f = self:weatherValue(W(self).visualFactor)
   if self:isNight() then f = f * W(self).nightVisual end
   return f
 end

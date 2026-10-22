@@ -439,6 +439,23 @@ do
   local seen = {}
   for _ = 1, 2016 do ww:tick(); seen[ww:weatherKind()] = true; if ww.state.winner then break end end
   check("weather cycles through clear, overcast, rain and storm", seen.clear and seen.overcast and seen.rain and seen.storm)
+  -- ...and it changes gradually: small steps, never clear straight to storm
+  local wg = wire(DCC.War.new(T, C, cfg, 57))
+  local maxStep, jump, prevSev, prevKind = 0, false, nil, nil
+  local order = { clear = 1, overcast = 2, rain = 3, storm = 4 }
+  for _ = 1, 1500 do
+    wg:tick()
+    local sv, k = wg:weatherSeverity(), wg:weatherKind()
+    if prevSev then maxStep = math.max(maxStep, math.abs(sv - prevSev)) end
+    if prevKind and math.abs(order[k] - order[prevKind]) > 1 then jump = true end
+    prevSev, prevKind = sv, k
+    if wg.state.winner then break end
+  end
+  check("weather drifts: at most a small step per tick", maxStep <= cfg.world.weatherDrift * 1.4 + 1e-9, maxStep)
+  check("...through every band in between (no clear -> storm jumps)", not jump)
+  wg.state.weather = { kind = "overcast", sev = 0.5, target = 0.5, nextFront = wg.state.tick + 99 }
+  local mid = wg:moveSpeedFactor({ kind = "convoy" })
+  check("half way to rain: columns half way slowed", mid < 1 and mid > cfg.world.speedFactor.rain, mid)
 
   local w = wire(DCC.War.new(T, C, cfg, 52))
   w:tick(); w:tick()
