@@ -223,9 +223,15 @@ def build_naval(m, theater, cjtf, types):
         g.add_waypoint(far, 46)
         if sh.get("kind") == "carrier":
             cv = g.units[0]
-            g.points[0].tasks.append(dtask.ActivateBeaconCommand(channel=74, modechannel="X", callsign="STN",
-                                                                 bearing=True, unit_id=cv.id, aa=False))
-            g.points[0].tasks.append(dtask.ActivateICLSCommand(channel=4, unit_id=cv.id))
+            # beacons per ship (theater pack), so two carriers on one map do not share a channel
+            tacan = sh.get("tacan", 74)
+            if tacan:
+                g.points[0].tasks.append(dtask.ActivateBeaconCommand(channel=tacan, modechannel="X",
+                                                                     callsign=sh.get("tacanCall", "STN"),
+                                                                     bearing=True, unit_id=cv.id, aa=False))
+            icls = sh.get("icls", 4)
+            if icls:
+                g.points[0].tasks.append(dtask.ActivateICLSCommand(channel=icls, unit_id=cv.id))
             for n, t in enumerate(sh.get("slots", []) or []):
                 cls_a = types.get(t)
                 if cls_a is None:

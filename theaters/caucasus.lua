@@ -100,4 +100,22 @@ DCC_THEATERS.Caucasus = {
     { "beslan", "vladikavkaz" }, { "beslan", "mozdok" }, { "vladikavkaz", "alagir" },
     { "vladikavkaz", "kazbegi" }, { "alagir", "tskhinvali" }, { "oni", "alagir" },
   },
+
+  -- Naval groups: placed by tools/make_mission.py (client slots on carriers). Each
+  -- sails 80 km on its heading and turns around; sunk = its air wing is gone.
+  --   tacan / icls: beacon channels (false = none). The tankers use 51X/52X.
+  naval = {
+    { id = "cvn", side = "blue", name = "CVN-74 John C. Stennis", kind = "carrier", lat = 42.0000, lon = 40.8500,
+      heading = 300, ship = "Stennis", escorts = { "USS_Arleigh_Burke_IIa", "USS_Arleigh_Burke_IIa", "TICONDEROG" },
+      tacan = 74, tacanCall = "STN", icls = 4,
+      slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B", "F-14BU", "F-14A-135-GR" } },
+    { id = "lha", side = "blue", name = "LHA-1 Tarawa", kind = "carrier", lat = 41.7500, lon = 41.2500,
+      heading = 300, ship = "LHA_Tarawa", escorts = { "PERRY" },
+      tacan = 75, tacanCall = "TAR", icls = 5,
+      slots = { "AV8BNA", "AV8BNA", "UH-1H", "AH-64D_BLK_II", "SA342M" } },
+    { id = "kuz", side = "red", name = "Admiral Kuznetsov", kind = "carrier", lat = 44.2000, lon = 37.6000,
+      heading = 250, ship = "KUZNECOW", escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
+      tacan = false, icls = false,
+      slots = { "Su-33", "Su-33", "Su-33", "Su-33", "Ka-50_3" } },
+  },
 }
