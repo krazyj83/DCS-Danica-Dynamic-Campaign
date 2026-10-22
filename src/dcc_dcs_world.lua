@@ -285,7 +285,8 @@ function B.pollNaval()
       local ship
       for _, s in ipairs(war.theater.naval or {}) do if s.id == id then ship = s end end
       local home = rec.start
-      local far = { x = home.x + math.cos(math.rad(ship.heading)) * 80000, z = home.z + math.sin(math.rad(ship.heading)) * 80000 }
+      local leg = (ship.legKm or 80) * 1000                      -- narrow seas: shorter legs
+      local far = { x = home.x + math.cos(math.rad(ship.heading)) * leg, z = home.z + math.sin(math.rad(ship.heading)) * leg }
       local target = (dist2D(p, far) < 8000) and home or ((dist2D(p, home) < 8000) and far or nil)
       if target then
         local ctl = g:getController()

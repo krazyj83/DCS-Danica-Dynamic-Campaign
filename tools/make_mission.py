@@ -219,7 +219,7 @@ def build_naval(m, theater, cjtf, types):
                 e.heading = sh.get("heading", 0)
                 g.add_unit(e)
         # sail into the wind at 25 kn; the engine turns the group around at the end
-        far = pos.point_from_heading(sh.get("heading", 0), 80000)
+        far = pos.point_from_heading(sh.get("heading", 0), (sh.get("legKm") or 80) * 1000)
         g.add_waypoint(far, 46)
         if sh.get("kind") == "carrier":
             cv = g.units[0]

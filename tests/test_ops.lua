@@ -516,9 +516,13 @@ do
   check("carrier in the save", wsh:shipUp("cvn"))
   wsh.fogOfWar = false
   wsh:tick(); wsh:tick()
-  local am = findM(wsh, "red", "ANTISHIP")
-  check("RED gets an ANTISHIP mission", am ~= nil and am.target == "cvn")
-  check("BLUE does not", findM(wsh, "blue", "ANTISHIP") == nil)
+  local am
+  for _, m in pairs(wsh.state.missions) do
+    if m.side == "red" and m.type == "ANTISHIP" and m.target == "cvn" then am = m end
+  end
+  check("RED gets an ANTISHIP mission on the carrier", am ~= nil)
+  local bm = findM(wsh, "blue", "ANTISHIP")
+  check("BLUE gets one on the Kuznetsov, never on its own ships", bm ~= nil and bm.target == "kuz")
   wsh:shipLost("cvn")
   wsh:tick()
   check("sinking completes ANTISHIP", wsh.state.missions[am.id].status == "done")

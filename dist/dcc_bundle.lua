@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.23.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.24.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.23.0",
+  version         = "0.24.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -9233,7 +9233,8 @@ function B.pollNaval()
       local ship
       for _, s in ipairs(war.theater.naval or {}) do if s.id == id then ship = s end end
       local home = rec.start
-      local far = { x = home.x + math.cos(math.rad(ship.heading)) * 80000, z = home.z + math.sin(math.rad(ship.heading)) * 80000 }
+      local leg = (ship.legKm or 80) * 1000                      -- narrow seas: shorter legs
+      local far = { x = home.x + math.cos(math.rad(ship.heading)) * leg, z = home.z + math.sin(math.rad(ship.heading)) * leg }
       local target = (dist2D(p, far) < 8000) and home or ((dist2D(p, home) < 8000) and far or nil)
       if target then
         local ctl = g:getController()
@@ -14255,6 +14256,22 @@ DCC_THEATERS.GermanyCW = {
     { "stendal", "wittstock" },   -- 79 km
     { "uelzen", "wolfsburg" },   -- 66 km
   },
+
+  -- Naval groups: placed by tools/make_mission.py (client slots on carriers). Each
+  -- sails legKm (default 80) on its heading and turns around; sunk = its air wing is gone.
+  --   tacan / icls: beacon channels (false = none). The tankers use 51X/52X.
+  -- Cold War: a NATO carrier in the German Bight, the Soviet carrier in the Baltic
+  -- (Mecklenburg Bay). Both seas are narrow: short legs.
+  naval = {
+    { id = "cvn", side = "blue", name = "CVN-74 John C. Stennis", kind = "carrier", lat = 54.0000, lon = 7.9000,
+      heading = 300, legKm = 40, ship = "Stennis", escorts = { "USS_Arleigh_Burke_IIa", "USS_Arleigh_Burke_IIa",
+      "TICONDEROG" }, tacan = 74, tacanCall = "STN", icls = 4,
+      slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B", "F-14BU", "F-14A-135-GR" } },
+    { id = "kuz", side = "red", name = "Admiral Kuznetsov", kind = "carrier", lat = 54.2500, lon = 11.6000,
+      heading = 80, legKm = 40, ship = "KUZNECOW", escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
+      tacan = false, icls = false,
+      slots = { "Su-33", "Su-33", "Su-33", "Su-33", "Ka-50_3" } },
+  },
 }
 
 end
@@ -14375,7 +14392,18 @@ DCC_THEATERS.PersianGulf = {
   -- Naval groups: placed by tools/make_mission.py (with client slots on carriers);
   -- the engine tracks them and offers ANTISHIP missions against them.
   naval = {
-    { id = "cvn", side = "blue", name = "CVN-74 John C. Stennis", kind = "carrier", lat = 24.9500, lon = 57.3500, heading = 330, ship = "Stennis", escorts = { "USS_Arleigh_Burke_IIa", "USS_Arleigh_Burke_IIa", "TICONDEROG" }, slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B" } },
+    { id = "cvn", side = "blue", name = "CVN-74 John C. Stennis", kind = "carrier", lat = 24.9500, lon = 57.3500,
+      heading = 330, ship = "Stennis", escorts = { "USS_Arleigh_Burke_IIa", "USS_Arleigh_Burke_IIa", "TICONDEROG" },
+      tacan = 74, tacanCall = "STN", icls = 4,
+      slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B", "F-14BU", "F-14A-135-GR" } },
+    { id = "lha", side = "blue", name = "LHA-1 Tarawa", kind = "carrier", lat = 25.4000, lon = 56.6000,
+      heading = 0, legKm = 40, ship = "LHA_Tarawa", escorts = { "PERRY" },
+      tacan = 75, tacanCall = "TAR", icls = 5,
+      slots = { "AV8BNA", "AV8BNA", "UH-1H", "AH-64D_BLK_II", "SA342M" } },
+    { id = "kuz", side = "red", name = "Admiral Kuznetsov", kind = "carrier", lat = 26.2000, lon = 53.6000,
+      heading = 270, legKm = 40, ship = "KUZNECOW", escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
+      tacan = false, icls = false,
+      slots = { "Su-33", "Su-33", "Su-33", "Su-33", "Ka-50_3" } },
   },
 }
 
@@ -14525,6 +14553,24 @@ DCC_THEATERS.Syria = {
     { "shayrat", "tiyas" },   -- 66 km
     { "sidon", "tyre" },   -- 36 km
     { "wujah_al_hajar", "zahle" },   -- 52 km
+  },
+
+  -- Naval groups: placed by tools/make_mission.py (client slots on carriers). Each
+  -- sails legKm (default 80) on its heading and turns around; sunk = its air wing is gone.
+  --   tacan / icls: beacon channels (false = none). The tankers use 51X/52X.
+  naval = {
+    { id = "cvn", side = "blue", name = "CVN-74 John C. Stennis", kind = "carrier", lat = 33.3000, lon = 34.4000,
+      heading = 0, ship = "Stennis", escorts = { "USS_Arleigh_Burke_IIa", "USS_Arleigh_Burke_IIa", "TICONDEROG" },
+      tacan = 74, tacanCall = "STN", icls = 4,
+      slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B", "F-14BU", "F-14A-135-GR" } },
+    { id = "lha", side = "blue", name = "LHA-1 Tarawa", kind = "carrier", lat = 32.9500, lon = 34.7500,
+      heading = 0, legKm = 60, ship = "LHA_Tarawa", escorts = { "PERRY" },
+      tacan = 75, tacanCall = "TAR", icls = 5,
+      slots = { "AV8BNA", "AV8BNA", "UH-1H", "AH-64D_BLK_II", "SA342M" } },
+    { id = "kuz", side = "red", name = "Admiral Kuznetsov", kind = "carrier", lat = 35.2000, lon = 35.3000,
+      heading = 200, ship = "KUZNECOW", escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
+      tacan = false, icls = false,
+      slots = { "Su-33", "Su-33", "Su-33", "Su-33", "Ka-50_3" } },
   },
 }
 

@@ -184,4 +184,20 @@ DCC_THEATERS.GermanyCW = {
     { "stendal", "wittstock" },   -- 79 km
     { "uelzen", "wolfsburg" },   -- 66 km
   },
+
+  -- Naval groups: placed by tools/make_mission.py (client slots on carriers). Each
+  -- sails legKm (default 80) on its heading and turns around; sunk = its air wing is gone.
+  --   tacan / icls: beacon channels (false = none). The tankers use 51X/52X.
+  -- Cold War: a NATO carrier in the German Bight, the Soviet carrier in the Baltic
+  -- (Mecklenburg Bay). Both seas are narrow: short legs.
+  naval = {
+    { id = "cvn", side = "blue", name = "CVN-74 John C. Stennis", kind = "carrier", lat = 54.0000, lon = 7.9000,
+      heading = 300, legKm = 40, ship = "Stennis", escorts = { "USS_Arleigh_Burke_IIa", "USS_Arleigh_Burke_IIa",
+      "TICONDEROG" }, tacan = 74, tacanCall = "STN", icls = 4,
+      slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B", "F-14BU", "F-14A-135-GR" } },
+    { id = "kuz", side = "red", name = "Admiral Kuznetsov", kind = "carrier", lat = 54.2500, lon = 11.6000,
+      heading = 80, legKm = 40, ship = "KUZNECOW", escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
+      tacan = false, icls = false,
+      slots = { "Su-33", "Su-33", "Su-33", "Su-33", "Ka-50_3" } },
+  },
 }
