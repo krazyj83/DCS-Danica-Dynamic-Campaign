@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.24.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.24.1 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.24.0",
+  version         = "0.24.1",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -13827,6 +13827,7 @@ DCC_CATALOGS.modern = {
       tanker  = { type = "KC135MPRS", loadout = {}, size = 1 },   -- drogue: F/A-18, F-14, AV-8B
       drone   = { type = "MQ-9 Reaper", loadout = {}, size = 1 },
       airmobile = { type = "UH-60A", loadout = {}, size = 2, helicopter = true },
+      antiship = { type = "FA-18C_hornet", loadout = { { "AGM-84D", 4 }, { "AIM-9X", 2 }, { "AIM-120C", 2 } } },  -- only used against ships
     },
     red = {
       fighter = { type = "MiG-29S",  loadout = { { "R-77", 4 }, { "R-73", 2 } } },

@@ -201,6 +201,7 @@ DCC_CATALOGS.modern = {
       tanker  = { type = "KC135MPRS", loadout = {}, size = 1 },   -- drogue: F/A-18, F-14, AV-8B
       drone   = { type = "MQ-9 Reaper", loadout = {}, size = 1 },
       airmobile = { type = "UH-60A", loadout = {}, size = 2, helicopter = true },
+      antiship = { type = "FA-18C_hornet", loadout = { { "AGM-84D", 4 }, { "AIM-9X", 2 }, { "AIM-120C", 2 } } },  -- only used against ships
     },
     red = {
       fighter = { type = "MiG-29S",  loadout = { { "R-77", 4 }, { "R-73", 2 } } },
