@@ -4,18 +4,18 @@ A perpetual, persistent dynamic campaign for DCS World. One Lua engine runs insi
 mission, the war keeps going whether anyone is online or not, and when one side loses its last
 base the server moves on to the next map in the rotation.
 
-**Status: phase 5 of 5 — all four maps, unattended rotation.** Ground forces hold nodes, mass for
-assaults and capture bases. Every base runs on supply that trucks and transport aircraft carry
-forward. Each side has a **mission board** — CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy
-escort, recon, CSAR and helicopter logistics — and every mission writes its effect into the war.
-AI fighters and attack aircraft fly for both sides, and **pilot records** follow players across
-wars and maps. **Territory and the front line** are drawn on the F10 map (and the web map) from
-Voronoi cells around every base, and the whole war is saved across restarts.
-**Fog of war:** each side's map shows only the enemy it has actually detected — by eye, by AI
-sensors, by radar, by ELINT or by recon — and contacts fade and expire. **Early-warning radars and
-AWACS** give each side an air picture (and are targets), and **recon brings back photos** of every
-enemy platoon. The war runs on **Caucasus → Syria → Persian Gulf → Cold War Germany**: when one side
-wins, a server hook loads the next map by itself. Ready-to-fly missions are generated for all four.
+**Status: v0.26 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
+nodes, mass for assaults and capture bases. Every base runs on supply that trucks, transport aircraft,
+helicopters and **supply ships** carry forward. Each side has a **mission board** of 33 mission types —
+CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy escort, recon, CSAR, logistics, FARPs, anti-ship, SCUD
+hunts, amphibious landings and more — and every mission writes its effect into the war. Several pilots can
+**fly one mission together**. AI fighters, strike packages, tankers, AWACS and carrier air wings fly for
+both sides, and **pilot records** follow players across wars and maps. **Territory and the front line**
+are drawn on the F10 map, and **fog of war** means each side only sees the enemy it has detected.
+**Carriers** (Stennis, Tarawa, Kuznetsov) sail on every map, **weather drifts** over hours, **night**
+battles are lit by flares, and every mission carries **kneeboard pages** and **DTC cartridges**. The war
+runs on **Caucasus → Syria → Persian Gulf → Cold War Germany**: when one side wins, the next map loads by
+itself. Ready-to-fly missions are generated for all four.
 
 ![Simulated war](docs/sim_war.png)
 
@@ -58,10 +58,29 @@ the AI aircraft templates.
 
 ## Flying missions
 
-In the cockpit: **F10 → Other → Missions**. The board shows only what your aircraft can fly,
-one submenu per mission type. Pick one and you get a briefing (target, coordinates, bearing
-and range, what success does) and a mark on your F10 map. **My mission** repeats the briefing,
-**Abandon mission** frees you, **My pilot record** and **Leaderboard** show the persistent stats.
+In the cockpit: **F10 → Other → Missions**:
+
+| Menu | What it does |
+| --- | --- |
+| **Join a flight** | Missions other pilots of your side are flying right now (any distance) — one click and you are on it |
+| **Mission board** | One submenu per mission type your aircraft can fly, 9 per page (*More missions* for the rest) |
+| **My mission** | Brief again / abandon |
+| **Pilot records** | Your record, the leaderboard, the squadron leaderboard |
+
+No F10 level ever holds more than 10 items (DCS's own paging is unreliable). Taking a mission gives a
+briefing — target in degrees/decimal minutes, degrees/minutes/seconds and MGRS, **target elevation**,
+bearing and range from you, what success does — and a mark on your F10 map. Every message stays on
+screen at least 10 s.
+
+**Flying together.** Any number of pilots can take the same mission. The board shows who is on it
+(`SEAD: air defence at Sukhumi [2: Anna, Bo]`), the flight is told when someone joins or leaves, the
+briefing lists the flight, and when it succeeds **everyone** gets the mission points, plus a **+5 team
+bonus** with 2 or more pilots.
+
+**Local missions for helicopters and slow aircraft.** Helicopters see only missions within **60 nm** of
+where they spawned, slow movers (A-10, Su-25, trainers, warbirds) within **120 nm**, nearest first with
+the distance shown. The campaign also **creates** missions near them — supply runs, convoy escort, FARP
+building, MEDEVAC, prisoners — the moment they spawn, so a rear base always has work.
 
 | Mission | Who | Target | Success when | Effect in the war |
 | --- | --- | --- | --- | --- |
@@ -69,14 +88,29 @@ and range, what success does) and a mark on your F10 map. **My mission** repeats
 | **BAI** | A2G | Enemy convoy or column on a road | It is destroyed | Its cargo or platoons never arrive |
 | **STRIKE** | A2G | Fuel, ammo and warehouse buildings at an enemy depot/airbase | A building is destroyed | Each one burns 25 SU and cuts the base's output (all gone = 30 %); one rebuilt every 3 h |
 | **SEAD/DEAD** | SEAD | Enemy SAM site (Hawk / SA-11) | Radar or whole site killed | Radar: site offline ~2 h. Radar + launchers: destroyed, rebuilt in ~6 h for 60 SU |
+| **EWR** | A2G | Enemy early-warning radar | It is destroyed | That side loses its long-range air picture there (6 h, 40 SU) |
 | **CAP** | A2A | Your main-effort area | 20 min on station, or an air kill there | 1 h of air superiority: enemy AI attack sorties stay away |
-| **ESCORT** | A2A (supply helicopters: anyone) | Your airlift transport or supply helicopters | They land with you mostly within 15 km | Cargo delivered; enemy AI fighters try to intercept airlifts |
-| **CONVOY** | Helicopters | Your convoy to the front | It arrives with you mostly within 3 km | An ambush spawns on its road; an escorted convoy is never ambushed |
-| **RECON** | Anyone | Enemy base near the front | You overfly it within 8 km below 4500 m | Its garrison, supply and SAM status appear on your side's map |
-| **CSAR** | Transport helicopters | Your downed pilot | Land within 150 m (green smoke), then at a friendly base | Pilot saved, aircraft refunded to that base. After 2 h the pilot is captured |
+| **ESCORT** | A2A (supply helicopters: anyone) | Your airlift transport or supply helicopters | They land with you mostly within 15 km | Cargo delivered |
+| **PKGESCORT** | A2A | Your side's STRIKE / INDUSTRY / EWR / RUNWAY mission | Within 25 km of the target when it is hit | **Package bonus** (+10) for strikers, SEAD and escorts who flew together |
+| **HVAESCORT** | A2A | Your tanker or AWACS (flagged when enemy fighters hunt it) | 20 min within 40 km | Keeps it alive — a lost one is gone for 2 h |
+| **INTERCEPT** | A2A (helicopters: anyone) | Enemy strike package, assault or landing helicopters, airlift | Shot down before it arrives | The strike, landing or supply never happens |
+| **TANKER / HVAA** | A2A | Enemy tanker / AWACS | Shot down | No refuelling / half blind for hours |
+| **CONVOY** | Helicopters | Your convoy to the front | It arrives with you mostly within 3 km | Ambushes wait on its road (two of them); escorted = not hit by dice ambushes |
+| **RECON** | Anyone | Enemy base near the front | Overfly within 8 km below 4500 m | Its garrison, supply and SAM status (with photos) appear on your side's map |
+| **CSAR** | Transport helicopters | Your downed pilot | Land within 150 m (green smoke), then at a friendly base | Pilot saved, aircraft refunded. An **enemy search party** walks toward him from the nearest enemy base — if it gets there first he is captured |
 | **LOGISTICS** | Transport helicopters | Your base short of supply | You unload a supply crate there | +10 SU per crate |
+| **FARP** | Transport helicopters | A friendly town behind the front | FARP kit or 3 crates delivered | Helicopter spawns, rearm and refuel there |
+| **FARPSUP** | Transport helicopters | Your FARP below half stock | Crates delivered there | Keeps it running — a dry FARP has no spawns and empty shelves |
+| **MEDEVAC** | Transport helicopters | Wounded after a battle | Picked up and flown to an own airbase or depot | The garrison recovers (+10 % health); +15 points |
+| **POW** | Transport helicopters | Prisoners after a capture or surrender | Flown to an own airbase or depot | Interrogation: intel on the 2 nearest enemy bases; +10 points |
+| **AMPHIB** | Anyone | Your marines' landing helicopters from the Tarawa / Kuznetsov | Within 20 km before they land | Marines attack a coastal town |
 | **RUNWAY** | A2G | Enemy airbase near the front, or a depot | 3 bombs within 60 m of the runway centre line | Airfield closed 4 h: no airlifts, no fixed-wing spawns; repair costs 30 SU |
-| **INDUSTRY** | A2G | Enemy factory, power plant or refinery behind the lines | 2 of its 3 buildings destroyed | That side's production −12 % per site until rebuilt (a day, 80 SU) |
+| **INDUSTRY** | A2G | Enemy factory, power plant or refinery | 2 of its 3 buildings destroyed | That side's production −12 % per site until rebuilt (a day, 80 SU) |
+| **ARTY / FORT / BRIDGE** | A2G | Enemy battery / bunkers / a bridge on a supply road | Destroyed | See [Ground war](#ground-war) |
+| **ANTISHIP** | A2G | Enemy carrier group (once found) | Sunk | Its air wing is gone for the rest of the war |
+| **SHIPSTRIKE / SHIPESCORT** | A2G / anyone | A supply ship on a sea lane | Sunk / docks with you near | 40 SU lost / delivered |
+| **SCUD** | A2G | A RED SCUD launcher that just fired | Destroyed before it moves on (~15 min) | No more SCUD impacts from it for 12 h |
+| **POPUP** | A2G | A MANPADS team or mobile SAM someone has seen | Destroyed | One less hidden threat near the front |
 | **SNATCH** | Transport helicopters | Enemy pilot or AI crew on the ground | Land within 150 m, then at a friendly base | Prisoner: your side learns his home base; +15 points |
 | **COIN** | A2G | Partisan cell near a town you hold (Syria, Gulf) | The cell's group is wiped out | Stops sabotage and ambushes around the town |
 
@@ -129,6 +163,9 @@ Points in the report are those scored in that war only.
 | **Layered air defence** | A SAM site only lights up at 60 km when its side's early-warning radar or AWACS is tracking you; on its own it waits until 25 km. Every site has point defence (Avenger / Tor) that stays on when the main radar goes dark. Kill the EWRs first. | EWR, SEAD |
 | **Credit on landing** | Mission points are logged when you land at a friendly base or your carrier. Die or eject on the way home and they are lost (the damage to the enemy still counts). | — |
 | **Cooldown** | Two deaths within an hour ground a pilot from fast jets for 15 min. Helicopters are always allowed. | — |
+| **HVA hunts** | About every 90 min (players on) enemy fighters go after your tanker or AWACS — your side is warned. A lost tanker or AWACS is not replaced for 2 h. | **HVAESCORT** |
+| **Aces get hunted** | 3 air kills in one sortie and the enemy vectors a fighter pair onto you (at most every 30 min). | Survive it |
+| **Datalink** | Every script-spawned aircraft (AWACS, tankers, AI fighters, CTLD helicopters) has EPLRS on, so Link 16 / SADL users see AWACS tracks; fixed slots carry the Mission Editor's datalink settings and unique Link 16 STNs. | — |
 
 The AI air forces are bigger to carry all of this: 16 fighters and 16 attack aircraft per side to start,
 one more bought every hour (max 24).
@@ -142,6 +179,12 @@ one more bought every hour (max 24).
 | **Fortifications** | A base nobody attacks digs in: one level every 6 h (10 supply), up to 3, +10 % defence each. Bunkers appear when you are near. | **FORT** — destroy bunkers before an assault |
 | **Bridges** | Real DCS bridges on the roads are found at mission start. A destroyed bridge closes its road for 6 h: columns on it stop and the AI routes around it. | **BRIDGE** — on enemy supply roads |
 | **Morale** | A base out of supply defends at 70 %, one cut off from every depot at 80 %. Cut off, out of supply and down to 2 platoons, it surrenders. | Encircle and starve |
+| **Artillery duels** | A battery with no battle to support shells the nearest enemy base: it loses supply every tick, and the flashes give the battery away. Players within 15 km see the impacts. | **ARTY** |
+| **Prisoners and wounded** | Captures and surrenders leave prisoners, battles leave wounded, waiting at the base for a helicopter. | **POW**, **MEDEVAC** |
+| **SCUDs (RED)** | 2 launchers in the rear fire at BLUE depots and airbases every ~2.5 h (−15 SU, 35 % chance of a closed runway). The launch reveals them; 15 min later they move on. Rebuilt after 12 h. | **SCUD** hunt |
+| **Pop-up threats** | MANPADS teams and mobile SAMs (Stinger / Avenger, Igla / Strela) appear near the front, up to 3 per side for ~1.5 h, real units whenever enemy aircraft are within 40 km. On the map only once someone has seen one (8 km, line of sight) or it fires. | **POPUP** |
+| **Night illumination** | At night every battle with a player within 25 km is lit by a flare every 2 min; more on call (F10 → Support). | — |
+| **Dry land** | Every ground group and static spawned by any script (CTLD's too) is moved out of the water, waypoints included. | — |
 
 ## Radars, AWACS and recon photos
 
@@ -249,7 +292,10 @@ shows the board.
 
 ## Weather, night and the AI's memory
 
-**Weather** changes every 6 hours (clear → overcast → rain → storm and back, saved with the war):
+**Weather drifts.** It is one number — clear, overcast, rain, storm — that moves a little every 5
+minutes toward the next weather front, picked every 2–6 hours. Clear to rain takes about 3 hours; it always
+passes through the stages in between, with forecasts on screen ("Met office: rain within about 3 h") and the
+trend in Campaign status. Every effect follows the weather smoothly:
 
 | | Ground columns | Dice battles | Eyes | Helicopter missions | AI attack aircraft |
 | --- | --- | --- | --- | --- | --- |
@@ -257,10 +303,10 @@ shows the board.
 | Rain | 80 % speed | slower | 60 % | yes | yes |
 | Storm | 60 % speed | slower | 40 % | **none offered** | **grounded** |
 
-Rain and storms show up as fog in DCS (DCS 2.9.10+). Clouds and rain themselves cannot be changed while
-a mission runs. **Night** (20:00–06:00 mission time) halves what eyes can see and grounds AI attack
-sorties; fighters and AWACS still fly. The time of day restarts with the mission file after a server
-restart — DCSServerBot can start missions at the real time if you want the day/night cycle to continue.
+In DCS the weather shows as **fog** that rolls in and lifts over each 5-minute step (light haze before rain,
+4 km in rain, 1.5 km in a storm; DCS 2.9.10+). Clouds and rain themselves cannot be changed while a mission
+runs. **Night** (20:00–06:00 mission time) halves what eyes can see and grounds AI attack sorties; fighters
+and AWACS still fly. The clock runs in real time from **12:00** when the mission starts.
 
 **The AI remembers where it is hurt.** Every column killed raises that road's *threat* for the side that
 lost it (halving every 3 hours). At threat 2 the AI tells its side, sends its convoys on that road with
@@ -299,8 +345,13 @@ the VEAF team), started and configured by the engine. Every helicopter type CTLD
 | **Vehicle** unpacked (or flown in whole and set down) within 3 km of an own base | Joins the garrison as a platoon, at the strength its crates paid for (crates × 10 SU ÷ 60: an Abrams, 4 crates, = 0.67 platoon). After a minute it leaves the map — the base spawns it with the garrison from then on |
 | **Howitzer / MLRS** unpacked at an own base | An artillery battery there (a destroyed one is rebuilt first; at most 2 extra per side) |
 | **Ammo / fuel truck** unpacked at an own base | Its load becomes supply (crates × 10 SU) |
+| **FARP kit** (Engineering, 3 t, **Chinook / Mi-8 only**, 30 SU) set down within 3 km of a friendly town | The town is a FARP at once; at an existing FARP it refills it completely |
+| **Generator** (Engineering, heavy, Chinook / Mi-8, 20 SU) set down at an own base | +25 % supply storage there for 24 h |
+| **Runway repair kit** (Engineering, heavy, Chinook / Mi-8, 20 SU) at a cratered own runway | The runway is open again at once |
+| **Bridge kit** (Engineering) | See [More ground war](#more-ground-war) |
 
-Vehicles unpacked out in the field stay real CTLD units where you put them. CTLD's own
+Chinooks carry light vehicles only (Humvees / UAZ); the BRDM-2 and heavier come in crates. The
+**UH-60L** mod is a CTLD lifter too. Vehicles unpacked out in the field stay real CTLD units where you put them. CTLD's own
 JTAC (crates, drones, JTAC teams) is switched off — the [campaign JTAC](#jtac) does CAS. Troops come
 from base garrisons only (no free troops at CTLD FOBs). Without CTLD in the mission
 (`make_mission.py --no-ctld`) the engine's own simple **F10 → Missions → Cargo** menu comes back.
@@ -320,17 +371,20 @@ one run to the same base every 2 h, none in a storm.
 
 What a base can arm you with depends on its supply (share of its supply cap):
 
-| Base supply | Weapons | Cost when you take off |
+| Base supply | Weapons | Supply per weapon taken |
 | --- | --- | --- |
-| under 30 % | guns, rockets, unguided bombs | free |
-| 30–60 % | + guided: IR missiles, laser / TV missiles and bombs (Hellfire, Maverick, GBU-12) | 0.5 SU each |
-| over 60 % | + advanced: radar missiles (AMRAAM, R-77), anti-radiation, GPS bombs, anti-ship, cruise | 1 SU each |
+| always | guns, rockets, unguided bombs, pods, tanks | free |
+| from 20 % | + guided: IR missiles, laser / TV missiles and bombs (Hellfire, Maverick, GBU-12) | 0.25 SU |
+| from 45 % | + advanced: radar missiles (AMRAAM, R-77), anti-radiation, GPS bombs, anti-ship, cruise | 0.5 SU |
+
+Bases start the war at 50 % supply, so everything is on the shelf until the enemy cuts the supply lines.
 
 You are told the base's armoury when you spawn (and **F10 → Support → Armoury at this base**).
 
 The missions have **limited munitions**: the engine stocks every airbase's and FARP's shelf by its
 supply, so **the re-arm menu only offers what the base has** ("NOT AVAILABLE" otherwise). Shelves are
-topped up every 5 min (16 of each guided and 8 of each advanced weapon type per base, double at depots);
+topped up every 5 min (500 of each basic, 60 of each guided and 30 of each advanced weapon type per base,
+double at depots);
 what pilots took since the last top-up is paid from the base's supply. When supply drops, the higher tier
 comes off the shelf. Nobody is ever removed. Bombs, rockets, launchers, pods and tanks are always there.
 The engine gets the weapon list from DCS itself (`Warehouse.getResourceMap`, 1537 types on a 2026 server)
@@ -359,6 +413,7 @@ and ignores the map rotation, so the real war is not touched):
 | CAS pair on my map mark | Major | An AI attack pair flies to the mark (20 SU, from the air pool; every 20 min per side) |
 | AWACS picture | Colonel | The 5 nearest enemy aircraft your side's sensors hold, as bearing / range / altitude |
 | Armoury at this base | anyone | What the base can arm you with |
+| Illumination on my map mark | anyone | 4 flares over the mark, one a minute, from an own base within 30 km (2 SU; every 5 min per side) |
 
 **Lieutenant Colonel** and up may spawn helicopters at FARPs. Ranks come from your score
 (Captain 100, Major 300, Lt Col 700, Colonel 1500).
@@ -370,6 +425,7 @@ and ignores the map rotation, so the real war is not touched):
   distance, and the site respawns where it went.
 * **AI aircrews** eject (70 %): CSAR for their side — rescued, the aircraft goes back into the AI pool —
   and **SNATCH** for the other. Enemy player pilots can be snatched too (they get a "captured").
+* **Pop-up threats, SCUDs, HVA hunts and aces** — see the [Air war](#air-war) and [Ground war](#ground-war) tables.
 * **Scaling** — the side with fewer players online takes up to 15 % fewer losses in battle and its AI flies
   more strike packages (5 % and +25 % per player of difference). Keeps PvE fair when players switch sides.
 
@@ -385,25 +441,55 @@ and ignores the map rotation, so the real war is not touched):
   ruins while destroyed. See INDUSTRY.
 * **Partisans** (Syria, Persian Gulf) — cells rise in towns held by the side that took them, away from the
   front: they sabotage supply and ambush columns. A garrison breaks them up now and then; COIN does it now.
+* **Convoy ambushes** — an escorted convoy meets a second ambush further down the road, and a live,
+  unescorted front convoy near players can be ambushed too (30 %).
 * **Persistent wrecks** — destroyed vehicles stay as wrecks through restarts (3 days, at most 300), and
   destroyed buildings stay destroyed.
 
 ## FARPs
 
-Every town can become a FARP. Fly **3 supply crates** (30 SU) to a friendly town — or build a CTLD
-**FOB** next to it — the **FARP** mission
-on the board points you at towns right behind the front — and it becomes a FARP: fuel and ammo trucks
-arrive, it shows on everyone's map, and your side's helicopters can **spawn there** (2 of each type,
-dynamic spawn). A captured town loses its FARP. Behind the scenes each town has two invisible FARPs in
-the mission (one per side) with empty stock; the engine stocks the right one.
+Every town can become a FARP — the **FARP** mission points you at towns right behind the front:
 
-## Carrier (Persian Gulf)
+* a **FARP kit** (Chinook or Mi-8: CTLD → Engineering, 3 t) set down within 3 km of the town, or
+* **3 supply crates** from any lift helicopter, or a CTLD **FOB** next to it.
 
-BLUE has **CVN-74 John C. Stennis** with three escorts in the Gulf of Oman: TACAN **74X**, ICLS **4**,
-client slots for 2 F/A-18C and 2 F-14B. It sails into the wind and turns back every leg. RED's radars,
-AWACS and pilots can find it; once found, RED gets an **ANTISHIP** mission and its AI sends Su-34s with
-Kh-31A now and then. **Sunk = gone for the rest of the war**, with its air wing — the carrier stays
-sunk after a restart. Theater packs can add more ships (`naval` in the scenario file).
+Fuel and ammo trucks arrive, it shows on everyone's map, and your side's helicopters can **spawn there**
+(2 of each type, dynamic spawn). **A FARP holds its own stock** (40 SU) and uses it up in about 13 hours;
+below half a **FARPSUP** mission asks for crates (a FARP kit refills it completely). A **dry** FARP stays
+yours but has no spawns and empty shelves until someone brings supply. A captured town loses its FARP —
+FARP towns are captured like any other base. Behind the scenes each town has two invisible FARPs in the
+mission (one per side) with empty stock; the engine stocks the right one.
+
+## Carriers and the naval war
+
+Every map has carrier groups for both sides:
+
+| Map | BLUE | RED |
+| --- | --- | --- |
+| Caucasus | Stennis off Poti, Tarawa off Batumi | Kuznetsov off Novorossiysk |
+| Syria | Stennis west of Haifa / Beirut, Tarawa off Haifa | Kuznetsov off Tartus |
+| Persian Gulf | Stennis in the Gulf of Oman, Tarawa off Fujairah | Kuznetsov west of Kish |
+| Germany | Stennis in the German Bight | Kuznetsov in Mecklenburg Bay |
+
+| Ship | TACAN / ICLS | Client slots |
+| --- | --- | --- |
+| **CVN-74 Stennis** (+3 escorts) | 74X STN / 4 | 2× F/A-18C, 2× F-14B, F-14B(U), F-14A |
+| **LHA-1 Tarawa** (+ frigate) | 75X TAR / 5 | 2× AV-8B, UH-1H, AH-64D, Gazelle |
+| **Admiral Kuznetsov** (+3 escorts) | — | 4× Su-33, Ka-50 III |
+
+Ships sail back and forth on their leg (40–80 km, shorter in narrow seas). **Carrier air wing:** an AI
+CAP over each carrier (Hornets / Su-33s) and a BLUE **S-3B recovery tanker on TACAN 76X**, both following
+the ship. Once found by radar or eyes, the enemy gets **ANTISHIP** missions and its AI strikes the group now
+and then (RED Su-34s with Kh-31A, BLUE Hornets with 4 Harpoons). **Sunk = gone for the rest of the war**,
+with its air wing, even after a restart.
+
+**Amphibious assaults.** About every 2 h (players on), the Tarawa or Kuznetsov sends 2 marine platoons by
+helicopter to the weakest enemy coastal town within 70 km (4 platoons or fewer; 12 h between landings).
+Own side: **AMPHIB** escort; enemy: **INTERCEPT** the landing helicopters. Ashore it is a normal battle.
+
+**Shipping lanes.** Each map has 5–8 lanes from open sea to a port. Every 3 h a side sends a supply ship
+(40 SU) to its lowest port (10 kn, 2–4 h). Enemy: **SHIPSTRIKE** (and AI strikes); owner: **SHIPESCORT**.
+Sunk = the cargo is lost.
 
 ## Fog of war and intel
 
@@ -434,6 +520,9 @@ positions and stay offered.
 then switches to alarm state red — that is when ELINT can hear it. Fire an anti-radiation missile
 (HARM, Kh-58, Kh-25MP …) at it and it goes dark for 1–2 minutes: it survives, but it cannot shoot
 or be heard. Kill the radar while it is lit, or use the window to get close.
+
+**F10 view:** the missions force DCS's *Fog of war* view — your own units, plus enemy units only while
+a friendly unit can see them. The campaign's own intel layer (above) adds the last-known positions.
 
 **What is not fogged:** who owns each base (circles and names are public), the front line, and
 the AI commanders' own plans — the AI still plans with full knowledge, fog applies to players.
@@ -525,19 +614,24 @@ Use the generated **`dist/DCC_<map>.miz`** (Caucasus, Syria, PersianGulf, German
 | Coalitions | CJTF Blue vs CJTF Red (either side can use any unit type) |
 | Airbase ownership | As in the theater pack (BLUE Georgia, RED north / Abkhazia / South Ossetia) |
 | **Dynamic spawn** on all 23 campaign airbases | In multiplayer, players pick any aircraft their side's base holds. The engine removes the enemy's types and stocks the owner's at mission start and after every capture. |
-| **Fixed client slots** at the depots | One per aircraft type at Batumi, Kutaisi (BLUE) and Sochi-Adler, Beslan, Krasnodar-Center (RED). These also work in single player. |
-| AI templates | Late-activated groups: 2-ships `DCC_TPL_blue_fighter` F-16C, `_blue_attack` A-10C, `_red_fighter` MiG-29S, `_red_attack` Su-25 with loadouts, and single `DCC_TPL_blue_awacs` E-3A / `_red_awacs` A-50. The engine copies them for AI sorties — change a template's loadout in the Mission Editor if you like. |
+| **Fixed client slots** | One per aircraft type at every depot while its parking lasts; a type that fits nowhere there gets one at the side's next airbase with room. Plus the carrier slots. These also work in single player. |
+| **Kneeboard** | 3–4 pages for every aircraft (`tools/kneeboard.py`): airbase tower frequencies, ship TACAN / ICLS, tankers; the campaign map at the start; a quick reference (menus, mission types, how bases fall, armoury, night and weather) |
+| **DTC cartridges** | F-16C and F/A-18C (from the templates in `dtc/`, made in the Mission Editor): radio presets, displays, threat tables; the Hornet gets every airbase and town as a named steerpoint. Default in every fixed slot of the type; dynamic-spawn pilots pick it in the DTC screen |
+| **Datalinks** | Fixed slots get the Mission Editor's datalink blocks (`tools/datalinks.json`: Link 16 F/A-18C, F-16C, F-15E; SADL A-10C II; IDM AH-64D) and unique Link 16 STNs |
+| AI templates | Late-activated groups per side and role — fighter, attack, SEAD, anti-ship (BLUE Hornets with Harpoons, RED Su-34), AWACS, tanker, drone, air-mobile helicopters, carrier CAP and (BLUE) S-3B recovery tanker — with loadouts from the catalog. The engine copies them for AI sorties; change a template's loadout in the Mission Editor if you like. |
 | One trigger | MISSION START → DO SCRIPT `ctld.dontInitialize = true` → DO SCRIPT FILE `CTLD.lua` → DO SCRIPT FILE `dcc_bundle.lua` (the engine, which sets up and starts CTLD) |
-| Options | F10 map view **Allies only** (enemies appear only through the campaign's intel layer), civil traffic off |
+| Options | F10 map view **Fog of war**, civil traffic off |
 
-**Player aircraft** (edit `catalogs/modern.lua` → `aircraft` to change):
+**Player aircraft** — every flyable type in DCS, any era, by who flew it (edit `catalogs/modern.lua` →
+`aircraft`):
 
 | Side | Planes | Helicopters |
 | --- | --- | --- |
-| BLUE | F/A-18C, F-16C, F-15E, A-10C II, F-14B, AV-8B, F-4E, Su-25T | AH-64D, UH-1H, OH-58D, CH-47F, SA342M |
-| RED | Su-27, Su-33, MiG-29S, J-11A, JF-17, Su-25, Su-25T, MiG-21bis | Ka-50 III, Mi-24P, Mi-8MTV2 |
+| BLUE | F/A-18C, F-16C, F-15E, F-15C, F-14B, F-14B(U), F-14A (3 versions), F-4E, A-10C II, A-10C, A-10A, AV-8B, M-2000C, Mirage F1EE/CE/BE, F-5E (2), AJS37, F-100D, F-86F (2), C-101 (2), MB-339 (2), Hawk, C-130J, Christen Eagle, P-51D (2), TF-51D, P-47D (3), Spitfire IX (2), Mosquito, F4U Corsair, **A-4E-C (mod)** | AH-64D, UH-1H, OH-58D, CH-47F, Gazelle M/L/Mistral/Minigun, **UH-60L (mod)** |
+| RED | Su-27, Su-33, MiG-29S/A/G, MiG-29 Fulcrum, J-11A, JF-17, Su-25T, Su-25, MiG-21bis, MiG-19P, MiG-15bis (2), L-39ZA/C, Yak-52, Bf-109K-4, Fw-190 A-8/D-9, I-16, La-7 | Ka-50 III, Ka-50, Mi-24P, Mi-8MTV2 |
 
-Su-25T is on both sides so everyone has a free aircraft to fly. You can only fly modules you own.
+You can only fly modules you own. The **A-4E-C** and **UH-60L** are community mods: the server and every
+player need them installed — or build the missions with `make_mission.py --no-mods`.
 
 **Rebuilding the mission** (after changing the catalog, theater or scripts):
 
@@ -546,6 +640,8 @@ pip install lupa git+https://github.com/pydcs/dcs.git
 python tools/build_bundle.py      # -> dist/dcc_bundle.lua
 python tools/make_mission.py      # -> dist/DCC_Caucasus.miz
 for m in Syria PersianGulf GermanyCW; do python tools/make_mission.py --theater $m --out dist/DCC_$m.miz; done
+python tools/make_mission.py --test   # -> dist/DCC_Caucasus_ArmouryTest.miz
+# options: --no-ctld, --no-mods, --armoury takeoff
 ```
 
 The generator reads the same theater pack and catalog as the engine, so they never disagree.
@@ -608,14 +704,18 @@ The offline tests use a fake DCS API, so these need a real server to confirm:
 - [ ] Flying high toward an enemy depot puts you on *their* map (ask someone on the other side); flying low at 100 km does not.
 - [ ] A recon pass gives the photo report message and `[photo]` labels per platoon.
 - [ ] Syria, Persian Gulf and Germany missions start a war, set airbase owners and spawn units (each map once).
-- [ ] **Mission Editor → Options → F10 view** reads *Allies only* (the generator writes `optview_onlyallies`; if your DCS shows a different name, pick *Allies only* by hand). Enemy units must not appear on the F10 map by themselves.
+- [ ] **Mission Editor → Options → F10 view** reads *Fog of war* (the generator writes `optview_allies`). Enemy units appear only while a friendly unit sees them.
 - [ ] Flying at 6000 m toward an enemy airbase: within 60 km a red SAM ring with an error circle appears on your map, and the circle shrinks over a few minutes.
 - [ ] Firing a HARM at a lit SAM makes it stop guiding (dark) for 1–2 minutes.
 - [ ] A low pass over an enemy base puts "N vehicles seen" there; a hill between you and it does not.
 - [ ] Spectators see only the front line and base owners (intel is per coalition).
 - [ ] **FARP:** deliver 3 crates to a friendly town; the trucks appear, and the town's FARP offers your side's helicopters in the slot list (dynamic spawn on script-stocked invisible FARPs is the least-tested DCS feature here).
 - [ ] **JTAC:** take a CAS mission, *Report target*, and check the laser on 1688 in your targeting pod.
-- [ ] **Carrier (Gulf):** the F/A-18C / F-14B slots spawn on the deck; TACAN 74X and ICLS 4 work; the group turns around at the end of its leg.
+- [ ] **Carriers (every map):** slots spawn on the decks; TACAN 74X / 75X and ICLS 4 / 5 work; every ship group and its leg is on open water; the S-3B answers on 76X.
+- [ ] **Supply ships** sail their lane to the port without running aground (Hormuz and the German Bight especially).
+- [ ] **Kneeboard** pages show in every aircraft; the Hornet's DTC loads its steerpoints (MUMI).
+- [ ] **Datalink:** with the AWACS up, a fixed-slot Hornet / Viper sees tracks on the SA page / HSD.
+- [ ] **Night:** flares over a battle (650 m) are bright enough; *Support → Illumination* works.
 - [ ] **Weather:** in a storm (status says so) fog closes in (DCS 2.9.10+).
 - [ ] **Companion:** the web map shows the front; a capture shows up in Discord within a minute.
 - [ ] **Hosted server without file access:** the start message says the war cannot be saved; after a win the mission ends after 2 min and the next mission in the list loads.
@@ -698,25 +798,27 @@ Measured with the offline simulator, no players online:
 ## Testing offline
 
 Nothing here needs DCS to test. The engine is plain Lua 5.1 (the version DCS uses) and runs
-under Python via `lupa`:
+under Python via `lupa` — 16 suites, 864 checks in v0.26:
 
 ```bash
 pip install lupa matplotlib
 
-python tools/run_lua.py tests/test_war.lua          # war model, supply, war clock: 38 checks
-python tools/run_lua.py tests/test_ops.lua          # every mission type and every war rule: 150 checks
-python tools/run_lua.py tests/test_dcs_bridge.lua   # bridge, convoys, airlifts, warehouses: 51 checks
-python tools/run_lua.py tests/test_dcs_ops.lua      # flying every mission type against a fake DCS: 61 checks
-python tools/run_lua.py tests/test_dcs_intel.lua    # fog of war: each map shows only what that side detected: 40 checks
-python tools/run_lua.py tests/test_dcs_radar.lua    # EWR, AWACS, HVAA, recon photos: 34 checks
-python tools/run_lua.py tests/test_theaters.lua     # all four maps: connected, depots, war runs, territory and front: 44 checks
-python tools/run_lua.py tests/test_dcs_airground.lua # packages, tankers, drones, IADS, cooldown, artillery, skirmishes, forts, bridges, supply helicopters and intercepting them: 47 checks
-python tools/run_lua.py tests/test_dcs_world.lua    # weather, night, AI escorts and CAP, FARPs, JTAC, carrier, public files: 46 checks
-python tests/test_companion.py                      # web map and Discord feed (with a fake Discord): 7 tests
-python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended, bonus and report: 40 checks
-python tools/run_lua.py tests/test_ext.lua          # armoury, runways, SAM moves, crews, support, mines, veterancy, industry, partisans, scaling, wrecks: 67 checks
-python tools/run_lua.py tests/test_armoury.lua      # warehouse armoury: names from DCS, tiers, shelves, test menu: 29 checks
-python tools/run_lua.py tests/test_ctld.lua         # the real CTLD.lua on the fake DCS: zones, crates, troops, FOB, AA, vehicles joining bases or assaults, light-vehicle loads, bridge kits, minefields: 60 checks
+python tools/run_lua.py tests/test_war.lua          # war model, supply, war clock
+python tools/run_lua.py tests/test_ops.lua          # every mission type and every war rule, gradual weather
+python tools/run_lua.py tests/test_dcs_bridge.lua   # bridge, convoys, airlifts, warehouses
+python tools/run_lua.py tests/test_dcs_ops.lua      # flying missions against a fake DCS, local missions, flying together, F10 paging, dry land
+python tools/run_lua.py tests/test_dcs_intel.lua    # fog of war: each map shows only what that side detected
+python tools/run_lua.py tests/test_dcs_radar.lua    # EWR, AWACS (datalink on), HVAA, recon photos
+python tools/run_lua.py tests/test_theaters.lua     # all four maps: connected, depots, war runs, territory and front
+python tools/run_lua.py tests/test_dcs_airground.lua # packages, tankers, drones, IADS, cooldown, artillery, skirmishes, forts, bridges, supply helicopters
+python tools/run_lua.py tests/test_dcs_world.lua    # weather and fog animation, night, AI escorts and CAP, FARPs, JTAC, carrier, public files
+python tests/test_companion.py                      # web map and Discord feed (with a fake Discord)
+python tools/run_lua.py tests/test_rotation.lua     # a win (conquest or clock) loads the next map unattended, bonus and report
+python tools/run_lua.py tests/test_ext.lua          # armoury, runways, SAM moves, crews, support, mines, veterancy, industry, partisans, scaling, wrecks
+python tools/run_lua.py tests/test_armoury.lua      # warehouse armoury: names from DCS, tiers, shelves, test menu
+python tools/run_lua.py tests/test_ctld.lua         # the real CTLD.lua: zones, crates, troops, FOB, AA, vehicles, FARP kit and resupply, bridge kits, minefields
+python tools/run_lua.py tests/test_ext2.lua         # HVA hunts and escort, packages, aces, artillery duels, ambushes, POW, medevac, heavy lift, CSAR search parties
+python tools/run_lua.py tests/test_ext3.lua         # amphibious landings, shipping, carrier air wing, SCUDs, pop-up threats, night illumination
 
 python tools/run_lua.py tools/sim.lua 4320 2026 docs/sim_history.json   # simulate 15 days
 DCC_THEATER=Syria python tools/run_lua.py tools/sim.lua 4320               # ...on another map
@@ -749,6 +851,8 @@ src/
   dcc_air.lua         tankers, drones, strike packages and helicopter assaults, INTERCEPT and TANKER missions
   dcc_ground.lua      artillery, fortifications, bridges and closed roads, morale and surrender
   dcc_ext.lua         armoury, runways, crews, support, engineers, mines, veterancy, industry, partisans, scaling, wrecks
+  dcc_ext2.lua        HVA, strike packages, artillery duels, prisoners and wounded, heavy lift, CSAR capture
+  dcc_ext3.lua        amphibious assaults, shipping lanes, SCUDs, pop-up threats
   dcc_front.lua       front crossings on contested roads (kept for the AI and tests)
   dcc_territory.lua   territory and front line from Voronoi cells (drawn on F10 and the web map)
   dcc_persist.lua     save / load / backups (the only file access)
@@ -766,18 +870,23 @@ src/
   dcc_dcs_ext_air.lua DCS bridge: armoury, runway bombs, shoot and scoot, AI crews, prisoners, Support menu, ranks, wrecks
   dcc_dcs_ext_ground.lua DCS bridge: bridge kits, minefields, industry sites, partisan cells
   dcc_dcs_armoury.lua DCS bridge: warehouse armoury (weapon names, tiers, shelves) and F10 > Armoury test
+  dcc_dcs_ext2.lua    DCS bridge: HVA hunts and escort, packages, aces, shell impacts, ambushes, pick-ups, heavy crates, search parties
+  dcc_dcs_ext3.lua    DCS bridge: landings, cargo ships, carrier air wing, SCUD launchers, pop-ups, night illumination
   dcc_main.lua        start-up and the 30 s / 5 min loops
   dcc_loader.lua      development loader
-theaters/*.lua          Caucasus (hand-made), Syria, Persian Gulf, Cold War Germany (generated)
+theaters/*.lua          Caucasus (hand-made), Syria, Persian Gulf, Cold War Germany (generated);
+                        each with its ships (naval) and sea lanes (shipping)
 hooks/DCC_rotation_hook.lua   server hook: loads the next map after a win
 vendor/ctld/            CTLD.lua (VEAF CTLD v2, built by tools/build_ctld.py), beacon sounds, credits
 server/                 dcc_companion.py (web map + Discord), example config, start_companion.bat
-catalogs/modern.lua     Modern era: ground roles, convoys, transports, player aircraft, capabilities,
-                        AI air loadouts, SAM sites, strike buildings, ambush teams
-dist/                   dcc_bundle.lua (the engine) and DCC_Caucasus.miz (the mission)
+catalogs/modern.lua     Ground roles, convoys, transports, player aircraft (all eras), capabilities,
+                        AI air loadouts, SAM sites, strike buildings, ambush teams, pop-ups, SCUDs
+dist/                   dcc_bundle.lua (the engine), DCC_<map>.miz (the four missions) and the armoury test mission
+dtc/                    DTC templates (F-16C, F/A-18C) exported from the Mission Editor
 tests/                  model tests, bridge tests, DCS API mock
 tools/                  Lua runner, simulator, plotter, interdiction test, bundle + mission builders,
-                        theater generator (make_theater.py) and its scenarios (tools/scenarios/)
+                        theater generator (make_theater.py) and its scenarios (tools/scenarios/),
+                        kneeboard.py (+ fonts/), mod_types.py (A-4E-C, UH-60L), datalinks.json
 ```
 
 ---
@@ -796,10 +905,16 @@ tools/                  Lua runner, simulator, plotter, interdiction test, bundl
 web map and Discord feed, weather and night, AI that adapts to interdiction, JTAC, player-built FARPs,
 carrier operations in the Gulf, VEAF CTLD as the helicopter logistics layer, AI supply helicopters,
 armoury, runway strikes, shoot and scoot, prisoners, support on call, engineers, minefields, veterancy,
-industry, partisans, player-count scaling, rank unlocks, persistent wrecks.
+industry, partisans, player-count scaling, rank unlocks, persistent wrecks; FARP kit and FARP resupply,
+local missions for helicopters and slow aircraft, flying together, HVA hunts, strike packages, aces,
+artillery duels, POW and MEDEVAC, heavy lift, CSAR search parties, carriers on every map with air wings,
+amphibious assaults, shipping lanes, SCUD hunts, pop-up threats, gradual weather, night illumination,
+kneeboard pages, DTC cartridges, datalink set-up, all aircraft of every era (and two mods).
 
-**Ideas, not started:** fog for the AI commanders too, a Cold War era catalog (if wanted later),
-player-requested AI support (artillery, CAS on call), more ships (a RED surface group in the Gulf).
+**Ideas, not started:** a save code through the F10 map (persistence on servers without file access),
+daily orders, squadron home bases, end-of-flight summary, flight-lead meeting point, rank unlocks for
+weapons, cruise missile raids, electronic warfare, fuel shortages, civilian evacuation, fog for the AI
+commanders too.
 
 ## License
 
