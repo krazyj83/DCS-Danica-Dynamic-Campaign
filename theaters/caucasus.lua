@@ -110,12 +110,25 @@ DCC_THEATERS.Caucasus = {
       tacan = 74, tacanCall = "STN", icls = 4,
       slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B", "F-14BU", "F-14A-135-GR" } },
     { id = "lha", side = "blue", name = "LHA-1 Tarawa", kind = "carrier", lat = 41.7500, lon = 41.2500,
-      heading = 300, ship = "LHA_Tarawa", escorts = { "PERRY" },
+      heading = 300, ship = "LHA_Tarawa", amphib = true, escorts = { "PERRY" },
       tacan = 75, tacanCall = "TAR", icls = 5,
       slots = { "AV8BNA", "AV8BNA", "UH-1H", "AH-64D_BLK_II", "SA342M" } },
     { id = "kuz", side = "red", name = "Admiral Kuznetsov", kind = "carrier", lat = 44.2000, lon = 37.6000,
-      heading = 250, ship = "KUZNECOW", escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
+      heading = 250, ship = "KUZNECOW", amphib = true, escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
       tacan = false, icls = false,
       slots = { "Su-33", "Su-33", "Su-33", "Su-33", "Ka-50_3" } },
+  },
+
+  -- Shipping lanes (dcc_ext3.lua): supply ships sail from start (open sea) to dock
+  -- (just off the port) for whoever holds the port; the port is a node id.
+  shipping = {
+    { port = "batumi", start = { lat = 41.9000, lon = 40.9000 }, dock = { lat = 41.6700, lon = 41.5800 } },
+    { port = "poti", start = { lat = 42.3000, lon = 40.9000 }, dock = { lat = 42.1600, lon = 41.6000 } },
+    { port = "sukhumi", start = { lat = 42.7500, lon = 40.4000 }, dock = { lat = 42.9700, lon = 40.9500 } },
+    { port = "gudauta", start = { lat = 42.8500, lon = 40.0000 }, dock = { lat = 43.0800, lon = 40.5500 } },
+    { port = "sochi", start = { lat = 43.3500, lon = 39.2000 }, dock = { lat = 43.5600, lon = 39.6800 } },
+    { port = "tuapse", start = { lat = 43.8500, lon = 38.6000 }, dock = { lat = 44.0800, lon = 39.0300 } },
+    { port = "novorossiysk", start = { lat = 44.4000, lon = 37.5000 }, dock = { lat = 44.6400, lon = 37.8300 } },
+    { port = "gelendzhik", start = { lat = 44.3000, lon = 37.7000 }, dock = { lat = 44.5400, lon = 38.0500 } },
   },
 }

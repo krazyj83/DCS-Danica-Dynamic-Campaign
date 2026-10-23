@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.24.1 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.25.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.24.1",
+  version         = "0.25.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -109,7 +109,8 @@ DCC.config = {
   missions = {
     perType = { CAS = 2, BAI = 3, STRIKE = 2, SEAD = 2, CAP = 1, ESCORT = 3,
                 CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1, ANTISHIP = 1, FARP = 2,
-                FARPSUP = 2, INTERCEPT = 3, HVAESCORT = 2, PKGESCORT = 2, MEDEVAC = 2, POW = 2, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
+                FARPSUP = 2, INTERCEPT = 3, HVAESCORT = 2, PKGESCORT = 2, MEDEVAC = 2, POW = 2,
+                AMPHIB = 1, SHIPSTRIKE = 2, SHIPESCORT = 2, SCUD = 2, POPUP = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
                 RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2 },
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
@@ -350,6 +351,27 @@ DCC.config = {
     searchKm        = 30,      -- ...from the nearest enemy base within this range
     searchSpeed     = 4,       -- m/s (on foot / light vehicle, cross country)
     searchCatchM    = 120,     -- this close to the pilot: captured
+  },
+
+  -- Naval and hidden-threat war (v0.25, src/dcc_ext3.lua + dcc_dcs_ext3.lua) -------
+  ext3 = {
+    -- 1. amphibious assault (ships with amphib = true in the theater pack)
+    amphib = { platoons = 2, maxDefenders = 4, cooldownTicks = 144,   -- one landing per ship per 12 h at most
+               rangeKm = 70,             -- beaches this close to the ship
+               minutes = 120,            -- mean time between landings while players are on
+               escortKm = 20 },          -- AMPHIB escort: be this close to the helicopters
+    -- 2. shipping lanes (theater pack: shipping = { { port, start, dock } })
+    shipping = { everyTicks = 36, maxPerSide = 1, su = 40, speedKmh = 20, belowShare = 0.8,
+                 escortKm = 20, aiStrikeChance = 0.08, ships = { blue = "Dry-cargo ship-1", red = "Dry-cargo ship-2" } },
+    -- 3. carrier air wing: recovery tanker and CAP over the carrier
+    carrier = { tankerTacan = 76, tankerCall = "SHL", respawnMin = 30, lifeMin = 120, retaskKm = 15,
+                capAltM = 6000, tankerAltM = 1800 },
+    -- 4. SCUDs (RED)
+    scud = { side = "red", launchers = 2, everyTicks = 30, rangeKm = 300, damageSU = 15, runwayChance = 0.35,
+             depth = { 2, 4 }, scootTicks = 3, rebuildTicks = 144, rebuildSU = 60, impactKm = 30 },
+    -- 7. pop-up threats near the front
+    popup = { chance = 0.05, max = 3, lifeTicks = 18, manpadsShare = 0.6, spawnKm = 40, despawnKm = 60,
+              seeKm = 8 },
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------
@@ -5577,6 +5599,486 @@ function War:opsTick()
   baseOpsTick(self)
   self:artyHarassTick()
   self:pickupsTick()
+end
+
+end
+
+-- >>> src/dcc_ext3.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - naval and hidden-threat war (pure Lua 5.1, v0.25).
+-- Load after dcc_ext2.lua.
+-- ----------------------------------------------------------------------------
+--   1. Amphibious : an amphibious ship (Tarawa, Kuznetsov) lands marines by
+--                   helicopter on a weak enemy coastal town (a package of kind
+--                   "amphib"). Own side: AMPHIB escort mission; enemy:
+--                   INTERCEPT. Once ashore it is a normal battle (CAS).
+--   2. Shipping   : supply ships sail the theater's lanes to own ports (40 SU).
+--                   Enemy: SHIPSTRIKE; own: SHIPESCORT. Sunk = cargo lost.
+--   4. Scuds      : RED's mobile launchers in the rear fire at BLUE airbases
+--                   and depots (supply lost, sometimes a runway closed). The
+--                   launch gives them away; they move on soon after. SCUD hunt.
+--   7. Pop-ups    : MANPADS teams and mobile SHORAD appear near the front for a
+--                   while; only known once someone sees them. POPUP missions.
+--   (3, carrier recovery tanker and CAP, is bridge-only: dcc_dcs_ext3.lua)
+-- ============================================================================
+
+DCC = DCC or {}
+local U = DCC.util
+local War = DCC.War
+local SIDES = { "blue", "red" }
+
+local function E(self) return self.cfg.ext3 end
+
+local baseInitOps = War.initOps
+function War:initOps()
+  baseInitOps(self)
+  local st, cfg = self.state, E(self)
+  st.shipping = st.shipping or {}
+  st.popups = st.popups or {}
+  st.amphibReady = st.amphibReady or {}
+  if not st.scuds then
+    st.scuds = {}
+    for i = 1, cfg.scud.launchers do
+      st.scuds[i] = { id = "sc" .. i, side = cfg.scud.side, status = "up", last = st.tick - cfg.scud.everyTicks + 6 * i }
+    end
+  end
+end
+
+local function shipSpec(self, id)
+  for _, s in ipairs(self.theater and self.theater.naval or {}) do if s.id == id then return s end end
+end
+
+-- ===========================================================================
+-- 1. Amphibious assault (the bridge picks ship and beach, the model does the rest)
+-- ===========================================================================
+function War:amphibShips(side)
+  local out = {}
+  for _, s in ipairs(self.theater and self.theater.naval or {}) do
+    local ready = self.state.amphibReady[s.id]
+    if s.side == side and s.amphib and self:shipUp(s.id) and (not ready or self.state.tick >= ready) then
+      out[#out + 1] = s
+    end
+  end
+  return out
+end
+
+-- A beach worth landing on: enemy, not a depot, few defenders.
+function War:amphibTargetOk(side, id)
+  local ns = self.state.nodes[id]
+  return ns ~= nil and ns.side ~= side and not self.T.nodes[id].depot and #ns.platoons <= E(self).amphib.maxDefenders
+end
+
+-- Marines embark: new platoons at `home` (the own node nearest the ship), carried at once.
+function War:amphibLaunched(side, shipId, target, home)
+  if not self:amphibTargetOk(side, target) or not self.state.nodes[home] or self.state.nodes[home].side ~= side then
+    return nil
+  end
+  local cfg = E(self).amphib
+  local id = self:newId("k")
+  local pk = { id = id, side = side, kind = "amphib", target = target, from = home, ship = shipId,
+               status = "inbound", launched = self.state.tick, platoons = {} }
+  for _ = 1, cfg.platoons do
+    local pid = self:newPlatoon(side, "MECH_PLT", home)
+    if self:carryPlatoon(pid, "ai:" .. id) then pk.platoons[#pk.platoons + 1] = pid end
+  end
+  self.state.packages[id] = pk
+  self.state.amphibReady[shipId] = self.state.tick + cfg.cooldownTicks
+  local s = shipSpec(self, shipId)
+  self:log("amphib", side, string.format("%s marines leave %s for %s", side:upper(), s and s.name or shipId,
+    self:nodeName(target)), { node = target })
+  return pk
+end
+
+local baseArrived = War.packageArrived
+function War:packageArrived(id)
+  local pk = self.state.packages[id]
+  if pk and pk.kind == "amphib" and pk.status == "inbound" then
+    pk.status, pk.ended = "hit", self.state.tick
+    self:log("amphib_ashore", pk.side, string.format("%s marines are ashore at %s", pk.side:upper(),
+      self:nodeName(pk.target)), { node = pk.target })
+    self:dropPlatoons(pk.platoons, pk.target, pk.side)
+    return
+  end
+  return baseArrived(self, id)
+end
+
+local baseDestroyed = War.packageDestroyed
+function War:packageDestroyed(id)
+  local pk = self.state.packages[id]
+  if pk and pk.kind == "amphib" and pk.status == "inbound" then
+    pk.status, pk.ended = "destroyed", self.state.tick
+    for _, pid in ipairs(pk.platoons) do self:loseCarried(pid) end
+    self:log("package_down", pk.side, string.format("%s landing at %s shot down", pk.side:upper(),
+      self:nodeName(pk.target)), {})
+    return
+  end
+  return baseDestroyed(self, id)
+end
+
+-- ===========================================================================
+-- 2. Shipping: supply ships on the theater's lanes
+-- ===========================================================================
+function War:lanes() return self.theater and self.theater.shipping or {} end
+
+function War:laneOf(port)
+  for _, l in ipairs(self:lanes()) do if l.port == port then return l end end
+end
+
+function War:planShipping()
+  local cfg = E(self).shipping
+  if self.state.tick % cfg.everyTicks ~= 0 then return end
+  for _, side in ipairs(SIDES) do
+    local active = 0
+    for _, s in pairs(self.state.shipping) do if s.side == side then active = active + 1 end end
+    if active < cfg.maxPerSide then
+      local best, bestF
+      for _, l in ipairs(self:lanes()) do
+        local ns = self.state.nodes[l.port]
+        local busy = false
+        for _, s in pairs(self.state.shipping) do if s.port == l.port then busy = true end end
+        if ns and ns.side == side and not busy then
+          local f = (ns.supply or 0) / math.max(1, self:supplyCap(l.port))
+          if f < cfg.belowShare and (not bestF or f < bestF) then best, bestF = l, f end
+        end
+      end
+      if best then
+        local id = self:newId("sh")
+        local km = U.distKm(best.start, best.dock)
+        self.state.shipping[id] = { id = id, side = side, port = best.port, su = cfg.su, km = km, progress = 0,
+                                    started = self.state.tick }
+        self:log("shipping_out", side, string.format("%s supply ship bound for %s (%d SU, about %d h)",
+          side:upper(), self:nodeName(best.port), cfg.su, math.max(1, math.floor(km / cfg.speedKmh + 0.5))),
+          { node = best.port })
+      end
+    end
+  end
+end
+
+function War:shippingTick()
+  local cfg = E(self).shipping
+  local step = cfg.speedKmh * self.cfg.tickSeconds / 3600
+  for _, id in ipairs(U.sortedKeys(self.state.shipping)) do
+    local s = self.state.shipping[id]
+    s.progress = math.min(1, s.progress + step / math.max(s.km, 0.1))
+    if s.progress >= 1 then
+      self.state.shipping[id] = nil
+      self.state.deliveredShips = self.state.deliveredShips or {}
+      self.state.deliveredShips[id] = self.state.tick
+      local ns = self.state.nodes[s.port]
+      if ns.side == s.side then
+        ns.supply = math.min(self:supplyCap(s.port) * self.cfg.supply.overfillFactor, (ns.supply or 0) + s.su)
+        self:log("shipping_in", s.side, string.format("%s supply ship unloaded at %s (+%d SU)", s.side:upper(),
+          self:nodeName(s.port), s.su), { node = s.port, ship = id })
+      else
+        self:log("shipping_in", s.side, string.format("%s supply ship turned back - %s has fallen", s.side:upper(),
+          self:nodeName(s.port)), { node = s.port, ship = id })
+      end
+    end
+  end
+end
+
+function War:shippingSunk(id)
+  local s = self.state.shipping[id]
+  if not s then return false end
+  self.state.shipping[id] = nil
+  self.state.sunkShips = self.state.sunkShips or {}
+  self.state.sunkShips[id] = self.state.tick
+  self:log("shipping_sunk", s.side, string.format("%s supply ship to %s sunk - %d SU lost", s.side:upper(),
+    self:nodeName(s.port), s.su), { node = s.port, ship = id })
+  return true
+end
+
+-- ===========================================================================
+-- 4. Scuds
+-- ===========================================================================
+function War:scuds() return self.state.scuds end
+
+function War:scudTick()
+  local cfg = E(self).scud
+  for _, b in ipairs(self.state.scuds) do
+    local side, enemy = b.side, U.otherSide(b.side)
+    if b.status == "destroyed" then
+      if self.state.tick - (b.since or 0) >= cfg.rebuildTicks then
+        for _, id in ipairs(self.T.order) do
+          local ns = self.state.nodes[id]
+          if self.T.nodes[id].depot and ns.side == side and (ns.supply or 0) >= cfg.rebuildSU then
+            ns.supply = ns.supply - cfg.rebuildSU
+            b.status, b.node, b.since, b.last = "up", nil, nil, self.state.tick
+            break
+          end
+        end
+      end
+    else
+      -- hide somewhere in the rear (or move on after a launch)
+      if not b.node or self.state.nodes[b.node].side ~= side or (b.moveAt and self.state.tick >= b.moveAt) then
+        local dist, spots = self:frontDistance(side), {}
+        for _, id in ipairs(self.T.order) do
+          local d = dist[id]
+          if self.state.nodes[id].side == side and d and d >= cfg.depth[1] and d <= cfg.depth[2] and id ~= b.node then
+            spots[#spots + 1] = id
+          end
+        end
+        if #spots > 0 then
+          b.node = spots[self.rng:int(#spots)]
+          b.off = { dx = (self.rng:next() - 0.5) * 6000, dz = (self.rng:next() - 0.5) * 6000 }
+        end
+        b.moveAt = nil
+      end
+      -- fire
+      if b.node and self.state.tick - (b.last or 0) >= cfg.everyTicks then
+        local best, bestScore
+        for _, id in ipairs(self.T.order) do
+          local ns, tn = self.state.nodes[id], self.T.nodes[id]
+          if ns.side == enemy and (tn.kind == "airbase" or tn.depot) then
+            local km = U.distKm(self.T.nodes[b.node], tn)
+            if km <= cfg.rangeKm then
+              local score = (tn.depot and 0 or 1) * 1000 + km
+              if not bestScore or score < bestScore then best, bestScore = id, score end
+            end
+          end
+        end
+        if best then
+          b.last, b.moveAt = self.state.tick, self.state.tick + cfg.scootTicks
+          local ns = self.state.nodes[best]
+          ns.supply = math.max(0, (ns.supply or 0) - cfg.damageSU)
+          local closed = false
+          if self.T.nodes[best].kind == "airbase" and self.rng:next() < cfg.runwayChance and self.runwayHit then
+            for _ = 1, (self.cfg.ext and self.cfg.ext.runwayHits) or 3 do
+              if self:runwayHit(best) then closed = true end
+            end
+          end
+          self:addContact(enemy, "scud:" .. b.id, { kind = "scud", node = b.node, off = b.off, source = "sensor",
+            label = "SCUD launcher" })
+          b.target = best
+          self:log("scud", enemy, string.format("SCUD impact at %s - supply hit%s. Launch detected near %s: hunt the launcher",
+            self:nodeName(best), closed and ", runway closed" or "", self:nodeName(b.node)), { node = best, from = b.node })
+        end
+      end
+    end
+  end
+end
+
+function War:scudKilled(id)
+  for _, b in ipairs(self.state.scuds) do
+    if b.id == id and b.status == "up" then
+      b.status, b.since = "destroyed", self.state.tick
+      self:log("scud_destroyed", U.otherSide(b.side), string.format("%s SCUD launcher destroyed near %s",
+        b.side:upper(), b.node and self:nodeName(b.node) or "the rear"), { node = b.node })
+      b.node = nil
+      return true
+    end
+  end
+  return false
+end
+
+-- ===========================================================================
+-- 7. Pop-up threats
+-- ===========================================================================
+function War:popupTick()
+  local cfg = E(self).popup
+  for _, id in ipairs(U.sortedKeys(self.state.popups)) do
+    local p = self.state.popups[id]
+    if self.state.tick - p.tick > cfg.lifeTicks or self.state.nodes[p.node].side ~= p.side then
+      self.state.popups[id] = nil                         -- moved on
+    end
+  end
+  for _, side in ipairs(SIDES) do
+    local n = 0
+    for _, p in pairs(self.state.popups) do if p.side == side then n = n + 1 end end
+    if n < cfg.max and self.rng:next() < cfg.chance then
+      local dist, spots = self:frontDistance(side), {}
+      for _, id in ipairs(self.T.order) do
+        if self.state.nodes[id].side == side and dist[id] == 1 then spots[#spots + 1] = id end
+      end
+      if #spots > 0 then
+        local node = spots[self.rng:int(#spots)]
+        local kind = (self.rng:next() < cfg.manpadsShare) and "manpads" or "shorad"
+        -- toward the nearest enemy base, a few km out
+        local enemyNb
+        for nb in pairs(self.T.nodes[node].nb) do
+          if self.state.nodes[nb].side ~= side then enemyNb = enemyNb or nb end
+        end
+        local id = self:newId("pu")
+        self.state.popups[id] = { id = id, side = side, node = node, kind = kind, tick = self.state.tick,
+          toward = enemyNb, frac = 0.15 + self.rng:next() * 0.25, jitter = (self.rng:next() - 0.5) * 3000 }
+      end
+    end
+  end
+end
+
+-- The bridge saw it (or it fired).
+function War:popupSeen(id, bySide, how)
+  local p = self.state.popups[id]
+  if not p or p.side == bySide then return end
+  self:addContact(bySide, "popup:" .. id, { kind = "popup", node = p.node, popup = id, source = how or "visual",
+    label = p.kind == "manpads" and "MANPADS team" or "mobile SAM" })
+end
+
+function War:popupKilled(id)
+  local p = self.state.popups[id]
+  if not p then return false end
+  self.state.popups[id] = nil
+  self.state.killedPopups = self.state.killedPopups or {}
+  self.state.killedPopups[id] = self.state.tick
+  self:log("popup_killed", U.otherSide(p.side), string.format("%s %s near %s destroyed", p.side:upper(),
+    p.kind == "manpads" and "MANPADS team" or "mobile SAM", self:nodeName(p.node)), { node = p.node })
+  return true
+end
+
+-- ===========================================================================
+-- Missions: AMPHIB, SHIPSTRIKE, SHIPESCORT, SCUD, POPUP
+-- ===========================================================================
+War.MISSION_NEEDS.AMPHIB = "ANY"
+War.MISSION_NEEDS.SHIPSTRIKE = "A2G"
+War.MISSION_NEEDS.SHIPESCORT = "ANY"
+War.MISSION_NEEDS.SCUD = "A2G"
+War.MISSION_NEEDS.POPUP = "A2G"
+do
+  local new = { AMPHIB = true, SHIPSTRIKE = true, SHIPESCORT = true, SCUD = true, POPUP = true }
+  local order = {}
+  for _, t in ipairs(War.MISSION_ORDER) do
+    if not new[t] then order[#order + 1] = t end
+    if t == "SEAD" then order[#order + 1] = "POPUP"; order[#order + 1] = "SCUD" end
+    if t == "ANTISHIP" then order[#order + 1] = "SHIPSTRIKE" end
+    if t == "ESCORT" then order[#order + 1] = "AMPHIB"; order[#order + 1] = "SHIPESCORT" end
+  end
+  War.MISSION_ORDER = order
+end
+if War.HUB_TYPES then
+  War.HUB_TYPES.AMPHIB, War.HUB_TYPES.SHIPESCORT, War.HUB_TYPES.POPUP = true, true, true
+end
+
+local gen = War.missionGenerators
+
+gen.AMPHIB = function(self, side)
+  local out = {}
+  for _, id in ipairs(U.sortedKeys(self.state.packages)) do
+    local pk = self.state.packages[id]
+    if pk.kind == "amphib" and pk.side == side and pk.status == "inbound" then
+      out[#out + 1] = { type = "AMPHIB", target = id, node = pk.target, prio = 0,
+        label = "escort the landing at " .. self:nodeName(pk.target) }
+    end
+  end
+  return out
+end
+
+gen.SHIPSTRIKE = function(self, side)
+  local out = {}
+  for _, id in ipairs(U.sortedKeys(self.state.shipping)) do
+    local s = self.state.shipping[id]
+    if s.side ~= side then
+      out[#out + 1] = { type = "SHIPSTRIKE", target = id, node = s.port, prio = 1 - s.progress,
+        label = string.format("%s supply ship to %s", s.side:upper(), self:nodeName(s.port)) }
+    end
+  end
+  return out
+end
+
+gen.SHIPESCORT = function(self, side)
+  local out = {}
+  for _, id in ipairs(U.sortedKeys(self.state.shipping)) do
+    local s = self.state.shipping[id]
+    if s.side == side and s.progress < 0.7 then
+      out[#out + 1] = { type = "SHIPESCORT", target = id, node = s.port, prio = 0,
+        label = "supply ship to " .. self:nodeName(s.port) }
+    end
+  end
+  return out
+end
+
+gen.SCUD = function(self, side)
+  local out = {}
+  for _, b in ipairs(self.state.scuds) do
+    local known = self:isFresh(side, "scud:" .. b.id)
+    if b.side ~= side and b.status == "up" and b.node and known then
+      local c = self:contact(side, "scud:" .. b.id)
+      if c and c.node == b.node then
+        out[#out + 1] = { type = "SCUD", target = b.id, node = b.node, prio = 0,
+          label = "SCUD launcher near " .. self:nodeName(b.node) }
+      end
+    end
+  end
+  return out
+end
+
+gen.POPUP = function(self, side)
+  local out = {}
+  for _, id in ipairs(U.sortedKeys(self.state.popups)) do
+    local p = self.state.popups[id]
+    if p.side ~= side and self:isFresh(side, "popup:" .. id) then
+      out[#out + 1] = { type = "POPUP", target = id, node = p.node, prio = 0,
+        label = string.format("%s near %s", p.kind == "manpads" and "MANPADS team" or "mobile SAM",
+          self:nodeName(p.node)) }
+    end
+  end
+  return out
+end
+
+local baseOutcome = War.missionOutcome
+function War:missionOutcome(m, events)
+  local st = self.state
+  if m.type == "AMPHIB" then
+    local pk = st.packages[m.target]
+    if not pk then return "expired" end
+    if pk.status == "destroyed" then return "failed" end
+    if pk.status == "hit" then return m.escortOk and "done" or "expired" end
+    return "open"
+  elseif m.type == "SHIPSTRIKE" then
+    if st.shipping[m.target] then return "open" end
+    if st.sunkShips and st.sunkShips[m.target] then return "done" end
+    return "failed"
+  elseif m.type == "SHIPESCORT" then
+    if st.shipping[m.target] then return "open" end
+    if st.sunkShips and st.sunkShips[m.target] then return "failed" end
+    return m.escortOk and "done" or "expired"
+  elseif m.type == "SCUD" then
+    for _, b in ipairs(st.scuds) do
+      if b.id == m.target then
+        if b.status ~= "up" then return "done" end
+        return (b.node == m.node) and "open" or "expired"     -- it moved on: the trail is cold
+      end
+    end
+    return "expired"
+  elseif m.type == "POPUP" then
+    if st.popups[m.target] then return "open" end
+    return (st.killedPopups and st.killedPopups[m.target]) and "done" or "expired"
+  end
+  return baseOutcome(self, m, events)
+end
+
+-- INTERCEPT on an enemy landing reads right
+local genIntercept = gen.INTERCEPT
+gen.INTERCEPT = function(self, side)
+  local out = genIntercept(self, side)
+  for _, c in ipairs(out) do
+    local pk = self.state.packages[c.target]
+    if pk and pk.kind == "amphib" then
+      c.label = string.format("%s landing helicopters inbound to %s", pk.side:upper(), self:nodeName(pk.target))
+    end
+  end
+  return out
+end
+
+-- ===========================================================================
+-- Tick
+-- ===========================================================================
+local baseOpsTick = War.opsTick
+function War:opsTick()
+  baseOpsTick(self)
+  self:planShipping()
+  self:shippingTick()
+  self:scudTick()
+  self:popupTick()
+  if self.state.tick % 12 == 0 then
+    for id, t in pairs(self.state.sunkShips or {}) do if self.state.tick - t > 12 then self.state.sunkShips[id] = nil end end
+    for id, t in pairs(self.state.deliveredShips or {}) do
+      if self.state.tick - t > 12 then self.state.deliveredShips[id] = nil end
+    end
+    for id, t in pairs(self.state.killedPopups or {}) do
+      if self.state.tick - t > 12 then self.state.killedPopups[id] = nil end
+    end
+  end
 end
 
 end
@@ -13016,6 +13518,525 @@ end
 
 end
 
+-- >>> src/dcc_dcs_ext3.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - DCS bridge: naval and hidden-threat war (v0.25).
+-- Load after dcc_dcs_ext2.lua.
+-- ----------------------------------------------------------------------------
+--   1. Amphibious : landing helicopters (airmobile template) from Tarawa /
+--                   Kuznetsov to a weak enemy coastal town.
+--   2. Shipping   : real cargo ships on the lanes; sunk = cargo lost; AI
+--                   anti-ship strikes on enemy cargo ships.
+--   3. Carrier air wing: an AI CAP over each carrier and (BLUE) an S-3B
+--                   recovery tanker on TACAN 76X, re-tasked as the ship sails.
+--   4. Scuds      : launcher groups in the rear; impacts shown near players.
+--   7. Pop-ups    : MANPADS / SHORAD groups spawned when enemy aircraft come
+--                   near; seen (or firing) = on the map and the board.
+-- ============================================================================
+
+DCC = DCC or {}
+local B = DCC.dcs
+local U = DCC.util
+
+local function XC() return DCC.config.ext3 end
+local function ok(fn, ...) local s, r = pcall(fn, ...); if s then return r end end
+local function alive(u) return u ~= nil and ok(u.isExist, u) == true and (ok(u.getLife, u) or 0) >= 1 end
+local function dist2D(a, b)
+  local dx, dz = a.x - b.x, a.z - b.z
+  return math.sqrt(dx * dx + dz * dz)
+end
+local function otherSide(s) return s == "blue" and "red" or "blue" end
+local function unitsOf(gname)
+  local g = gname and ok(Group.getByName, gname)
+  local out = {}
+  if g and ok(g.isExist, g) then
+    for _, u in ipairs(ok(g.getUnits, g) or {}) do if alive(u) then out[#out + 1] = u end end
+  end
+  return out
+end
+local function destroyGroup(gname)
+  local g = gname and ok(Group.getByName, gname)
+  if g and ok(g.isExist, g) then g:destroy() end
+end
+local function online() return #B.playerPositions() > 0 end
+local function cat() return B.catalog or {} end
+local function ll(p) local v = coord.LLtoLO(p.lat, p.lon, 0); return { x = v.x, y = 0, z = v.z } end
+local function wpos(p) return { x = p.x, y = ok(land.getHeight, { x = p.x, y = p.z }) or 0, z = p.z } end
+local function enemyPlayersNear(side, pos, km)
+  local out = {}
+  for _, u in ipairs(coalition.getPlayers(B.COAL[otherSide(side)]) or {}) do
+    if alive(u) and dist2D(u:getPoint(), pos) <= km * 1000 then out[#out + 1] = u end
+  end
+  return out
+end
+local function combo(tasks)
+  for i, t in ipairs(tasks) do t.number, t.auto, t.enabled = i, false, true end
+  return { id = "ComboTask", params = { tasks = tasks } }
+end
+local function wp(x, z, alt, speed, task)
+  return { x = x, y = z, alt = alt, alt_type = "BARO", type = "Turning Point", action = "Turning Point",
+           speed = speed, speed_locked = true, ETA = 0, ETA_locked = false, task = task or combo({}) }
+end
+local function say(side, text, t)
+  if B.COAL[side] then trigger.action.outTextForCoalition(B.COAL[side], "Command: " .. text, t or 15) end
+end
+local function shipUnit(id)
+  local rec = (B.naval or {})[id]
+  return rec and unitsOf(rec.group)[1]
+end
+
+local function fresh() return { ships = {}, wing = {}, scuds = {}, pops = {}, n = 0 } end
+B.x3 = fresh()
+local function nextName(prefix) B.x3.n = B.x3.n + 1; return prefix .. B.x3.n end
+
+-- ===========================================================================
+-- 1. Amphibious assault
+-- ===========================================================================
+function B.launchAmphib(side)
+  local war, cfg = B.war, XC().amphib
+  if not B.findTemplate("DCC_TPL_" .. side .. "_airmobile") or war:isStorm() then return nil end
+  for _, ship in ipairs(war:amphibShips(side)) do
+    local u = shipUnit(ship.id)
+    if u then
+      local sp = u:getPoint()
+      local best, bestKey
+      for _, id in ipairs(war.T.order) do
+        local np = B.nodePos[id]
+        if np and war:amphibTargetOk(side, id) and dist2D(np, sp) <= cfg.rangeKm * 1000 then
+          local key = #war.state.nodes[id].platoons * 1e6 + dist2D(np, sp)
+          if not bestKey or key < bestKey then best, bestKey = id, key end
+        end
+      end
+      local home = best and B.nearestNodeOf(sp, side)
+      local pk = home and war:amphibLaunched(side, ship.id, best, home)
+      if pk then
+        local np = B.nodePos[best]
+        local d = math.max(1, dist2D(np, sp))
+        local lx, lz = B.landNear(np.x + (sp.x - np.x) / d * 700, np.z + (sp.z - np.z) / d * 700)
+        local landing = { x = lx, z = lz }
+        local gname = "DCC_AMPHIB_" .. pk.id
+        local g = B.spawnFlight(side, "airmobile", gname, { x = sp.x + 300, z = sp.z + 300 }, 150, 60, {
+          wp(sp.x + 300, sp.z + 300, 150, 60),
+          wp(landing.x, landing.z, 0, 50, combo({ { id = "Land", params = { point = { x = landing.x, y = landing.z },
+            durationFlag = true, duration = 600 } } })) }, { helicopter = true, task = "Transport" })
+        if not g then war:packageDestroyed(pk.id); return nil end
+        B.packages[pk.id] = { strike = gname, target = np, kind = "airmobile", landing = landing }
+        say(side, string.format("marines lifting off %s for %s - escort them (Missions > AMPHIB).", ship.name,
+          war:nodeName(best)), 20)
+        B.refreshMenus()
+        return pk
+      end
+    end
+  end
+end
+
+-- ===========================================================================
+-- 2. Shipping
+-- ===========================================================================
+function B.shipPos(s)
+  local rec = B.x3.ships[s.id]
+  local u = rec and unitsOf(rec.group)[1]
+  if u then return u:getPoint() end
+  local l = B.war:laneOf(s.port)
+  if not l then return nil end
+  local a, b = ll(l.start), ll(l.dock)
+  return { x = a.x + (b.x - a.x) * s.progress, y = 0, z = a.z + (b.z - a.z) * s.progress }
+end
+
+function B.reconcileShipping()
+  local war, cfg = B.war, XC().shipping
+  for id, rec in pairs(B.x3.ships) do
+    local s = war.state.shipping[id]
+    if not s then
+      destroyGroup(rec.group); B.x3.ships[id] = nil              -- docked (or the model lost it)
+    elseif #unitsOf(rec.group) == 0 then
+      B.x3.ships[id] = nil
+      war:shippingSunk(id)
+    end
+  end
+  if not online() then return end
+  for _, id in ipairs(U.sortedKeys(war.state.shipping)) do
+    local s = war.state.shipping[id]
+    local l = war:laneOf(s.port)
+    if l and not B.x3.ships[id] then
+      local p, dock = B.shipPos(s), ll(l.dock)
+      local t = cfg.ships[s.side] or "Dry-cargo ship-1"
+      local gname = nextName("DCC_CARGOSHIP_" .. id .. "_")
+      local speed = cfg.speedKmh / 3.6
+      local hdg = math.atan2(dock.z - p.z, dock.x - p.x)
+      if pcall(coalition.addGroup, B.countryId(s.side), Group.Category.SHIP, { name = gname,
+          units = { { name = gname .. "_1", type = t, skill = "Average", x = p.x, y = p.z, heading = hdg } },
+          route = { points = {
+            { x = p.x, y = p.z, type = "Turning Point", action = "Turning Point", speed = speed, ETA = 0,
+              ETA_locked = false, speed_locked = true },
+            { x = dock.x, y = dock.z, type = "Turning Point", action = "Turning Point", speed = speed, ETA = 0,
+              ETA_locked = false, speed_locked = true } } } }) then
+        B.x3.ships[id] = { group = gname }
+      end
+    end
+  end
+end
+
+function B.planShipStrikes()
+  local war = B.war
+  if not online() or not war:aiAttackAllowed() then return end
+  for id, rec in pairs(B.x3.ships) do
+    local s = war.state.shipping[id]
+    local u = unitsOf(rec.group)[1]
+    if s and u and war.rng:next() < XC().shipping.aiStrikeChance then
+      local enemy = otherSide(s.side)
+      local busy = false
+      for _, so in pairs(B.sorties) do if so.side == enemy and so.kind == "ANTISHIP" then busy = true end end
+      local g = ok(u.getGroup, u)
+      if not busy and g then
+        B.spawnSortie(enemy, "attack", "ANTISHIP", u:getPoint(), { groupId = g:getID(), template = "antiship" })
+      end
+    end
+  end
+end
+
+-- ===========================================================================
+-- 3. Carrier air wing: CAP and recovery tanker over each carrier
+-- ===========================================================================
+local function orbitTasks(kind, c, alt, speed)
+  if kind == "tanker" then
+    return combo({ { id = "Tanker", params = {} },
+      { id = "Orbit", params = { pattern = "Race-Track", point = { x = c.x - 12000, y = c.z },
+        point2 = { x = c.x + 12000, y = c.z }, altitude = alt, speed = speed } } })
+  end
+  return combo({ { id = "EngageTargets", params = { targetTypes = { "Air" }, priority = 0, maxDist = 60000 } },
+    { id = "Orbit", params = { pattern = "Circle", point = { x = c.x, y = c.z }, altitude = alt, speed = speed } } })
+end
+
+function B.carrierWing()
+  local war, cfg = B.war, XC().carrier
+  local now = timer.getTime()
+  for _, ship in ipairs(war.theater.naval or {}) do
+    if ship.kind == "carrier" and ship.ship ~= "LHA_Tarawa" then
+      for _, kind in ipairs({ "cap", "tanker" }) do
+        local key = ship.id .. "|" .. kind
+        local rec = B.x3.wing[key]
+        local u = shipUnit(ship.id)
+        local role = kind == "cap" and "carriercap" or "carriertanker"
+        local alt = kind == "cap" and cfg.capAltM or cfg.tankerAltM
+        local speed = kind == "cap" and 220 or 140
+        if rec and rec.group and (not u or not online() or now - rec.born > cfg.lifeMin * 60) then
+          destroyGroup(rec.group)                                  -- relieved (or nothing to guard)
+          B.x3.wing[key] = { gone = now - cfg.respawnMin * 60 }
+          rec = nil
+        elseif rec and rec.group and #unitsOf(rec.group) == 0 then
+          B.x3.wing[key] = { gone = now }                          -- shot down: a while until the next
+          rec = nil
+        end
+        rec = B.x3.wing[key]
+        if u and online() and (not rec or (not rec.group and now - (rec.gone or 0) >= cfg.respawnMin * 60))
+           and B.findTemplate("DCC_TPL_" .. ship.side .. "_" .. role) then
+          local c = u:getPoint()
+          local gname = nextName("DCC_CVW_" .. ship.id .. "_" .. kind .. "_")
+          local g = B.spawnFlight(ship.side, role, gname, { x = c.x - 3000, z = c.z - 3000 }, alt, speed,
+            { wp(c.x, c.z, alt, speed, orbitTasks(kind, c, alt, speed)) },
+            { task = kind == "cap" and "CAP" or "Refueling", size = kind == "tanker" and 1 or nil })
+          if g then
+            B.x3.wing[key] = { group = gname, born = now, center = { x = c.x, z = c.z } }
+            if kind == "tanker" then
+              local tu = unitsOf(gname)[1]
+              local ctl = tu and ok(tu.getController, tu)
+              if ctl then
+                pcall(ctl.setCommand, ctl, { id = "ActivateBeacon", params = { type = 4, system = 4,
+                  callsign = cfg.tankerCall, frequency = (1088 + cfg.tankerTacan - 1) * 1000000, AA = true,
+                  channel = cfg.tankerTacan, modeChannel = "X", bearing = true, unitId = ok(tu.getID, tu) } })
+              end
+              say(ship.side, string.format("%s recovery tanker overhead, TACAN %dX.", ship.name, cfg.tankerTacan), 12)
+            end
+          end
+        elseif rec and rec.group and u then
+          local c = u:getPoint()
+          if dist2D(c, rec.center) > cfg.retaskKm * 1000 then           -- the ship sailed on: follow it
+            local g = ok(Group.getByName, rec.group)
+            local ctl = g and ok(g.getController, g)
+            if ctl then
+              pcall(ctl.setTask, ctl, { id = "Mission", params = { route = { points = {
+                wp(c.x, c.z, alt, speed, orbitTasks(kind, c, alt, speed)) } } } })
+              rec.center = { x = c.x, z = c.z }
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
+-- ===========================================================================
+-- 4. Scuds
+-- ===========================================================================
+function B.scudPos(b)
+  local np = b.node and B.nodePos[b.node]
+  if not np then return nil end
+  local x, z = B.landNear(np.x + (b.off and b.off.dx or 0), np.z + (b.off and b.off.dz or 0))
+  return { x = x, y = 0, z = z }
+end
+
+function B.reconcileScuds()
+  local war = B.war
+  for _, b in ipairs(war:scuds()) do
+    local rec = B.x3.scuds[b.id]
+    if rec and (b.status ~= "up" or rec.node ~= b.node) then
+      destroyGroup(rec.group); B.x3.scuds[b.id] = nil; rec = nil   -- killed in the model, or it moved on
+    elseif rec and #unitsOf(rec.group) == 0 then
+      B.x3.scuds[b.id] = nil; rec = nil
+      war:scudKilled(b.id)
+    end
+    if not rec and b.status == "up" and b.node then
+      local p = B.scudPos(b)
+      local units = {}
+      for i, t in ipairs(cat().scud or { "Scud_B" }) do
+        if B.validType(t) then
+          units[#units + 1] = { name = "DCC_SCUD_" .. b.id .. "_" .. B.x3.n .. "_" .. i, type = t, skill = "Average",
+                                x = p.x + i * 25, y = p.z + i * 10, heading = 0, playerCanDrive = false }
+        end
+      end
+      local gname = nextName("DCC_SCUD_" .. b.id .. "_")
+      if #units > 0 and pcall(coalition.addGroup, B.countryId(b.side), Group.Category.GROUND, { name = gname,
+          task = "Ground Nothing", units = units, route = { points = { { x = p.x, y = p.z, type = "Turning Point",
+          action = "Off Road", speed = 0, ETA = 0, ETA_locked = false } } } }) then
+        B.x3.scuds[b.id] = { group = gname, node = b.node }
+      end
+    end
+  end
+end
+
+function B.scudImpact(node)
+  local p = B.nodePos[node]
+  if not p then return end
+  for _, pp in ipairs(B.playerPositions()) do
+    if dist2D(pp, p) <= XC().scud.impactKm * 1000 then
+      local a, r = math.random() * 2 * math.pi, math.random() * 1500
+      local pt = { x = p.x + math.cos(a) * r, z = p.z + math.sin(a) * r }
+      timer.scheduleFunction(function() ok(trigger.action.explosion, wpos(pt), 500) end, nil,
+        timer.getTime() + 20 + math.random() * 40)
+      return
+    end
+  end
+end
+
+-- ===========================================================================
+-- 7. Pop-up threats
+-- ===========================================================================
+function B.popupPos(p)
+  local a, b = B.nodePos[p.node], p.toward and B.nodePos[p.toward]
+  if not a then return nil end
+  local x, z = a.x, a.z
+  if b then
+    x, z = a.x + (b.x - a.x) * p.frac, a.z + (b.z - a.z) * p.frac
+    local d = math.max(1, dist2D(a, b))
+    x, z = x - (b.z - a.z) / d * p.jitter, z + (b.x - a.x) / d * p.jitter      -- off the straight line
+  end
+  x, z = B.landNear(x, z)
+  return { x = x, y = 0, z = z }
+end
+
+function B.reconcilePopups()
+  local war, cfg = B.war, XC().popup
+  for id, rec in pairs(B.x3.pops) do
+    local p = war.state.popups[id]
+    if not p then
+      destroyGroup(rec.group); B.x3.pops[id] = nil
+    elseif #unitsOf(rec.group) == 0 then
+      B.x3.pops[id] = nil
+      war:popupKilled(id)
+    elseif #enemyPlayersNear(p.side, rec.pos, cfg.despawnKm) == 0 then
+      destroyGroup(rec.group); B.x3.pops[id] = nil                       -- nobody near: back to the model
+    else
+      for _, eu in ipairs(enemyPlayersNear(p.side, rec.pos, cfg.seeKm)) do
+        local e, t = eu:getPoint(), unitsOf(rec.group)[1]
+        local tp = t and t:getPoint()
+        if tp and ok(land.isVisible, { x = e.x, y = e.y, z = e.z }, { x = tp.x, y = tp.y + 2, z = tp.z }) then
+          war:popupSeen(id, otherSide(p.side), "visual")
+          break
+        end
+      end
+    end
+  end
+  for _, id in ipairs(U.sortedKeys(war.state.popups)) do
+    local p = war.state.popups[id]
+    if not B.x3.pops[id] then
+      local pos = B.popupPos(p)
+      if pos and #enemyPlayersNear(p.side, pos, cfg.spawnKm) > 0 then
+        local types = ((cat().popups or {})[p.kind] or {})[p.side] or {}
+        local gname = nextName("DCC_POP_" .. id .. "_")
+        local units = {}
+        for i, t in ipairs(types) do
+          if B.validType(t) then
+            units[#units + 1] = { name = gname .. "_" .. i, type = t, skill = "Good", x = pos.x + i * 12,
+                                  y = pos.z + i * 6, heading = 0, playerCanDrive = false }
+          end
+        end
+        if #units > 0 and pcall(coalition.addGroup, B.countryId(p.side), Group.Category.GROUND, { name = gname,
+            task = "Ground Nothing", units = units, route = { points = { { x = pos.x, y = pos.z,
+            type = "Turning Point", action = "Off Road", speed = 0, ETA = 0, ETA_locked = false } } } }) then
+          B.x3.pops[id] = { group = gname, pos = pos }
+        end
+      end
+    end
+  end
+end
+
+-- a pop-up that fires gives itself away
+function B.x3OnEvent(e)
+  if not e or e.id ~= world.event.S_EVENT_SHOT or not e.initiator then return end
+  local g = ok(e.initiator.getGroup, e.initiator)
+  local gname = g and ok(g.getName, g) or ""
+  for id, rec in pairs(B.x3.pops) do
+    if rec.group == gname then
+      local p = B.war.state.popups[id]
+      if p then B.war:popupSeen(id, otherSide(p.side), "visual") end
+    end
+  end
+end
+if world and world.addEventHandler and not B.x3Handler then
+  B.x3Handler = { onEvent = function(_, e) pcall(B.x3OnEvent, e) end }
+  world.addEventHandler(B.x3Handler)
+end
+
+-- ===========================================================================
+-- Missions: positions, escort checks, effects
+-- ===========================================================================
+if B.missionPos then
+  local baseMissionPos = B.missionPos
+  function B.missionPos(m)
+    local war = B.war
+    if m.type == "SHIPSTRIKE" or m.type == "SHIPESCORT" then
+      local s = war.state.shipping[m.target]
+      return s and B.shipPos(s)
+    elseif m.type == "AMPHIB" then
+      local rec = B.packages and B.packages[m.target]
+      local u = rec and unitsOf(rec.strike)[1]
+      if u then return u:getPoint() end
+      return rec and rec.landing
+    elseif m.type == "SCUD" then
+      for _, b in ipairs(war:scuds()) do if b.id == m.target then return B.scudPos(b) end end
+    elseif m.type == "POPUP" then
+      local p = war.state.popups[m.target]
+      return p and B.popupPos(p)
+    end
+    return baseMissionPos(m)
+  end
+end
+
+local baseDetect = B.detect
+function B.detect()
+  baseDetect()
+  local war = B.war
+  for uname, p in pairs(B.players) do
+    local m = p.mission and war.state.missions[p.mission]
+    local u = ok(Unit.getByName, uname)
+    if m and m.status == "open" and alive(u) and not m.escortOk then
+      local km = (m.type == "AMPHIB" and XC().amphib.escortKm) or (m.type == "SHIPESCORT" and XC().shipping.escortKm)
+      local tp = km and B.missionPos(m)
+      if tp and dist2D(u:getPoint(), tp) <= km * 1000 then
+        m.escortOk = true
+        trigger.action.outTextForGroup(p.gid, "On station - stay with them until they arrive.", 10)
+      end
+    end
+  end
+end
+
+if B.EFFECT then
+  B.EFFECT.AMPHIB = "Be within 20 km of the landing helicopters before they land. Then support the fight ashore (CAS)."
+  B.EFFECT.SHIPSTRIKE = "Sink the supply ship before it docks - its whole cargo is lost."
+  B.EFFECT.SHIPESCORT = "Be within 20 km of the supply ship; it counts when the ship docks."
+  B.EFFECT.SCUD = "The launcher moves on about 15 min after firing - find it fast (a launcher and its truck)."
+  B.EFFECT.POPUP = "Shoulder-launched or mobile SAM: it was seen here. Stay high or out of range until you have it."
+end
+
+-- ===========================================================================
+-- Map: SCUD and pop-up contacts
+-- ===========================================================================
+local baseDrawIntel = B.drawIntel
+function B.drawIntel()
+  baseDrawIntel()
+  local war = B.war
+  if not war.fogOfWar then return end
+  for _, side in ipairs({ "blue", "red" }) do
+    for key, c in pairs(war.state.contacts[side]) do
+      local p
+      if c.kind == "scud" then
+        for _, b in ipairs(war:scuds()) do
+          if "scud:" .. b.id == key then p = B.scudPos({ node = c.node, off = c.off }) end
+        end
+      elseif c.kind == "popup" then
+        local pp = war.state.popups[c.popup]
+        p = pp and B.popupPos(pp)
+      end
+      if p then
+        local isFresh = war:isFresh(side, key)
+        local ec = DCC.config.colours[otherSide(side)]
+        local col = { ec[1], ec[2], ec[3], isFresh and 1 or 0.45 }
+        B.nextMark = (B.nextMark or DCC.config.markIdBase) + 1
+        B.intelMarks[#B.intelMarks + 1] = B.nextMark
+        trigger.action.circleToAll(B.COAL[side], B.nextMark, { x = p.x, y = 0, z = p.z },
+          c.kind == "scud" and 4000 or 5000, col, { ec[1], ec[2], ec[3], 0.12 }, 2, true, "")
+        B.nextMark = B.nextMark + 1
+        B.intelMarks[#B.intelMarks + 1] = B.nextMark
+        trigger.action.textToAll(B.COAL[side], B.nextMark, { x = p.x + 5500, y = 0, z = p.z }, col,
+          { 0, 0, 0, 0.35 }, 10, true, (c.label or c.kind) .. (isFresh and "" or " (last seen)"))
+      end
+    end
+  end
+end
+
+-- ===========================================================================
+-- Announcements
+-- ===========================================================================
+local OWN = { amphib_ashore = true, shipping_out = true, shipping_in = true, shipping_sunk = true,
+              scud_destroyed = true, popup_killed = true }
+local baseAnnounce = B.announce
+function B.announce(events)
+  baseAnnounce(events)
+  for _, ev in ipairs(events) do
+    if OWN[ev.kind] and ev.side then say(ev.side, ev.text, 12) end
+    if ev.kind == "shipping_sunk" and ev.side then say(otherSide(ev.side), ev.text, 12) end
+    if ev.kind == "scud" and ev.side then
+      say(ev.side, ev.text, 20)
+      if ev.node then B.scudImpact(ev.node) end
+    end
+  end
+end
+
+-- ===========================================================================
+-- Loops
+-- ===========================================================================
+local basePoll = B.opsPoll
+function B.opsPoll()
+  basePoll()
+  B.reconcileShipping()
+  B.reconcileScuds()
+  B.reconcilePopups()
+end
+
+local baseTick = B.opsTick
+function B.opsTick()
+  baseTick()
+  local war = B.war
+  if online() then
+    local per = DCC.config.tickSeconds / 60
+    for _, side in ipairs({ "blue", "red" }) do
+      if war.rng:next() < per / XC().amphib.minutes then B.launchAmphib(side) end
+    end
+  end
+  B.planShipStrikes()
+  B.carrierWing()
+end
+
+local baseInit = B.init
+function B.init(war, theater, catalog)
+  baseInit(war, theater, catalog)
+  B.x3 = fresh()
+end
+
+end
+
 -- >>> src/dcc_dcs_armoury.lua
 do
 -- ============================================================================
@@ -13828,6 +14849,8 @@ DCC_CATALOGS.modern = {
       drone   = { type = "MQ-9 Reaper", loadout = {}, size = 1 },
       airmobile = { type = "UH-60A", loadout = {}, size = 2, helicopter = true },
       antiship = { type = "FA-18C_hornet", loadout = { { "AGM-84D", 4 }, { "AIM-9X", 2 }, { "AIM-120C", 2 } } },  -- only used against ships
+      carriertanker = { type = "S-3B Tanker", loadout = {}, size = 1 },     -- recovery tanker over the carrier
+      carriercap = { type = "FA-18C_hornet", loadout = { { "AIM-120C", 4 }, { "AIM-9X", 2 } } },
     },
     red = {
       fighter = { type = "MiG-29S",  loadout = { { "R-77", 4 }, { "R-73", 2 } } },
@@ -13838,6 +14861,7 @@ DCC_CATALOGS.modern = {
       drone   = { type = "WingLoong-I", loadout = {}, size = 1 },
       airmobile = { type = "Mi-8MT", loadout = {}, size = 2, helicopter = true },
       antiship = { type = "Su-34",   loadout = { { "Kh-31A", 4 }, { "R-73", 2 } } },  -- only used against ships
+      carriercap = { type = "Su-33",  loadout = { { "R-27ER", 4 }, { "R-73", 2 } } },
     },
   },
 
@@ -13936,6 +14960,13 @@ DCC_CATALOGS.modern = {
     blue = { "M1043 HMMWV Armament", "Soldier M4", "Soldier M4", "Soldier RPG" },
     red  = { "BRDM-2", "Infantry AK", "Infantry AK", "Paratrooper RPG-16" },
   },
+
+  -- Pop-up threats near the front (dcc_ext3.lua) and RED's SCUD launchers.
+  popups = {
+    manpads = { blue = { "Soldier stinger", "Stinger comm" }, red = { "SA-18 Igla manpad", "SA-18 Igla comm" } },
+    shorad  = { blue = { "M1097 Avenger" }, red = { "Strela-10M3" } },
+  },
+  scud = { "Scud_B", "Ural-375" },
 
   -- A pilot on the ground waiting for CSAR.
   downedPilot = { blue = "Soldier M4", red = "Infantry AK" },
@@ -14057,13 +15088,26 @@ DCC_THEATERS.Caucasus = {
       tacan = 74, tacanCall = "STN", icls = 4,
       slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B", "F-14BU", "F-14A-135-GR" } },
     { id = "lha", side = "blue", name = "LHA-1 Tarawa", kind = "carrier", lat = 41.7500, lon = 41.2500,
-      heading = 300, ship = "LHA_Tarawa", escorts = { "PERRY" },
+      heading = 300, ship = "LHA_Tarawa", amphib = true, escorts = { "PERRY" },
       tacan = 75, tacanCall = "TAR", icls = 5,
       slots = { "AV8BNA", "AV8BNA", "UH-1H", "AH-64D_BLK_II", "SA342M" } },
     { id = "kuz", side = "red", name = "Admiral Kuznetsov", kind = "carrier", lat = 44.2000, lon = 37.6000,
-      heading = 250, ship = "KUZNECOW", escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
+      heading = 250, ship = "KUZNECOW", amphib = true, escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
       tacan = false, icls = false,
       slots = { "Su-33", "Su-33", "Su-33", "Su-33", "Ka-50_3" } },
+  },
+
+  -- Shipping lanes (dcc_ext3.lua): supply ships sail from start (open sea) to dock
+  -- (just off the port) for whoever holds the port; the port is a node id.
+  shipping = {
+    { port = "batumi", start = { lat = 41.9000, lon = 40.9000 }, dock = { lat = 41.6700, lon = 41.5800 } },
+    { port = "poti", start = { lat = 42.3000, lon = 40.9000 }, dock = { lat = 42.1600, lon = 41.6000 } },
+    { port = "sukhumi", start = { lat = 42.7500, lon = 40.4000 }, dock = { lat = 42.9700, lon = 40.9500 } },
+    { port = "gudauta", start = { lat = 42.8500, lon = 40.0000 }, dock = { lat = 43.0800, lon = 40.5500 } },
+    { port = "sochi", start = { lat = 43.3500, lon = 39.2000 }, dock = { lat = 43.5600, lon = 39.6800 } },
+    { port = "tuapse", start = { lat = 43.8500, lon = 38.6000 }, dock = { lat = 44.0800, lon = 39.0300 } },
+    { port = "novorossiysk", start = { lat = 44.4000, lon = 37.5000 }, dock = { lat = 44.6400, lon = 37.8300 } },
+    { port = "gelendzhik", start = { lat = 44.3000, lon = 37.7000 }, dock = { lat = 44.5400, lon = 38.0500 } },
   },
 }
 
@@ -14269,9 +15313,19 @@ DCC_THEATERS.GermanyCW = {
       "TICONDEROG" }, tacan = 74, tacanCall = "STN", icls = 4,
       slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B", "F-14BU", "F-14A-135-GR" } },
     { id = "kuz", side = "red", name = "Admiral Kuznetsov", kind = "carrier", lat = 54.2500, lon = 11.6000,
-      heading = 80, legKm = 40, ship = "KUZNECOW", escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
+      heading = 80, legKm = 40, ship = "KUZNECOW", amphib = true, escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
       tacan = false, icls = false,
       slots = { "Su-33", "Su-33", "Su-33", "Su-33", "Ka-50_3" } },
+  },
+
+  -- Shipping lanes (dcc_ext3.lua): supply ships sail from start (open sea) to dock
+  -- (just off the port) for whoever holds the port; the port is a node id.
+  shipping = {
+    { port = "kiel", start = { lat = 54.6200, lon = 10.4000 }, dock = { lat = 54.4000, lon = 10.2000 } },
+    { port = "lubeck", start = { lat = 54.1500, lon = 11.1000 }, dock = { lat = 53.9800, lon = 10.9000 } },
+    { port = "wismar", start = { lat = 54.2000, lon = 11.5000 }, dock = { lat = 54.0000, lon = 11.4200 } },
+    { port = "laage", start = { lat = 54.4000, lon = 12.2000 }, dock = { lat = 54.2000, lon = 12.0800 } },
+    { port = "nordholz", start = { lat = 54.0500, lon = 8.1000 }, dock = { lat = 53.9000, lon = 8.6500 } },
   },
 }
 
@@ -14398,13 +15452,26 @@ DCC_THEATERS.PersianGulf = {
       tacan = 74, tacanCall = "STN", icls = 4,
       slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B", "F-14BU", "F-14A-135-GR" } },
     { id = "lha", side = "blue", name = "LHA-1 Tarawa", kind = "carrier", lat = 25.4000, lon = 56.6000,
-      heading = 0, legKm = 40, ship = "LHA_Tarawa", escorts = { "PERRY" },
+      heading = 0, legKm = 40, ship = "LHA_Tarawa", amphib = true, escorts = { "PERRY" },
       tacan = 75, tacanCall = "TAR", icls = 5,
       slots = { "AV8BNA", "AV8BNA", "UH-1H", "AH-64D_BLK_II", "SA342M" } },
     { id = "kuz", side = "red", name = "Admiral Kuznetsov", kind = "carrier", lat = 26.2000, lon = 53.6000,
-      heading = 270, legKm = 40, ship = "KUZNECOW", escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
+      heading = 270, legKm = 40, ship = "KUZNECOW", amphib = true, escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
       tacan = false, icls = false,
       slots = { "Su-33", "Su-33", "Su-33", "Su-33", "Ka-50_3" } },
+  },
+
+  -- Shipping lanes (dcc_ext3.lua): supply ships sail from start (open sea) to dock
+  -- (just off the port) for whoever holds the port; the port is a node id.
+  shipping = {
+    { port = "dubai_intl", start = { lat = 25.7000, lon = 54.9000 }, dock = { lat = 25.3000, lon = 55.2500 } },
+    { port = "sharjah_intl", start = { lat = 25.8000, lon = 55.0000 }, dock = { lat = 25.4000, lon = 55.3500 } },
+    { port = "abu_dhabi_intl", start = { lat = 24.9500, lon = 54.1000 }, dock = { lat = 24.5600, lon = 54.3300 } },
+    { port = "bandar_abbas_intl", start = { lat = 26.8000, lon = 56.6000 }, dock = { lat = 27.1200, lon = 56.2500 } },
+    { port = "kish_intl", start = { lat = 26.2000, lon = 53.6000 }, dock = { lat = 26.5000, lon = 53.9300 } },
+    { port = "bandar_lengeh", start = { lat = 26.2000, lon = 54.7000 }, dock = { lat = 26.5300, lon = 54.8800 } },
+    { port = "fujairah_intl", start = { lat = 25.1000, lon = 57.0000 }, dock = { lat = 25.1500, lon = 56.3800 } },
+    { port = "bandar_e_jask", start = { lat = 25.2000, lon = 57.9000 }, dock = { lat = 25.6200, lon = 57.7500 } },
   },
 }
 
@@ -14565,13 +15632,24 @@ DCC_THEATERS.Syria = {
       tacan = 74, tacanCall = "STN", icls = 4,
       slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B", "F-14BU", "F-14A-135-GR" } },
     { id = "lha", side = "blue", name = "LHA-1 Tarawa", kind = "carrier", lat = 32.9500, lon = 34.7500,
-      heading = 0, legKm = 60, ship = "LHA_Tarawa", escorts = { "PERRY" },
+      heading = 0, legKm = 60, ship = "LHA_Tarawa", amphib = true, escorts = { "PERRY" },
       tacan = 75, tacanCall = "TAR", icls = 5,
       slots = { "AV8BNA", "AV8BNA", "UH-1H", "AH-64D_BLK_II", "SA342M" } },
     { id = "kuz", side = "red", name = "Admiral Kuznetsov", kind = "carrier", lat = 35.2000, lon = 35.3000,
-      heading = 200, ship = "KUZNECOW", escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
+      heading = 200, ship = "KUZNECOW", amphib = true, escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
       tacan = false, icls = false,
       slots = { "Su-33", "Su-33", "Su-33", "Su-33", "Ka-50_3" } },
+  },
+
+  -- Shipping lanes (dcc_ext3.lua): supply ships sail from start (open sea) to dock
+  -- (just off the port) for whoever holds the port; the port is a node id.
+  shipping = {
+    { port = "beirut_rafic_hariri", start = { lat = 33.8500, lon = 34.8000 }, dock = { lat = 33.9100, lon = 35.4500 } },
+    { port = "sidon", start = { lat = 33.5000, lon = 34.7500 }, dock = { lat = 33.5600, lon = 35.3300 } },
+    { port = "tyre", start = { lat = 33.2000, lon = 34.6000 }, dock = { lat = 33.2700, lon = 35.1600 } },
+    { port = "haifa", start = { lat = 32.9000, lon = 34.4000 }, dock = { lat = 32.8500, lon = 34.9600 } },
+    { port = "bassel_al_assad", start = { lat = 35.4500, lon = 35.1000 }, dock = { lat = 35.5300, lon = 35.7300 } },
+    { port = "tartus", start = { lat = 34.8500, lon = 35.2000 }, dock = { lat = 34.8900, lon = 35.8300 } },
   },
 }
 

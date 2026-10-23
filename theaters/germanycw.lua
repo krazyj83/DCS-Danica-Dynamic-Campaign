@@ -196,8 +196,18 @@ DCC_THEATERS.GermanyCW = {
       "TICONDEROG" }, tacan = 74, tacanCall = "STN", icls = 4,
       slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B", "F-14BU", "F-14A-135-GR" } },
     { id = "kuz", side = "red", name = "Admiral Kuznetsov", kind = "carrier", lat = 54.2500, lon = 11.6000,
-      heading = 80, legKm = 40, ship = "KUZNECOW", escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
+      heading = 80, legKm = 40, ship = "KUZNECOW", amphib = true, escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
       tacan = false, icls = false,
       slots = { "Su-33", "Su-33", "Su-33", "Su-33", "Ka-50_3" } },
+  },
+
+  -- Shipping lanes (dcc_ext3.lua): supply ships sail from start (open sea) to dock
+  -- (just off the port) for whoever holds the port; the port is a node id.
+  shipping = {
+    { port = "kiel", start = { lat = 54.6200, lon = 10.4000 }, dock = { lat = 54.4000, lon = 10.2000 } },
+    { port = "lubeck", start = { lat = 54.1500, lon = 11.1000 }, dock = { lat = 53.9800, lon = 10.9000 } },
+    { port = "wismar", start = { lat = 54.2000, lon = 11.5000 }, dock = { lat = 54.0000, lon = 11.4200 } },
+    { port = "laage", start = { lat = 54.4000, lon = 12.2000 }, dock = { lat = 54.2000, lon = 12.0800 } },
+    { port = "nordholz", start = { lat = 54.0500, lon = 8.1000 }, dock = { lat = 53.9000, lon = 8.6500 } },
   },
 }

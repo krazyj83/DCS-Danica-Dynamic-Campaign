@@ -191,7 +191,7 @@ MOCK.UnitMT.hasAttribute = function(self, a) return self.attrs and self.attrs[a]
 
 for _, f in ipairs({ "dcc_persist", "dcc_dcs", "dcc_dcs_supply", "dcc_dcs_ops", "dcc_dcs_intel", "dcc_dcs_radar",
                      "dcc_dcs_world", "dcc_dcs_jtac", "dcc_dcs_public", "dcc_dcs_air", "dcc_dcs_ground",
-                     "dcc_dcs_ctld", "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_dcs_ext2", "dcc_dcs_armoury", "dcc_main" }) do
+                     "dcc_dcs_ctld", "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_dcs_ext2", "dcc_dcs_ext3", "dcc_dcs_armoury", "dcc_main" }) do
   dofile(DCC_ROOT .. "/src/" .. f .. ".lua")
 end
 local errors = 0

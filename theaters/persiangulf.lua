@@ -117,12 +117,25 @@ DCC_THEATERS.PersianGulf = {
       tacan = 74, tacanCall = "STN", icls = 4,
       slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B", "F-14BU", "F-14A-135-GR" } },
     { id = "lha", side = "blue", name = "LHA-1 Tarawa", kind = "carrier", lat = 25.4000, lon = 56.6000,
-      heading = 0, legKm = 40, ship = "LHA_Tarawa", escorts = { "PERRY" },
+      heading = 0, legKm = 40, ship = "LHA_Tarawa", amphib = true, escorts = { "PERRY" },
       tacan = 75, tacanCall = "TAR", icls = 5,
       slots = { "AV8BNA", "AV8BNA", "UH-1H", "AH-64D_BLK_II", "SA342M" } },
     { id = "kuz", side = "red", name = "Admiral Kuznetsov", kind = "carrier", lat = 26.2000, lon = 53.6000,
-      heading = 270, legKm = 40, ship = "KUZNECOW", escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
+      heading = 270, legKm = 40, ship = "KUZNECOW", amphib = true, escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
       tacan = false, icls = false,
       slots = { "Su-33", "Su-33", "Su-33", "Su-33", "Ka-50_3" } },
+  },
+
+  -- Shipping lanes (dcc_ext3.lua): supply ships sail from start (open sea) to dock
+  -- (just off the port) for whoever holds the port; the port is a node id.
+  shipping = {
+    { port = "dubai_intl", start = { lat = 25.7000, lon = 54.9000 }, dock = { lat = 25.3000, lon = 55.2500 } },
+    { port = "sharjah_intl", start = { lat = 25.8000, lon = 55.0000 }, dock = { lat = 25.4000, lon = 55.3500 } },
+    { port = "abu_dhabi_intl", start = { lat = 24.9500, lon = 54.1000 }, dock = { lat = 24.5600, lon = 54.3300 } },
+    { port = "bandar_abbas_intl", start = { lat = 26.8000, lon = 56.6000 }, dock = { lat = 27.1200, lon = 56.2500 } },
+    { port = "kish_intl", start = { lat = 26.2000, lon = 53.6000 }, dock = { lat = 26.5000, lon = 53.9300 } },
+    { port = "bandar_lengeh", start = { lat = 26.2000, lon = 54.7000 }, dock = { lat = 26.5300, lon = 54.8800 } },
+    { port = "fujairah_intl", start = { lat = 25.1000, lon = 57.0000 }, dock = { lat = 25.1500, lon = 56.3800 } },
+    { port = "bandar_e_jask", start = { lat = 25.2000, lon = 57.9000 }, dock = { lat = 25.6200, lon = 57.7500 } },
   },
 }

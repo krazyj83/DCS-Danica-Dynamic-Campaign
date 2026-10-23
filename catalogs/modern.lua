@@ -202,6 +202,8 @@ DCC_CATALOGS.modern = {
       drone   = { type = "MQ-9 Reaper", loadout = {}, size = 1 },
       airmobile = { type = "UH-60A", loadout = {}, size = 2, helicopter = true },
       antiship = { type = "FA-18C_hornet", loadout = { { "AGM-84D", 4 }, { "AIM-9X", 2 }, { "AIM-120C", 2 } } },  -- only used against ships
+      carriertanker = { type = "S-3B Tanker", loadout = {}, size = 1 },     -- recovery tanker over the carrier
+      carriercap = { type = "FA-18C_hornet", loadout = { { "AIM-120C", 4 }, { "AIM-9X", 2 } } },
     },
     red = {
       fighter = { type = "MiG-29S",  loadout = { { "R-77", 4 }, { "R-73", 2 } } },
@@ -212,6 +214,7 @@ DCC_CATALOGS.modern = {
       drone   = { type = "WingLoong-I", loadout = {}, size = 1 },
       airmobile = { type = "Mi-8MT", loadout = {}, size = 2, helicopter = true },
       antiship = { type = "Su-34",   loadout = { { "Kh-31A", 4 }, { "R-73", 2 } } },  -- only used against ships
+      carriercap = { type = "Su-33",  loadout = { { "R-27ER", 4 }, { "R-73", 2 } } },
     },
   },
 
@@ -310,6 +313,13 @@ DCC_CATALOGS.modern = {
     blue = { "M1043 HMMWV Armament", "Soldier M4", "Soldier M4", "Soldier RPG" },
     red  = { "BRDM-2", "Infantry AK", "Infantry AK", "Paratrooper RPG-16" },
   },
+
+  -- Pop-up threats near the front (dcc_ext3.lua) and RED's SCUD launchers.
+  popups = {
+    manpads = { blue = { "Soldier stinger", "Stinger comm" }, red = { "SA-18 Igla manpad", "SA-18 Igla comm" } },
+    shorad  = { blue = { "M1097 Avenger" }, red = { "Strela-10M3" } },
+  },
+  scud = { "Scud_B", "Ural-375" },
 
   -- A pilot on the ground waiting for CSAR.
   downedPilot = { blue = "Soldier M4", red = "Infantry AK" },

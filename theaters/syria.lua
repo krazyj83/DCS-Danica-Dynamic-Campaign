@@ -151,12 +151,23 @@ DCC_THEATERS.Syria = {
       tacan = 74, tacanCall = "STN", icls = 4,
       slots = { "FA-18C_hornet", "FA-18C_hornet", "F-14B", "F-14B", "F-14BU", "F-14A-135-GR" } },
     { id = "lha", side = "blue", name = "LHA-1 Tarawa", kind = "carrier", lat = 32.9500, lon = 34.7500,
-      heading = 0, legKm = 60, ship = "LHA_Tarawa", escorts = { "PERRY" },
+      heading = 0, legKm = 60, ship = "LHA_Tarawa", amphib = true, escorts = { "PERRY" },
       tacan = 75, tacanCall = "TAR", icls = 5,
       slots = { "AV8BNA", "AV8BNA", "UH-1H", "AH-64D_BLK_II", "SA342M" } },
     { id = "kuz", side = "red", name = "Admiral Kuznetsov", kind = "carrier", lat = 35.2000, lon = 35.3000,
-      heading = 200, ship = "KUZNECOW", escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
+      heading = 200, ship = "KUZNECOW", amphib = true, escorts = { "MOSCOW", "REZKY", "NEUSTRASH" },
       tacan = false, icls = false,
       slots = { "Su-33", "Su-33", "Su-33", "Su-33", "Ka-50_3" } },
+  },
+
+  -- Shipping lanes (dcc_ext3.lua): supply ships sail from start (open sea) to dock
+  -- (just off the port) for whoever holds the port; the port is a node id.
+  shipping = {
+    { port = "beirut_rafic_hariri", start = { lat = 33.8500, lon = 34.8000 }, dock = { lat = 33.9100, lon = 35.4500 } },
+    { port = "sidon", start = { lat = 33.5000, lon = 34.7500 }, dock = { lat = 33.5600, lon = 35.3300 } },
+    { port = "tyre", start = { lat = 33.2000, lon = 34.6000 }, dock = { lat = 33.2700, lon = 35.1600 } },
+    { port = "haifa", start = { lat = 32.9000, lon = 34.4000 }, dock = { lat = 32.8500, lon = 34.9600 } },
+    { port = "bassel_al_assad", start = { lat = 35.4500, lon = 35.1000 }, dock = { lat = 35.5300, lon = 35.7300 } },
+    { port = "tartus", start = { lat = 34.8500, lon = 35.2000 }, dock = { lat = 34.8900, lon = 35.8300 } },
   },
 }

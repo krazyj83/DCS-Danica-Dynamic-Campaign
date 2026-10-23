@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.24.1",
+  version         = "0.25.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -105,7 +105,8 @@ DCC.config = {
   missions = {
     perType = { CAS = 2, BAI = 3, STRIKE = 2, SEAD = 2, CAP = 1, ESCORT = 3,
                 CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1, ANTISHIP = 1, FARP = 2,
-                FARPSUP = 2, INTERCEPT = 3, HVAESCORT = 2, PKGESCORT = 2, MEDEVAC = 2, POW = 2, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
+                FARPSUP = 2, INTERCEPT = 3, HVAESCORT = 2, PKGESCORT = 2, MEDEVAC = 2, POW = 2,
+                AMPHIB = 1, SHIPSTRIKE = 2, SHIPESCORT = 2, SCUD = 2, POPUP = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
                 RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2 },
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
@@ -346,6 +347,27 @@ DCC.config = {
     searchKm        = 30,      -- ...from the nearest enemy base within this range
     searchSpeed     = 4,       -- m/s (on foot / light vehicle, cross country)
     searchCatchM    = 120,     -- this close to the pilot: captured
+  },
+
+  -- Naval and hidden-threat war (v0.25, src/dcc_ext3.lua + dcc_dcs_ext3.lua) -------
+  ext3 = {
+    -- 1. amphibious assault (ships with amphib = true in the theater pack)
+    amphib = { platoons = 2, maxDefenders = 4, cooldownTicks = 144,   -- one landing per ship per 12 h at most
+               rangeKm = 70,             -- beaches this close to the ship
+               minutes = 120,            -- mean time between landings while players are on
+               escortKm = 20 },          -- AMPHIB escort: be this close to the helicopters
+    -- 2. shipping lanes (theater pack: shipping = { { port, start, dock } })
+    shipping = { everyTicks = 36, maxPerSide = 1, su = 40, speedKmh = 20, belowShare = 0.8,
+                 escortKm = 20, aiStrikeChance = 0.08, ships = { blue = "Dry-cargo ship-1", red = "Dry-cargo ship-2" } },
+    -- 3. carrier air wing: recovery tanker and CAP over the carrier
+    carrier = { tankerTacan = 76, tankerCall = "SHL", respawnMin = 30, lifeMin = 120, retaskKm = 15,
+                capAltM = 6000, tankerAltM = 1800 },
+    -- 4. SCUDs (RED)
+    scud = { side = "red", launchers = 2, everyTicks = 30, rangeKm = 300, damageSU = 15, runwayChance = 0.35,
+             depth = { 2, 4 }, scootTicks = 3, rebuildTicks = 144, rebuildSU = 60, impactKm = 30 },
+    -- 7. pop-up threats near the front
+    popup = { chance = 0.05, max = 3, lifeTicks = 18, manpadsShare = 0.6, spawnKm = 40, despawnKm = 60,
+              seeKm = 8 },
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------

@@ -30,6 +30,7 @@ dofile(DCC_ROOT .. "/src/dcc_dcs_ctld.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ext_air.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ext_ground.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ext2.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_ext3.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_armoury.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
@@ -298,6 +299,7 @@ end
 
 print("Flying together")
 do
+  war.state.runways = {}                      -- a SCUD may have cratered Kutaisi by now: jets could not spawn
   local a, ag = MOCK.spawnPlayer(2, "F-16C_50", kp.x + 50, kp.z, "Anna")
   local b, bg = MOCK.spawnPlayer(2, "F-16C_50", kp.x + 80, kp.z, "Bo")
   local m
@@ -329,6 +331,7 @@ end
 
 print("F10 menu never more than 10 items per level")
 do
+  war.state.runways = {}
   local v2, vg2 = MOCK.spawnPlayer(2, "F-16C_50", kp.x + 60, kp.z, "Pager")
   local types = { "CAS", "BAI", "STRIKE", "SEAD", "CAP", "ESCORT", "PKGESCORT", "HVAESCORT", "INTERCEPT", "TANKER",
                   "HVAA", "EWR", "ARTY", "FORT", "BRIDGE", "RUNWAY", "INDUSTRY", "COIN", "RECON" }
