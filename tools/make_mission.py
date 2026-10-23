@@ -21,6 +21,7 @@ What the mission contains:
     The engine configures and starts CTLD itself (src/dcc_dcs_ctld.lua).
     --no-ctld leaves CTLD out (the engine's own helicopter Cargo menu is used).
   * Options: F10 map in fog-of-war mode, civil traffic off.
+  * Kneeboard pages for every aircraft (tools/kneeboard.py): comms, map, reference.
   * DTC cartridges (F-16C, F/A-18C) from the templates in dtc/: radio presets and
     displays as made in the Mission Editor; the Hornet gets every airbase and town
     as a steerpoint. Default cartridge in every client slot of those types.
@@ -57,6 +58,7 @@ from dcs.terrain.terrain import Warehouse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mod_types import MOD_TYPES  # noqa: E402
+import kneeboard  # noqa: E402
 
 WITH_MODS = True
 
@@ -536,10 +538,24 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
     dtc_files = build_dtcs(m, theater, theater_name)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     m.save(out)
-    if dtc_files:
-        with zipfile.ZipFile(out, "a", compression=zipfile.ZIP_DEFLATED) as z:
-            for path, text in dtc_files.items():
-                z.writestr(path, text)
+    # kneeboard pages: comms, map, quick reference (tools/kneeboard.py)
+    airports = []
+    for node in theater["nodes"]:
+        if node.get("kind") == "airbase" and node.get("airbase"):
+            ap = find_airport(m.terrain, node["airbase"])
+            airports.append((node["name"], node["side"], getattr(ap, "atc_radio", None) if ap else None))
+    tankers = [("blue", "KC-135MPRS (BLUE tanker)    TACAN 51X TKR   boom"),
+               ("red", "IL-78M (RED tanker)         TACAN 52X TKS   drogue")]
+    if any(s.get("side") == "blue" and s.get("kind") == "carrier" and s.get("ship") != "LHA_Tarawa"
+           for s in theater.get("naval", []) or []):
+        tankers.append(("blue", "S-3B (carrier recovery)     TACAN 76X SHL   drogue"))
+    knee_files = kneeboard.build(theater, theater_name, airports, tankers)
+    with zipfile.ZipFile(out, "a", compression=zipfile.ZIP_DEFLATED) as z:
+        for path, text in dtc_files.items():
+            z.writestr(path, text)
+        for path, data in knee_files.items():
+            z.writestr(path, data)
+    print(f"  kneeboard: {len(knee_files)} pages")
 
     print(f"Wrote {out}")
     for side in ("blue", "red"):

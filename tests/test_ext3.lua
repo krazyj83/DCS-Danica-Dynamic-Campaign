@@ -219,6 +219,41 @@ MOCK.killGroup(B.x3.pops[pid].group)
 B.reconcilePopups()
 check("killed", war.state.popups[pid] == nil)
 
+print(" Night illumination")
+local flares = {}
+trigger.action.illuminationBomb = function(pt, power) flares[#flares + 1] = pt end
+war.night = true
+local tgt
+for _, id in ipairs(war.T.order) do if war.state.nodes[id].side == "red" and not tgt then tgt = id end end
+local mv = { id = "mtest", kind = "assault", side = "blue", from = "kutaisi", to = tgt, status = "fighting",
+             platoons = {}, progress = 1, km = 10 }
+war.state.moves.mtest = mv
+local tp = B.nodePos[tgt]
+viper.x, viper.z = tp.x + 10000, tp.z
+B.autoIllumination()
+check("night battle, a player 10 km away: a flare over it", #flares == 1 and flares[1].y > 500)
+B.autoIllumination()
+check("...not more than one every 2 min", #flares == 1)
+viper.x, viper.z = tp.x + 100000, tp.z
+MOCK.advance(130)
+local n0 = #flares
+B.autoIllumination()
+check("nobody near: no flares", #flares == n0)
+war.state.moves.mtest = nil
+war.night = false
+B.ext.marks.blue = { { pos = { x = kp.x + 5000, y = 0, z = kp.z }, t = timer.getTime(), by = viper:getName() } }
+war.state.nodes.kutaisi.supply = 50
+local f0 = #flares
+B.callIllumination(viper:getName())
+check("...for 2 supply at the nearest base", math.abs(war.state.nodes.kutaisi.supply - (50 - X.illum.callSU)) < 0.01,
+  war.state.nodes.kutaisi.supply)
+B.callIllumination(viper:getName())
+check("...then the mortars reload", (MOCK.lastGroupText(vg.id) or ""):find("reloading", 1, true) ~= nil)
+MOCK.advance(300)
+check("Support > Illumination: 4 flares over the mark", #flares == f0 + X.illum.callFlares, #flares - f0)
+local items = table.concat(MOCK.menuItems(vg.id), " | ")
+check("the Support menu has it", items:find("Illumination on my map mark", 1, true) ~= nil)
+
 print(" A day")
 B.findTemplate = realFind
 for _ = 1, 288 do MOCK.advance(300) end

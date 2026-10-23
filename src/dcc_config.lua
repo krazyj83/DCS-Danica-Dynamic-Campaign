@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.25.0",
+  version         = "0.26.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -368,6 +368,9 @@ DCC.config = {
     -- 7. pop-up threats near the front
     popup = { chance = 0.05, max = 3, lifeTicks = 18, manpadsShare = 0.6, spawnKm = 40, despawnKm = 60,
               seeKm = 8 },
+    -- 10. night illumination: flares over night battles near players, and on call
+    illum = { autoKm = 25, everySec = 120, heightM = 650, power = 1000000,
+              callSU = 2, callKm = 30, callFlares = 4, callCooldownMin = 5 },
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------

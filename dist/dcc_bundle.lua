@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.25.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.26.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.25.0",
+  version         = "0.26.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -372,6 +372,9 @@ DCC.config = {
     -- 7. pop-up threats near the front
     popup = { chance = 0.05, max = 3, lifeTicks = 18, manpadsShare = 0.6, spawnKm = 40, despawnKm = 60,
               seeKm = 8 },
+    -- 10. night illumination: flares over night battles near players, and on call
+    illum = { autoKm = 25, everySec = 120, heightM = 650, power = 1000000,
+              callSU = 2, callKm = 30, callFlares = 4, callCooldownMin = 5 },
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------
@@ -14005,6 +14008,72 @@ function B.announce(events)
 end
 
 -- ===========================================================================
+-- 10. Night illumination
+-- ===========================================================================
+-- One flare (DCS illumination bomb) above p.
+function B.flare(p)
+  local c = XC().illum
+  local gx, gz = p.x + (math.random() - 0.5) * 800, p.z + (math.random() - 0.5) * 800
+  local h = ok(land.getHeight, { x = gx, y = gz }) or 0
+  return ok(trigger.action.illuminationBomb, { x = gx, y = h + c.heightM, z = gz }, c.power)
+end
+
+-- At night the troops fighting at a base light it up whenever players are near.
+function B.autoIllumination()
+  local war, c = B.war, XC().illum
+  if not war:isNight() then return end
+  B.x3.lit = B.x3.lit or {}
+  local now, seen = timer.getTime(), {}
+  for _, mv in pairs(war.state.moves) do
+    local p = mv.status == "fighting" and B.nodePos[mv.to]
+    if p and not seen[mv.to] then
+      seen[mv.to] = true
+      local near = false
+      for _, pp in ipairs(B.playerPositions()) do if dist2D(pp, p) <= c.autoKm * 1000 then near = true end end
+      if near and now - (B.x3.lit[mv.to] or -1e9) >= c.everySec then
+        B.x3.lit[mv.to] = now
+        B.flare(p)
+      end
+    end
+  end
+end
+
+-- F10 > Support > Illumination on my map mark: mortars / artillery from an own
+-- base within 30 km fire a string of flares over the mark.
+function B.callIllumination(uname)
+  local p = B.players[uname]
+  if not p then return end
+  local war, c = B.war, XC().illum
+  local function tell(t) trigger.action.outTextForGroup(p.gid, t, 12) end
+  B.x3.illumAt = B.x3.illumAt or {}
+  local left = c.callCooldownMin * 60 - (timer.getTime() - (B.x3.illumAt[p.side] or -1e9))
+  if left > 0 then return tell(string.format("The mortars are reloading - %d min.", math.ceil(left / 60))) end
+  local m = B.newestMark and B.newestMark(p.side, p)
+  if not m then return tell("Put a mark on the F10 map first (your side, within 15 min).") end
+  local node = B.nearestNodeOf(m.pos, p.side, c.callKm * 1000)
+  if not node then return tell(string.format("No friendly base within %d km of the mark.", c.callKm)) end
+  if war.paySupport and not war:paySupport(node, c.callSU) then
+    return tell(war:nodeName(node) .. " has no supply to spare for flares.")
+  end
+  B.x3.illumAt[p.side] = timer.getTime()
+  for i = 1, c.callFlares do
+    timer.scheduleFunction(function() B.flare(m.pos) end, nil, timer.getTime() + 10 + (i - 1) * 60)
+  end
+  trigger.action.outTextForCoalition(B.COAL[p.side], string.format(
+    "%s: illumination from %s - %d flares over the mark, one a minute.", p.name, war:nodeName(node), c.callFlares), 12)
+end
+
+if B.buildSupportMenu then
+  local baseSupport = B.buildSupportMenu
+  function B.buildSupportMenu(p)
+    baseSupport(p)
+    if p and p.gid and p.supportMenu then
+      missionCommands.addCommandForGroup(p.gid, "Illumination on my map mark", p.supportMenu, B.callIllumination, p.unit)
+    end
+  end
+end
+
+-- ===========================================================================
 -- Loops
 -- ===========================================================================
 local basePoll = B.opsPoll
@@ -14013,6 +14082,7 @@ function B.opsPoll()
   B.reconcileShipping()
   B.reconcileScuds()
   B.reconcilePopups()
+  B.autoIllumination()
 end
 
 local baseTick = B.opsTick
