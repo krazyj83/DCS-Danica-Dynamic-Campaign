@@ -17,6 +17,8 @@ battles are lit by flares, and every mission carries **kneeboard pages** and **D
 runs on **Caucasus → Syria → Persian Gulf → Cold War Germany**: when one side wins, the next map loads by
 itself. Ready-to-fly missions are generated for all four.
 
+**What changed in each version: [CHANGELOG.md](CHANGELOG.md).**
+
 ![Simulated war](docs/sim_war.png)
 
 *A simulated war with nobody online. Players near a front fight it as real DCS units instead.*
@@ -915,6 +917,10 @@ kneeboard pages, DTC cartridges, datalink set-up, all aircraft of every era (and
 daily orders, squadron home bases, end-of-flight summary, flight-lead meeting point, rank unlocks for
 weapons, cruise missile raids, electronic warfare, fuel shortages, civilian evacuation, fog for the AI
 commanders too.
+
+## Changelog
+
+Every version, newest first, with what was added, changed and fixed: [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
