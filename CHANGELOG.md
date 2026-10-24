@@ -6,6 +6,12 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.31.0 — 2026-10-24
+
+**Added**
+- **AI smoke:** live AI attacks lay a smoke curtain halfway between their lead vehicles and the base once within
+  2 km (a battery of the attacking side in range, 2 SU), again every 10 min (`ext4.aiSmoke`).
+
 ## 0.30.0 — 2026-10-24
 
 **Added**

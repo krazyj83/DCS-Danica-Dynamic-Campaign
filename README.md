@@ -4,7 +4,7 @@ A perpetual, persistent dynamic campaign for DCS World. One Lua engine runs insi
 mission, the war keeps going whether anyone is online or not, and when one side loses its last
 base the server moves on to the next map in the rotation.
 
-**Status: v0.30 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
+**Status: v0.31 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
 nodes, mass for assaults and capture bases. Every base runs on supply that trucks, transport aircraft,
 helicopters and **supply ships** carry forward. Each side has a **mission board** of 36 mission types —
 CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy escort, recon, CSAR, logistics, FARPs, anti-ship, SCUD
@@ -506,6 +506,11 @@ need Captain), and a target closer than **300 m** is refused (*danger close*).
 call and hide the crossing for 3 min. It costs only **2 SU** and has its **own 5 min reload per player**, so it
 never blocks the side's fire missions.
 
+**AI smoke** — the AI does it too: when the lead vehicles of a live attack (players nearby) are within **2 km** of
+the base, a battery of the attacking side lays the same curtain halfway between them and the base (2 SU), again
+every 10 min while the attack lasts. From the air you see an assault coming — and the smoke makes it harder to
+pick out targets for CAS.
+
 **Quick reaction alert.** When a new **INTERCEPT** opens (an enemy strike package, assault helicopters, an
 airlift or a landing has been detected), every pilot of that side who is **on the ground** in an A2A-capable
 aircraft, has no mission and is within 150 km gets:
@@ -857,6 +862,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `ext4.ground` | 60 km, 5 km, 5 min | Ground missions: board range, presence distance and time for credit |
 | `ext4.ground.artyKm` / `dangerCloseM` / `artyRank` | 6 km, 300 m, none | Fire support for ground players |
 | `ext4.ground.smoke*` | 2 SU, 500 m, 5 rounds, 3 min, 5 min reload | Smoke screen ahead |
+| `ext4.aiSmoke` | on, 2 km, 10 min | AI attacks lay smoke near the base |
 | `ext4.repair` | 1 t, 20 SU, 3 km | Engineer repair kit |
 | `ext4.perf.levels` | 700 → 0.7, 1000 → 0.45 | Performance guard: ground units and scale per level |
 
@@ -886,7 +892,7 @@ Measured with the offline simulator, no players online:
 ## Testing offline
 
 Nothing here needs DCS to test. The engine is plain Lua 5.1 (the version DCS uses) and runs
-under Python via `lupa` — 17 suites, 927 checks in v0.30:
+under Python via `lupa` — 17 suites, 929 checks in v0.31:
 
 ```bash
 pip install lupa matplotlib

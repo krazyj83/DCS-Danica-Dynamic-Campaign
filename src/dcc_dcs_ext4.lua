@@ -203,26 +203,9 @@ local function forwardOf(u, p)
   return { x = 1, z = 0 }
 end
 
-function B.groundSmoke(uname)
-  local p = B.players[uname]
-  local u = p and ok(Unit.getByName, uname)
-  if not (p and alive(u)) then return end
-  local function tell(t) trigger.action.outTextForGroup(p.gid, t, 12) end
-  local gc, war = XC().ground, B.war
-  local now = timer.getTime()
-  B.x4.smokeAt = B.x4.smokeAt or {}
-  local left = (B.x4.smokeAt[p.key] or -math.huge) + gc.smokeCooldownMin * 60 - now
-  if left > 0 then return tell(string.format("Smoke rounds reloading - %d min.", math.ceil(left / 60))) end
-  local here, f = u:getPoint(), forwardOf(u, p)
-  local c = { x = here.x + f.x * gc.smokeAheadM, z = here.z + f.z * gc.smokeAheadM }
-  local range = DCC.config.ext.support.artyRangeKm * 1000
-  local battery
-  for _, b in ipairs(war:batteries(p.side) or {}) do
-    if b.status == "up" and b.node and B.nodePos[b.node] and dist2D(B.nodePos[b.node], c) <= range then battery = b; break end
-  end
-  if not battery then return tell(string.format("No battery within %d km for smoke.", DCC.config.ext.support.artyRangeKm)) end
-  if not war:paySupport(battery.node, gc.smokeSU) then return tell(war:nodeName(battery.node) .. " has no supply for smoke.") end
-  B.x4.smokeAt[p.key] = now
+-- A curtain of smoke rounds centred on c, across direction f (unit vector).
+function B.smokeCurtain(c, f)
+  local gc, now = XC().ground, timer.getTime()
   B.x4.smokeN = (B.x4.smokeN or 0) + 1
   local n, w = gc.smokeRounds, gc.smokeWidthM
   local names = {}
@@ -240,6 +223,73 @@ function B.groundSmoke(uname)
   timer.scheduleFunction(function()
     for _, name in ipairs(names) do ok(trigger.action.effectSmokeStop, name) end
   end, nil, now + 20 + gc.smokeMinutes * 60)
+end
+
+-- A battery of side within artillery range of c that can pay, or nil.
+local function smokeBattery(side, c, su)
+  local war, range = B.war, DCC.config.ext.support.artyRangeKm * 1000
+  for _, b in ipairs(war:batteries(side) or {}) do
+    if b.status == "up" and b.node and B.nodePos[b.node] and dist2D(B.nodePos[b.node], c) <= range
+       and war:paySupport(b.node, su) then return b end
+  end
+end
+
+-- AI smoke (v0.30): an attack in the live bubble lays a curtain between its lead
+-- vehicles and the base once they are within withinKm, again every everyMin.
+function B.aiSmokeTick()
+  local cfg, gc, war = XC().aiSmoke, XC().ground, B.war
+  if not (cfg and cfg.enabled and war) then return end
+  local now = timer.getTime()
+  B.x4.aiSmoke = B.x4.aiSmoke or {}
+  for _, mid in ipairs(U.sortedKeys(war.state.moves)) do
+    local mv = war.state.moves[mid]
+    local np = B.nodePos[mv.to]
+    if mv.kind == "assault" and np and (B.liveNodes[mv.to] or B.liveNodes[mv.from])
+       and now - (B.x4.aiSmoke[mid] or -math.huge) >= cfg.everyMin * 60 then
+      local lead
+      for _, pid in ipairs(mv.platoons or {}) do
+        local rec = B.spawned[pid]
+        local g = rec and ok(Group.getByName, rec.group)
+        for _, u in ipairs(g and ok(g.getUnits, g) or {}) do
+          if alive(u) then
+            local d = dist2D(u:getPoint(), np)
+            if d <= cfg.withinKm * 1000 and (not lead or d < lead.d) then lead = { p = u:getPoint(), d = d } end
+          end
+        end
+      end
+      if lead and lead.d > gc.dangerCloseM then
+        local f = { x = (np.x - lead.p.x) / lead.d, z = (np.z - lead.p.z) / lead.d }
+        local ahead = math.min(gc.smokeAheadM, lead.d / 2)
+        local c = { x = lead.p.x + f.x * ahead, z = lead.p.z + f.z * ahead }
+        if smokeBattery(mv.side, c, gc.smokeSU) then
+          B.x4.aiSmoke[mid] = now
+          B.smokeCurtain(c, f)
+          U.log("AI smoke: %s attack on %s", mv.side, tostring(mv.to))
+        end
+      end
+    end
+  end
+  for mid in pairs(B.x4.aiSmoke) do if not war.state.moves[mid] then B.x4.aiSmoke[mid] = nil end end
+end
+
+function B.groundSmoke(uname)
+  local p = B.players[uname]
+  local u = p and ok(Unit.getByName, uname)
+  if not (p and alive(u)) then return end
+  local function tell(t) trigger.action.outTextForGroup(p.gid, t, 12) end
+  local gc, war = XC().ground, B.war
+  local now = timer.getTime()
+  B.x4.smokeAt = B.x4.smokeAt or {}
+  local left = (B.x4.smokeAt[p.key] or -math.huge) + gc.smokeCooldownMin * 60 - now
+  if left > 0 then return tell(string.format("Smoke rounds reloading - %d min.", math.ceil(left / 60))) end
+  local here, f = u:getPoint(), forwardOf(u, p)
+  local c = { x = here.x + f.x * gc.smokeAheadM, z = here.z + f.z * gc.smokeAheadM }
+  local battery = smokeBattery(p.side, c, gc.smokeSU)
+  if not battery then
+    return tell(string.format("No battery with supply within %d km for smoke.", DCC.config.ext.support.artyRangeKm))
+  end
+  B.x4.smokeAt[p.key] = now
+  B.smokeCurtain(c, f)
   tell(string.format("Smoke screen %d m ahead from %s - rounds on the way, curtain in 20 s for %d min.",
     gc.smokeAheadM, war:nodeName(battery.node), gc.smokeMinutes))
 end
@@ -510,6 +560,7 @@ local basePoll = B.opsPoll
 function B.opsPoll()
   basePoll()
   B.groundPresenceTick()
+  B.aiSmokeTick()
   B.qraScan()
   B.perfCheck()
 end

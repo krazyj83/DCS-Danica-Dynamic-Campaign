@@ -295,6 +295,34 @@ check("...own reload (artillery cooldown untouched)", (MOCK.lastGroupText(bg.id)
 MOCK.advance(X.ground.smokeMinutes * 60)
 check("...the smoke clears after 3 min", stops == X.ground.smokeRounds)
 driver.getPosition = nil
+
+print(" AI smoke (v0.30)")
+local ep2 = B.nodePos[enemy]
+coalition.addGroup(80, Group.Category.GROUND, { name = "DCC_pSMK", units = {
+  { name = "DCC_pSMK_1", type = "M-1 Abrams", x = ep2.x + 1500, y = ep2.z } } })
+B.spawned.pSMK = { group = "DCC_pSMK", size = 1, base = 1, key = "m:mSMK", kind = "assault", mid = "mSMK" }
+local tmpl = war.state.platoons[gpid]
+war.state.platoons.pSMK = { id = "pSMK", side = "blue", role = tmpl.role, health = 1, xp = 0 }
+war.state.moves.mSMK = { id = "mSMK", kind = "assault", side = "blue", from = gnode, to = enemy, status = "fighting",
+                         platoons = { "pSMK" }, progress = 1, km = 10 }
+B.liveNodes[enemy] = true
+bat.node = enemy
+war.state.nodes[enemy].supply = 50
+local n0 = #smokes
+B.aiSmokeTick()
+MOCK.advance(40)
+local between = #smokes - n0 == X.ground.smokeRounds
+for i = n0 + 1, #smokes do
+  local sm = smokes[i]
+  if not (sm.pt.x > ep2.x and sm.pt.x < ep2.x + 1500) then between = false end
+end
+check("attack 1.5 km from the base: AI lays smoke between it and the base", between, #smokes - n0)
+local n1 = #smokes
+B.aiSmokeTick()
+MOCK.advance(40)
+check("...not again for 10 min", #smokes == n1)
+war.state.moves.mSMK, B.spawned.pSMK, war.state.platoons.pSMK = nil, nil, nil
+if MOCK.groups.DCC_pSMK then MOCK.groups.DCC_pSMK:destroy() end
 MOCK.killGroup("TEST_RED_T72")
 gp.mission = nil
 MOCK.click(bg.id, "Artillery on my objective")
