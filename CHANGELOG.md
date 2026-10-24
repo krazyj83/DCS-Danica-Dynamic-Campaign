@@ -6,6 +6,13 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.32.0 — 2026-10-24
+
+**Added**
+- **Defender smoke:** live garrisons pop smoke grenades (free) when an enemy attack's lead vehicles are within
+  2 km or an enemy aircraft is within 6 km and below 2500 m — a curtain 300 m out toward the threat, at most every
+  10 min per base (`ext4.aiSmoke.defend`).
+
 ## 0.31.0 — 2026-10-24
 
 **Added**

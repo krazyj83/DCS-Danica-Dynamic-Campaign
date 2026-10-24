@@ -321,8 +321,47 @@ local n1 = #smokes
 B.aiSmokeTick()
 MOCK.advance(40)
 check("...not again for 10 min", #smokes == n1)
+print(" Defender smoke (v0.32)")
+-- RED at `enemy` sees the BLUE attack's lead tank 1.5 km out
+war.state.nodes[enemy].platoons = (#war.state.nodes[enemy].platoons > 0) and war.state.nodes[enemy].platoons
+  or { gpid }
+B.x4.defSmoke = {}
+B.liveNodes[enemy] = true
+local d0 = #smokes
+B.defenseSmokeTick()
+MOCK.advance(40)
+local toward = #smokes - d0 == X.ground.smokeRounds
+for i = d0 + 1, #smokes do
+  local sm = smokes[i]
+  if not (sm.pt.x > ep2.x and sm.pt.x <= ep2.x + X.aiSmoke.defendOffsetM + 1) then toward = false end
+end
+check("attack 1.5 km out: the garrison screens itself toward it", toward, #smokes - d0)
+local d1 = #smokes
+B.defenseSmokeTick()
+MOCK.advance(40)
+check("...once per 10 min", #smokes == d1)
 war.state.moves.mSMK, B.spawned.pSMK, war.state.platoons.pSMK = nil, nil, nil
 if MOCK.groups.DCC_pSMK then MOCK.groups.DCC_pSMK:destroy() end
+-- a low RED jet over BLUE's base
+local gpos = B.nodePos[gnode]
+local su25 = MOCK.spawnPlayer(RED, "Su-25T", gpos.x, gpos.z + 20000, "Ivan")   -- (away from the slot guard)
+su25.air, su25.alt, su25.z = true, 400, gpos.z + 4500
+B.x4.defSmoke = {}
+local a0 = #smokes
+B.defenseSmokeTick()
+MOCK.advance(40)
+local towardJet = #smokes - a0 == X.ground.smokeRounds
+for i = a0 + 1, #smokes do
+  if not (smokes[i].pt.z > gpos.z) then towardJet = false end
+end
+check("low enemy jet 4.5 km away: smoke between it and the base", towardJet, #smokes - a0)
+su25.alt = 6000
+B.x4.defSmoke = {}
+local a1 = #smokes
+B.defenseSmokeTick()
+MOCK.advance(40)
+check("...not for a jet at 6000 m", #smokes == a1)
+su25.alive = false
 MOCK.killGroup("TEST_RED_T72")
 gp.mission = nil
 MOCK.click(bg.id, "Artillery on my objective")

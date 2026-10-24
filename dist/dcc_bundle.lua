@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.31.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.32.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.31.0",
+  version         = "0.32.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -395,7 +395,10 @@ DCC.config = {
                smokeSU = 2, smokeAheadM = 500, smokeWidthM = 400, smokeRounds = 5,
                smokeMinutes = 3, smokeCooldownMin = 5, smokePreset = 6 },
     -- AI attacks lay smoke when their lead vehicles are within withinKm of the base (v0.30)
-    aiSmoke = { enabled = true, withinKm = 2, everyMin = 10 },
+    -- ...and live garrisons screen themselves (smoke grenades, free) against an attack
+    -- within defendKm or a low enemy aircraft within airKm (v0.32)
+    aiSmoke = { enabled = true, withinKm = 2, everyMin = 10,
+                defend = true, defendKm = 2, airKm = 6, airMaxAltM = 2500, defendEveryMin = 10, defendOffsetM = 300 },
     -- 15. Engineer repair kit (CTLD > Engineering, any lift helicopter)
     repair = { weight = 1000.01, charge = 2, km = 3 },    -- charge x crateSU = 20 SU
     -- 16. Performance guard: fewer live units when DCS carries many ground units
@@ -14612,6 +14615,71 @@ function B.aiSmokeTick()
   for mid in pairs(B.x4.aiSmoke) do if not war.state.moves[mid] then B.x4.aiSmoke[mid] = nil end end
 end
 
+-- Defender smoke (v0.32): a live garrison screens itself with its own smoke
+-- grenades (free, no battery) when an enemy attack's lead vehicles are within
+-- defendKm, or an enemy aircraft is within airKm and below airMaxAltM. The
+-- curtain goes defendOffsetM out from the base, toward the threat.
+local function enemyAircraftNear(side, np, cfg)
+  local coal = side == "blue" and 1 or 2
+  local best
+  for _, cat in ipairs({ Group.Category.AIRPLANE, Group.Category.HELICOPTER }) do
+    for _, g in ipairs(ok(coalition.getGroups, coal, cat) or {}) do
+      for _, u in ipairs(ok(g.getUnits, g) or {}) do
+        if alive(u) and ok(u.inAir, u) then
+          local up = u:getPoint()
+          local agl = up.y - (ok(land.getHeight, { x = up.x, y = up.z }) or 0)
+          local d = dist2D(up, np)
+          if d <= cfg.airKm * 1000 and agl <= cfg.airMaxAltM and (not best or d < best.d) then
+            best = { p = up, d = d }
+          end
+        end
+      end
+    end
+  end
+  return best
+end
+
+local function enemyLeadNear(side, id, np, km)
+  local best
+  for _, mv in pairs(B.war.state.moves) do
+    if mv.kind == "assault" and mv.to == id and mv.side ~= side then
+      for _, pid in ipairs(mv.platoons or {}) do
+        local rec = B.spawned[pid]
+        local g = rec and ok(Group.getByName, rec.group)
+        for _, u in ipairs(g and ok(g.getUnits, g) or {}) do
+          if alive(u) then
+            local d = dist2D(u:getPoint(), np)
+            if d <= km * 1000 and (not best or d < best.d) then best = { p = u:getPoint(), d = d } end
+          end
+        end
+      end
+    end
+  end
+  return best
+end
+
+function B.defenseSmokeTick()
+  local cfg, war = XC().aiSmoke, B.war
+  if not (cfg and cfg.enabled and cfg.defend and war) then return end
+  local now = timer.getTime()
+  B.x4.defSmoke = B.x4.defSmoke or {}
+  for _, id in ipairs(war.T.order) do
+    local ns, np = war.state.nodes[id], B.nodePos[id]
+    if np and B.liveNodes[id] and #ns.platoons > 0
+       and now - (B.x4.defSmoke[id] or -math.huge) >= cfg.defendEveryMin * 60 then
+      local threat, why = enemyLeadNear(ns.side, id, np, cfg.defendKm), "attack"
+      if not threat then threat, why = enemyAircraftNear(ns.side, np, cfg), "aircraft" end
+      if threat and threat.d > 1 then
+        local f = { x = (threat.p.x - np.x) / threat.d, z = (threat.p.z - np.z) / threat.d }
+        local off = math.min(cfg.defendOffsetM, threat.d / 2)
+        B.x4.defSmoke[id] = now
+        B.smokeCurtain({ x = np.x + f.x * off, z = np.z + f.z * off }, f)
+        U.log("defender smoke at %s (%s)", id, why)
+      end
+    end
+  end
+end
+
 function B.groundSmoke(uname)
   local p = B.players[uname]
   local u = p and ok(Unit.getByName, uname)
@@ -14901,6 +14969,7 @@ function B.opsPoll()
   basePoll()
   B.groundPresenceTick()
   B.aiSmokeTick()
+  B.defenseSmokeTick()
   B.qraScan()
   B.perfCheck()
 end
