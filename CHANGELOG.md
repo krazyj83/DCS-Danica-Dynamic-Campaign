@@ -6,6 +6,12 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.33.0 — 2026-10-24
+
+**Changed**
+- **Defender smoke only against attacking aircraft:** an aircraft must have fired in the last 60 s or be diving at
+  the base (sinking > 15 m/s, heading within ~45° of it). Strike packages passing over no longer set it off.
+
 ## 0.32.0 — 2026-10-24
 
 **Added**

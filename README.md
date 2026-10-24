@@ -4,7 +4,7 @@ A perpetual, persistent dynamic campaign for DCS World. One Lua engine runs insi
 mission, the war keeps going whether anyone is online or not, and when one side loses its last
 base the server moves on to the next map in the rotation.
 
-**Status: v0.32 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
+**Status: v0.33 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
 nodes, mass for assaults and capture bases. Every base runs on supply that trucks, transport aircraft,
 helicopters and **supply ships** carry forward. Each side has a **mission board** of 36 mission types —
 CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy escort, recon, CSAR, logistics, FARPs, anti-ship, SCUD
@@ -512,9 +512,10 @@ every 10 min while the attack lasts. From the air you see an assault coming — 
 pick out targets for CAS.
 
 **Defender smoke (v0.32)** — a live garrison screens itself with its own smoke grenades (free, no battery) when an
-enemy attack's lead vehicles are within **2 km**, or an enemy aircraft is within **6 km** and below **2500 m**: a
-curtain 300 m out from the base, toward the threat, at most every 10 min per base. A low CAS pass on a defended
-base is met by smoke.
+enemy attack's lead vehicles are within **2 km**, or an enemy aircraft **attacks** within **6 km** and below
+**2500 m** — it fired in the last minute, or it is diving at the base (sinking faster than 15 m/s, heading within
+~45° of it). Aircraft just passing over do not set it off (v0.33). A curtain 300 m out from the base, toward the
+threat, at most every 10 min per base.
 
 **Quick reaction alert.** When a new **INTERCEPT** opens (an enemy strike package, assault helicopters, an
 airlift or a landing has been detected), every pilot of that side who is **on the ground** in an A2A-capable
@@ -869,6 +870,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `ext4.ground.smoke*` | 2 SU, 500 m, 5 rounds, 3 min, 5 min reload | Smoke screen ahead |
 | `ext4.aiSmoke` | on, 2 km, 10 min | AI attacks lay smoke near the base |
 | `ext4.aiSmoke.defend*`, `airKm`, `airMaxAltM` | on, 2 km, 6 km, 2500 m, 10 min, 300 m | Garrisons screen themselves |
+| `ext4.aiSmoke.shotSec` / `diveMps` | 60 s, 15 m/s | What counts as an attacking aircraft |
 | `ext4.repair` | 1 t, 20 SU, 3 km | Engineer repair kit |
 | `ext4.perf.levels` | 700 → 0.7, 1000 → 0.45 | Performance guard: ground units and scale per level |
 
@@ -898,7 +900,7 @@ Measured with the offline simulator, no players online:
 ## Testing offline
 
 Nothing here needs DCS to test. The engine is plain Lua 5.1 (the version DCS uses) and runs
-under Python via `lupa` — 17 suites, 933 checks in v0.32:
+under Python via `lupa` — 17 suites, 936 checks in v0.33:
 
 ```bash
 pip install lupa matplotlib

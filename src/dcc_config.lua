@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.32.0",
+  version         = "0.33.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -394,7 +394,8 @@ DCC.config = {
     -- ...and live garrisons screen themselves (smoke grenades, free) against an attack
     -- within defendKm or a low enemy aircraft within airKm (v0.32)
     aiSmoke = { enabled = true, withinKm = 2, everyMin = 10,
-                defend = true, defendKm = 2, airKm = 6, airMaxAltM = 2500, defendEveryMin = 10, defendOffsetM = 300 },
+                defend = true, defendKm = 2, airKm = 6, airMaxAltM = 2500, defendEveryMin = 10, defendOffsetM = 300,
+                shotSec = 60, diveMps = 15 },   -- aircraft only when attacking: fired in 60 s, or diving at the base
     -- 15. Engineer repair kit (CTLD > Engineering, any lift helicopter)
     repair = { weight = 1000.01, charge = 2, km = 3 },    -- charge x crateSU = 20 SU
     -- 16. Performance guard: fewer live units when DCS carries many ground units

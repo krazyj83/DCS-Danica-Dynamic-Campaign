@@ -276,6 +276,23 @@ end
 -- grenades (free, no battery) when an enemy attack's lead vehicles are within
 -- defendKm, or an enemy aircraft is within airKm and below airMaxAltM. The
 -- curtain goes defendOffsetM out from the base, toward the threat.
+-- Only aircraft that attack set it off (v0.33): one that fired in the last
+-- shotSec seconds, or one diving at the base (sinking faster than diveMps while
+-- flying toward it).
+function B.isAttacking(u, np, d)
+  local cfg = XC().aiSmoke
+  local name = ok(u.getName, u)
+  local t = name and (B.x4.shots or {})[name]
+  if t and timer.getTime() - t <= cfg.shotSec then return true end
+  local v = ok(u.getVelocity, u)
+  if not (v and v.y) then return false end
+  local h = math.sqrt(v.x * v.x + v.z * v.z)
+  if v.y > -cfg.diveMps or h < 1 then return false end
+  local up = u:getPoint()
+  local tx, tz = (np.x - up.x) / math.max(d, 1), (np.z - up.z) / math.max(d, 1)
+  return (v.x * tx + v.z * tz) / h >= 0.7                  -- heading within ~45 deg of the base
+end
+
 local function enemyAircraftNear(side, np, cfg)
   local coal = side == "blue" and 1 or 2
   local best
@@ -286,7 +303,8 @@ local function enemyAircraftNear(side, np, cfg)
           local up = u:getPoint()
           local agl = up.y - (ok(land.getHeight, { x = up.x, y = up.z }) or 0)
           local d = dist2D(up, np)
-          if d <= cfg.airKm * 1000 and agl <= cfg.airMaxAltM and (not best or d < best.d) then
+          if d <= cfg.airKm * 1000 and agl <= cfg.airMaxAltM and (not best or d < best.d)
+             and B.isAttacking(u, np, d) then
             best = { p = up, d = d }
           end
         end
@@ -477,6 +495,13 @@ end
 local baseOpsEvent = B.onOpsEvent
 function B.onOpsEvent(e)
   baseOpsEvent(e)
+  if e.id == world.event.S_EVENT_SHOT and e.initiator then           -- who has fired (defender smoke)
+    local d = ok(e.initiator.getDesc, e.initiator)
+    if d and (d.category == Unit.Category.AIRPLANE or d.category == Unit.Category.HELICOPTER) then
+      B.x4.shots = B.x4.shots or {}
+      B.x4.shots[ok(e.initiator.getName, e.initiator) or "?"] = timer.getTime()
+    end
+  end
   -- a CA player taking over a vehicle that already exists (no birth event)
   if e.id == world.event.S_EVENT_PLAYER_ENTER_UNIT and e.initiator and isGroundUnit(e.initiator)
      and ok(e.initiator.getPlayerName, e.initiator) and not B.players[ok(e.initiator.getName, e.initiator) or ""] then

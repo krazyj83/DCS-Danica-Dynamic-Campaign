@@ -346,21 +346,33 @@ if MOCK.groups.DCC_pSMK then MOCK.groups.DCC_pSMK:destroy() end
 local gpos = B.nodePos[gnode]
 local su25 = MOCK.spawnPlayer(RED, "Su-25T", gpos.x, gpos.z + 20000, "Ivan")   -- (away from the slot guard)
 su25.air, su25.alt, su25.z = true, 400, gpos.z + 4500
-B.x4.defSmoke = {}
-local a0 = #smokes
-B.defenseSmokeTick()
-MOCK.advance(40)
-local towardJet = #smokes - a0 == X.ground.smokeRounds
-for i = a0 + 1, #smokes do
-  if not (smokes[i].pt.z > gpos.z) then towardJet = false end
+local function jetSmoke()
+  B.x4.defSmoke = {}
+  local n = #smokes
+  B.defenseSmokeTick()
+  MOCK.advance(40)
+  local ok2 = #smokes - n == X.ground.smokeRounds
+  for i = n + 1, #smokes do if not (smokes[i].pt.z > gpos.z) then ok2 = false end end
+  return ok2, #smokes - n
 end
-check("low enemy jet 4.5 km away: smoke between it and the base", towardJet, #smokes - a0)
+B.x4.shots = {}
+local r, n = jetSmoke()
+check("low enemy jet just passing: no smoke", n == 0, n)
+MOCK.fire({ id = world.event.S_EVENT_SHOT, initiator = su25 })
+r, n = jetSmoke()
+check("...it fires: smoke between it and the base", r, n)
+B.x4.shots = {}
+su25.getVelocity = function() return { x = 0, y = -30, z = -150 } end    -- diving at the base
+r, n = jetSmoke()
+check("...diving at the base: smoke", r, n)
+su25.getVelocity = function() return { x = 150, y = -30, z = 0 } end     -- diving, but at something else
+r, n = jetSmoke()
+check("...diving away from the base: no smoke", n == 0, n)
+su25.getVelocity = function() return { x = 0, y = -30, z = -150 } end
 su25.alt = 6000
-B.x4.defSmoke = {}
-local a1 = #smokes
-B.defenseSmokeTick()
-MOCK.advance(40)
-check("...not for a jet at 6000 m", #smokes == a1)
+r, n = jetSmoke()
+check("...not for a jet at 6000 m", n == 0, n)
+su25.getVelocity = nil
 su25.alive = false
 MOCK.killGroup("TEST_RED_T72")
 gp.mission = nil
