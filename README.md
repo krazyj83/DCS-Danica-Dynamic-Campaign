@@ -4,9 +4,9 @@ A perpetual, persistent dynamic campaign for DCS World. One Lua engine runs insi
 mission, the war keeps going whether anyone is online or not, and when one side loses its last
 base the server moves on to the next map in the rotation.
 
-**Status: v0.27 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
+**Status: v0.28 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
 nodes, mass for assaults and capture bases. Every base runs on supply that trucks, transport aircraft,
-helicopters and **supply ships** carry forward. Each side has a **mission board** of 33 mission types —
+helicopters and **supply ships** carry forward. Each side has a **mission board** of 36 mission types —
 CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy escort, recon, CSAR, logistics, FARPs, anti-ship, SCUD
 hunts, amphibious landings and more — and every mission writes its effect into the war. Several pilots can
 **fly one mission together**. AI fighters, strike packages, tankers, AWACS and carrier air wings fly for
@@ -14,7 +14,7 @@ both sides, and **pilot records** follow players across wars and maps. **Territo
 are drawn on the F10 map, and **fog of war** means each side only sees the enemy it has detected.
 **Carriers** (Stennis, Tarawa, Kuznetsov) sail on every map, **weather drifts** over hours, **night**
 battles are lit by flares, and every mission carries **kneeboard pages** and **DTC cartridges**.
-**Combined Arms** commanders can drive the campaign's own platoons, fighter pilots on the ground get
+**Combined Arms** commanders can drive the campaign's own platoons and fly **ground missions**, fighter pilots on the ground get
 **QRA scrambles**, helicopter engineers **repair** bases, and a **performance guard** thins the war
 out when the server is loaded. The war
 runs on **Caucasus → Syria → Persian Gulf → Cold War Germany**: when one side wins, the next map loads by
@@ -471,12 +471,25 @@ mission (one per side) with empty stock; the engine stocks the right one.
 2 Observer** slots. The campaign's own ground forces are spawned **player-drivable**: platoons in garrisons
 and on the move, supply convoys, artillery batteries and front skirmish groups (SAM, EWR and JTAC teams
 stay AI). Driving a platoon changes the live fight; the war model still decides where that platoon belongs,
-and it despawns with the rest when no player is within the live radius. A player sitting in a vehicle counts
-as a player for that radius, is never removed by the slot guard and gets no pilot menus.
+but a platoon a player is driving stays spawned wherever he takes it. A player sitting in a vehicle counts as a
+player for the live radius and is never removed by the slot guard.
+
+**Ground missions (v0.28).** A player in a vehicle gets **F10 → Missions** with ground missions only, within
+60 km (about 32 nm) of the vehicle, nearest first:
+
+| Mission | Target | Done when |
+| --- | --- | --- |
+| **ASSAULT** | your side's attack on an enemy base | the base is captured |
+| **HOLD** | your base under attack | the attack is repulsed |
+| **GCONVOY** | your supply convoy on the road | it arrives |
+
+Credit (mission points in the pilot record, same as a flown mission) goes to everyone on the mission who was
+**within 5 km of the target for 5 minutes** in total; the team bonus applies too. Kills made from the vehicle count
+as ground kills. Pilots never see these missions, and ground players never see air missions.
 
 **Quick reaction alert.** When a new **INTERCEPT** opens (an enemy strike package, assault helicopters, an
 airlift or a landing has been detected), every pilot of that side who is **on the ground** in an A2A-capable
-aircraft, has no mission and is within 250 km gets:
+aircraft, has no mission and is within 150 km gets:
 
 ```
 QRA - SCRAMBLE! RED strike package inbound to Kutaisi.
@@ -821,7 +834,8 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `jtac.laserCode` | 1688 | JTAC laser code |
 | `defenderBonus` | town 1.3, airbase 1.5, depot 2.0 | How hard each node class is to take (only while supplied) |
 | `ext4.ca.playerCanDrive` | true | Combined Arms players may drive campaign platoons, convoys, artillery, skirmishes |
-| `ext4.qra` | 5 min, 250 km | Scramble window and range for QRA |
+| `ext4.qra` | 5 min, 150 km | Scramble window and range for QRA |
+| `ext4.ground` | 60 km, 5 km, 5 min | Ground missions: board range, presence distance and time for credit |
 | `ext4.repair` | 1 t, 20 SU, 3 km | Engineer repair kit |
 | `ext4.perf.levels` | 700 → 0.7, 1000 → 0.45 | Performance guard: ground units and scale per level |
 
@@ -851,7 +865,7 @@ Measured with the offline simulator, no players online:
 ## Testing offline
 
 Nothing here needs DCS to test. The engine is plain Lua 5.1 (the version DCS uses) and runs
-under Python via `lupa` — 17 suites, 902 checks in v0.27:
+under Python via `lupa` — 17 suites, 916 checks in v0.28:
 
 ```bash
 pip install lupa matplotlib
@@ -872,7 +886,7 @@ python tools/run_lua.py tests/test_armoury.lua      # warehouse armoury: names f
 python tools/run_lua.py tests/test_ctld.lua         # the real CTLD.lua: zones, crates, troops, FOB, AA, vehicles, FARP kit and resupply, bridge kits, minefields
 python tools/run_lua.py tests/test_ext2.lua         # HVA hunts and escort, packages, aces, artillery duels, ambushes, POW, medevac, heavy lift, CSAR search parties
 python tools/run_lua.py tests/test_ext3.lua         # amphibious landings, shipping, carrier air wing, SCUDs, pop-up threats, night illumination
-python tools/run_lua.py tests/test_ext4.lua         # Combined Arms, QRA scramble, engineer repair kit, performance guard
+python tools/run_lua.py tests/test_ext4.lua         # Combined Arms and ground missions, QRA scramble, engineer repair kit, performance guard
 
 python tools/run_lua.py tools/sim.lua 4320 2026 docs/sim_history.json   # simulate 15 days
 DCC_THEATER=Syria python tools/run_lua.py tools/sim.lua 4320               # ...on another map
@@ -907,7 +921,7 @@ src/
   dcc_ext.lua         armoury, runways, crews, support, engineers, mines, veterancy, industry, partisans, scaling, wrecks
   dcc_ext2.lua        HVA, strike packages, artillery duels, prisoners and wounded, heavy lift, CSAR capture
   dcc_ext3.lua        amphibious assaults, shipping lanes, SCUDs, pop-up threats
-  dcc_ext4.lua        engineer repairs
+  dcc_ext4.lua        engineer repairs, ground missions (ASSAULT, HOLD, GCONVOY)
   dcc_front.lua       front crossings on contested roads (kept for the AI and tests)
   dcc_territory.lua   territory and front line from Voronoi cells (drawn on F10 and the web map)
   dcc_persist.lua     save / load / backups (the only file access)
@@ -927,7 +941,7 @@ src/
   dcc_dcs_armoury.lua DCS bridge: warehouse armoury (weapon names, tiers, shelves) and F10 > Armoury test
   dcc_dcs_ext2.lua    DCS bridge: HVA hunts and escort, packages, aces, shell impacts, ambushes, pick-ups, heavy crates, search parties
   dcc_dcs_ext3.lua    DCS bridge: landings, cargo ships, carrier air wing, SCUD launchers, pop-ups, night illumination
-  dcc_dcs_ext4.lua    DCS bridge: Combined Arms, QRA scramble, repair kit, performance guard
+  dcc_dcs_ext4.lua    DCS bridge: Combined Arms and ground players, QRA scramble, repair kit, performance guard
   dcc_main.lua        start-up and the 30 s / 5 min loops
   dcc_loader.lua      development loader
 theaters/*.lua          Caucasus (hand-made), Syria, Persian Gulf, Cold War Germany (generated);

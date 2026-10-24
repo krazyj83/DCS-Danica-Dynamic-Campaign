@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.27.0",
+  version         = "0.28.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -107,7 +107,8 @@ DCC.config = {
                 CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1, ANTISHIP = 1, FARP = 2,
                 FARPSUP = 2, INTERCEPT = 3, HVAESCORT = 2, PKGESCORT = 2, MEDEVAC = 2, POW = 2,
                 AMPHIB = 1, SHIPSTRIKE = 2, SHIPESCORT = 2, SCUD = 2, POPUP = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
-                RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2 },
+                RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2,
+                ASSAULT = 4, HOLD = 4, GCONVOY = 3 },   -- ground missions: Combined Arms players only
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
     slowTypes       = { "A-10A", "A-10C", "A-10C_2", "Su-25", "Su-25T", "L-39ZA", "C-101CC", "MB-339A",
@@ -381,7 +382,10 @@ DCC.config = {
     ca = { playerCanDrive = true,
            patterns = { "^DCC_p%d+$", "^DCC_c%d+$", "^DCC_ARTY_", "^DCC_SKIRM_" } },
     -- 7. Quick reaction alert: grounded fighters are scrambled onto new INTERCEPTs
-    qra = { minutes = 5, km = 250 },
+    qra = { minutes = 5, km = 150 },
+    -- 6b. ground missions (ASSAULT, HOLD, GCONVOY) for players in ground vehicles:
+    --     shown within rangeKm, credit after presenceMin minutes within presenceKm
+    ground = { rangeKm = 60, presenceKm = 5, presenceMin = 5 },
     -- 15. Engineer repair kit (CTLD > Engineering, any lift helicopter)
     repair = { weight = 1000.01, charge = 2, km = 3 },    -- charge x crateSU = 20 SU
     -- 16. Performance guard: fewer live units when DCS carries many ground units

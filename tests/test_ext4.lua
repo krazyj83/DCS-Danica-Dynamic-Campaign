@@ -41,6 +41,47 @@ if ns.ewr then
 end
 check("no supply spent here (the crate is paid for where it is loaded)", ns.supply == su0)
 
+
+-- ===========================================================================
+print("Pure model: ground missions (v0.28)")
+-- ===========================================================================
+local g = DCC.War.new(T, C, cfg, 42)
+g:tick()
+local bnode, rnode
+for _, id in ipairs(g.T.order) do
+  local n = g.state.nodes[id]
+  if n.side == "blue" and not bnode then bnode = id end
+  if n.side == "red" and not rnode then rnode = id end
+end
+g.state.moves.mA = { id = "mA", kind = "assault", side = "blue", from = bnode, to = rnode, status = "fighting",
+                     platoons = {}, progress = 1, km = 10 }
+g.state.moves.mC = { id = "mC", kind = "convoy", side = "blue", from = bnode, to = bnode, status = "moving",
+                     platoons = {}, progress = 0.2, km = 30, supply = 10 }
+local gcLimit = cfg.missions.perType.GCONVOY
+cfg.missions.perType.GCONVOY = 99
+g:missionsTick()
+cfg.missions.perType.GCONVOY = gcLimit
+local asl, hold, gcv
+for _, m in pairs(g.state.missions) do
+  if m.type == "ASSAULT" and m.target == rnode then asl = m end
+  if m.type == "HOLD" and m.target == rnode then hold = m end
+  if m.type == "GCONVOY" and m.target == "mC" then gcv = m end
+end
+check("own attack: ASSAULT for BLUE", asl and asl.side == "blue" and asl.needs == "GROUND")
+check("under attack: HOLD for RED", hold and hold.side == "red")
+check("own supply convoy: GCONVOY", gcv and gcv.side == "blue")
+g:takeMission(asl.id, "k1", "Tanker")
+g:takeMission(asl.id, "k2", "Tourist")
+g:groundPresence(asl.id, "k1", 400)
+g:groundPresence(asl.id, "k2", 60)
+local evs = { { kind = "capture", side = "blue", node = rnode } }
+check("base taken: ASSAULT done", g:missionOutcome(asl, evs) == "done")
+check("...credit only for who was there 5 min", asl.taken.k1 and not asl.taken.k2)
+check("...and RED's HOLD failed", g:missionOutcome(hold, evs) == "failed")
+g.state.moves.mC = nil
+g.state.deliveredMoves.mC = { tick = g.state.tick, health = 1 }
+check("convoy arrived: GCONVOY done", g:missionOutcome(gcv, {}) == "done")
+
 -- ===========================================================================
 print("Bridge")
 -- ===========================================================================
@@ -94,7 +135,7 @@ tg.units[1] = tank
 MOCK.groups.CA_TANK = tg
 MOCK.fire({ id = world.event.S_EVENT_BIRTH, initiator = tank })
 check("CA player in a tank at an enemy base: not slot-guarded", tank.alive and not tank.destroyed)
-check("...and gets no pilot menus", B.players.CA_TANK_1 == nil)
+check("...and is a ground player (ground missions only)", B.players.CA_TANK_1 and B.players.CA_TANK_1.ground)
 
 print(" QRA")
 local p = B.players[viper:getName()]
@@ -166,6 +207,50 @@ B.perfCheck(true)
 check("300: everything back", B.x4.perfLevel == 0 and cfg.liveRadiusKm == R0 and cfg.maxLivePlatoons == P0
   and cfg.ground.skirmishMax == S0 and cfg.ext3.popup.max == U0)
 B.groundUnitCount = realCount
+
+print(" Ground missions (v0.28)")
+local bg
+for name, grp in pairs(MOCK.groups) do
+  if name:find("^DCC_p%d+$") and grp.units[1].coal == BLUE and not bg then bg = grp end
+end
+local gpid = bg.name:match("^DCC_(p%d+)$")
+local gnode
+for _, id in ipairs(war.T.order) do
+  for _, x in ipairs(war.state.nodes[id].platoons) do if x == gpid then gnode = id end end
+end
+local driver = bg.units[1]
+driver.player = "Tanker"
+table.insert(MOCK.players[BLUE], driver)
+MOCK.fire({ id = world.event.S_EVENT_PLAYER_ENTER_UNIT, initiator = driver })
+local gp = B.players[driver.name]
+check("CA player takes over a platoon tank: a ground player", gp and gp.ground == true)
+war.state.moves.mG = { id = "mG", kind = "assault", side = "red", from = enemy, to = gnode, status = "fighting",
+                       platoons = {}, progress = 1, km = 10 }
+war:missionsTick()
+local list = B.missionsFor(gp)
+local onlyGround, hm = #list > 0, nil
+for _, m in ipairs(list) do
+  if m.needs ~= "GROUND" then onlyGround = false end
+  if m.type == "HOLD" and m.target == gnode then hm = m end
+end
+check("his board: only ground missions, nearby", onlyGround, #list)
+check("...HOLD his own base", hm ~= nil)
+local airOnly = true
+for _, m in ipairs(B.missionsFor(p)) do if m.needs == "GROUND" then airOnly = false end end
+check("pilots never see ground missions", airOnly)
+B.takeMission({ unit = driver.name, mid = hm.id })
+B.x4.presenceAt = timer.getTime() - 400
+B.groundPresenceTick()
+local hmr = war.state.missions[hm.id]
+check("near the base: presence counted", (hmr.presence or {})[gp.key] and hmr.presence[gp.key] >= 300)
+local m0 = DCC.pilots:get(gp.key).missions or 0
+war:finishMission(hmr, war:missionOutcome(hmr, { { kind = "repulsed", side = "blue", node = gnode } }))
+check("attack repulsed: mission points for the tank crew", (DCC.pilots:get(gp.key).missions or 0) == m0 + 1)
+war.state.moves.mG = nil
+driver.x, driver.z = driver.x + 150000, driver.z
+B.updateLive()
+check("driven 150 km away: his platoon stays spawned", B.liveNodes[gnode] == true)
+driver.x, driver.z = driver.x - 150000, driver.z
 
 print(" A day")
 viper.air = false

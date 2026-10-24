@@ -6,6 +6,20 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.28.0 — 2026-10-24
+
+**Added**
+- **Ground missions for Combined Arms players:** **ASSAULT** (your attack on an enemy base: take it),
+  **HOLD** (your base under attack: repulse it), **GCONVOY** (escort your supply convoy by road). A player in a
+  vehicle gets an F10 → Missions board with these only, within 60 km. Credit for everyone on the mission who
+  was within 5 km of the target for 5 min; mission points, team bonus and ground kills go into the pilot record.
+- A platoon a CA player is driving stays spawned wherever he takes it.
+- CA players who take over an existing vehicle (no birth event) are picked up too.
+
+**Changed**
+- QRA scramble range 250 → **150 km**.
+- Ground players get the Missions menu (ground missions only) instead of no menu.
+
 ## 0.27.0 — 2026-10-24
 
 **Added**

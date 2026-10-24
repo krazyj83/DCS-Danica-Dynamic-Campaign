@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.27.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.28.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.27.0",
+  version         = "0.28.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -111,7 +111,8 @@ DCC.config = {
                 CONVOY = 2, RECON = 2, CSAR = 4, LOGISTICS = 2, EWR = 1, HVAA = 1, ANTISHIP = 1, FARP = 2,
                 FARPSUP = 2, INTERCEPT = 3, HVAESCORT = 2, PKGESCORT = 2, MEDEVAC = 2, POW = 2,
                 AMPHIB = 1, SHIPSTRIKE = 2, SHIPESCORT = 2, SCUD = 2, POPUP = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
-                RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2 },
+                RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2,
+                ASSAULT = 4, HOLD = 4, GCONVOY = 3 },   -- ground missions: Combined Arms players only
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
     slowTypes       = { "A-10A", "A-10C", "A-10C_2", "Su-25", "Su-25T", "L-39ZA", "C-101CC", "MB-339A",
@@ -385,7 +386,10 @@ DCC.config = {
     ca = { playerCanDrive = true,
            patterns = { "^DCC_p%d+$", "^DCC_c%d+$", "^DCC_ARTY_", "^DCC_SKIRM_" } },
     -- 7. Quick reaction alert: grounded fighters are scrambled onto new INTERCEPTs
-    qra = { minutes = 5, km = 250 },
+    qra = { minutes = 5, km = 150 },
+    -- 6b. ground missions (ASSAULT, HOLD, GCONVOY) for players in ground vehicles:
+    --     shown within rangeKm, credit after presenceMin minutes within presenceKm
+    ground = { rangeKm = 60, presenceKm = 5, presenceMin = 5 },
     -- 15. Engineer repair kit (CTLD > Engineering, any lift helicopter)
     repair = { weight = 1000.01, charge = 2, km = 3 },    -- charge x crateSU = 20 SU
     -- 16. Performance guard: fewer live units when DCS carries many ground units
@@ -6155,6 +6159,109 @@ function War:engineerRepair(id, side)
   end
   self:log("engineer_repair", side, side:upper() .. ": " .. text, { node = id, what = need })
   return text
+end
+
+-- ============================================================================
+-- 6b. Ground missions for Combined Arms players (v0.28)
+-- ----------------------------------------------------------------------------
+--   ASSAULT  own attack on an enemy base   the base is captured        GROUND
+--   HOLD     own base under attack         the attack is repulsed      GROUND
+--   GCONVOY  own supply convoy by road     it arrives                  GROUND
+-- Only players in ground vehicles see them. Credit goes to those who were
+-- there: the bridge samples who is within presenceKm (War:groundPresence) and
+-- players with less than presenceMin minutes are dropped before the credit.
+-- ============================================================================
+local gen = War.missionGenerators
+local function G(self) return self.cfg.ext4.ground end
+
+War.MISSION_NEEDS.ASSAULT, War.MISSION_NEEDS.HOLD, War.MISSION_NEEDS.GCONVOY = "GROUND", "GROUND", "GROUND"
+for _, t in ipairs({ "ASSAULT", "HOLD", "GCONVOY" }) do War.MISSION_ORDER[#War.MISSION_ORDER + 1] = t end
+
+gen.ASSAULT = function(self, side)
+  local out, seen = {}, {}
+  for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
+    local mv = self.state.moves[mid]
+    if mv.side == side and mv.kind == "assault" and not seen[mv.to]
+       and (mv.status == "fighting" or mv.status == "moving") and self.state.nodes[mv.to].side ~= side then
+      seen[mv.to] = true
+      out[#out + 1] = { type = "ASSAULT", target = mv.to, node = mv.to, prio = mv.status == "fighting" and 0 or 1,
+        label = "take " .. self:nodeName(mv.to) }
+    end
+  end
+  return out
+end
+
+gen.HOLD = function(self, side)
+  local out, seen = {}, {}
+  for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
+    local mv = self.state.moves[mid]
+    if mv.side ~= side and mv.kind == "assault" and not seen[mv.to] and self.state.nodes[mv.to].side == side
+       and (mv.status == "fighting" or mv.status == "moving") then
+      seen[mv.to] = true
+      out[#out + 1] = { type = "HOLD", target = mv.to, node = mv.to, prio = mv.status == "fighting" and 0 or 1,
+        label = "hold " .. self:nodeName(mv.to) }
+    end
+  end
+  return out
+end
+
+gen.GCONVOY = function(self, side)
+  local out = {}
+  for _, mid in ipairs(U.sortedKeys(self.state.moves)) do
+    local mv = self.state.moves[mid]
+    if mv.side == side and mv.kind == "convoy" and mv.status == "moving" and (mv.progress or 0) < 0.8
+       and not (self.onSea and self:onSea(mv)) then
+      out[#out + 1] = { type = "GCONVOY", target = mid, node = mv.to, prio = mv.front and 0 or 1,
+        label = string.format("convoy %s > %s", self:nodeName(mv.from), self:nodeName(mv.to)) }
+    end
+  end
+  return out
+end
+
+-- The bridge: player key was near the mission for `seconds`.
+function War:groundPresence(mid, key, seconds)
+  local m = self.state.missions[mid]
+  if not m or m.status ~= "open" or not m.taken[key] then return end
+  m.presence = m.presence or {}
+  m.presence[key] = (m.presence[key] or 0) + seconds
+end
+
+-- Only players who were there are credited.
+local function onlyPresent(self, m)
+  local need = G(self).presenceMin * 60
+  for key in pairs(m.taken) do
+    if ((m.presence or {})[key] or 0) < need then m.taken[key] = nil end
+  end
+end
+
+local baseOutcome = War.missionOutcome
+function War:missionOutcome(m, events)
+  local t, st = m.type, self.state
+  local r
+  if t == "ASSAULT" or t == "HOLD" then
+    for _, ev in ipairs(events) do
+      if ev.node == m.target and (ev.kind == "capture" or ev.kind == "repulsed") then
+        r = (ev.side == m.side) and "done" or "failed"
+      end
+    end
+    if not r then
+      local attacker = (t == "ASSAULT") and m.side or U.otherSide(m.side)
+      local holder = st.nodes[m.target].side
+      if (t == "ASSAULT" and holder == m.side) or (t == "HOLD" and holder ~= m.side) then return "expired" end
+      for _, mv in pairs(st.moves) do
+        if mv.to == m.target and mv.side == attacker and mv.kind == "assault" then return "open" end
+      end
+      return "expired"
+    end
+  elseif t == "GCONVOY" then
+    if st.moves[m.target] then return "open" end
+    if st.killedMoves[m.target] then return "failed" end
+    r = (st.deliveredMoves and st.deliveredMoves[m.target]) and "done" or "expired"
+  else
+    return baseOutcome(self, m, events)
+  end
+  if r == "done" then onlyPresent(self, m) end
+  return r
 end
 
 end
@@ -14232,7 +14339,8 @@ do
 --   6. Combined Arms : campaign platoons, supply convoys, artillery and
 --                      skirmish groups can be driven by CA commanders / JTACs
 --                      (slots come from make_mission.py). A player in a ground
---                      vehicle is never slot-guarded or given pilot menus.
+--                      vehicle is never slot-guarded and gets ground missions
+--                      (ASSAULT, HOLD, GCONVOY, v0.28): credit for being there.
 --   7. QRA           : a new INTERCEPT scrambles that side's grounded fighter
 --                      pilots (heading and range to the threat). Airborne
 --                      within 5 min = the mission is theirs, +10 QRA bonus
@@ -14288,18 +14396,109 @@ if coalition and coalition.addGroup and not coalition.dccCA then
   coalition.dccCA = true
 end
 
--- A CA player taking over a vehicle is not a pilot: no slot guard (the tank may
--- be attacking an enemy base), no mission menus.
+-- A CA player taking over a vehicle is not slot-guarded (the tank may be
+-- attacking an enemy base).
 local baseOnBirth = B.onBirth
 function B.onBirth(unit)
   if isGroundUnit(unit) then return end
   return baseOnBirth(unit)
 end
 
+-- ...and is a "ground player": the Missions menu shows only ground missions
+-- (ASSAULT, HOLD, GCONVOY) within ext4.ground.rangeKm of the vehicle.
 local baseRegister = B.registerPlayer
 function B.registerPlayer(u)
-  if isGroundUnit(u) then return nil end
-  return baseRegister(u)
+  local p = baseRegister(u)
+  if p and isGroundUnit(u) then
+    p.ground, p.heli, p.slow = true, false, false
+    B.buildMenu(p)
+  end
+  return p
+end
+
+local baseCaps = B.caps
+function B.caps(p)
+  if p and p.ground then return { GROUND = true } end
+  return baseCaps(p)
+end
+
+local baseCanFly = B.canFly
+function B.canFly(p, m)
+  if p and p.ground then return m.needs == "GROUND" end
+  return baseCanFly(p, m)
+end
+
+local baseMissionsFor = B.missionsFor
+function B.missionsFor(p)
+  if not (p and p.ground) then return baseMissionsFor(p) end
+  local u = ok(Unit.getByName, p.unit)
+  local here = alive(u) and u:getPoint() or p.spawn
+  local range = XC().ground.rangeKm * 1000
+  local list = {}
+  for _, m in ipairs(B.war:openMissions(p.side)) do
+    if m.needs == "GROUND" then
+      local pos = B.missionPos(m)
+      local d = (pos and here) and dist2D(pos, here) or math.huge
+      if d <= range then list[#list + 1] = { m = m, d = d } end
+    end
+  end
+  table.sort(list, function(a, b) return a.d < b.d end)
+  local out = {}
+  for _, e in ipairs(list) do
+    out[#out + 1] = setmetatable({ _nm = math.floor(e.d / 1852 + 0.5) }, { __index = e.m })
+  end
+  return out
+end
+
+local baseMissionPos = B.missionPos
+function B.missionPos(m)
+  if m.type == "GCONVOY" then return baseMissionPos({ type = "CONVOY", target = m.target }) end
+  return baseMissionPos(m)
+end
+
+if B.EFFECT then
+  B.EFFECT.ASSAULT = "Drive with the attack and take the base. Be within 5 km of it for 5 min to get the credit."
+  B.EFFECT.HOLD = "Hold the base until the attack breaks. Be within 5 km of it for 5 min to get the credit."
+  B.EFFECT.GCONVOY = "Escort the supply convoy by road until it arrives. Stay within 5 km of it for 5 min for the credit."
+end
+
+-- Who was there: one sample per poll for every ground player on a ground mission.
+function B.groundPresenceTick()
+  local now = timer.getTime()
+  local dt = now - (B.x4.presenceAt or now)
+  B.x4.presenceAt = now
+  if dt <= 0 then return end
+  local km = XC().ground.presenceKm * 1000
+  for _, p in pairs(B.players or {}) do
+    local m = p.ground and p.mission and B.war.state.missions[p.mission]
+    local u = m and ok(Unit.getByName, p.unit)
+    if m and m.status == "open" and alive(u) then
+      local pos = B.missionPos(m)
+      if pos and dist2D(u:getPoint(), pos) <= km then B.war:groundPresence(m.id, p.key, dt) end
+    end
+  end
+end
+
+-- A platoon a player is driving stays spawned, wherever he takes it.
+local baseUpdateLive = B.updateLive
+function B.updateLive()
+  baseUpdateLive()
+  local st = B.war.state
+  for _, p in pairs(B.players or {}) do
+    local u = p.ground and ok(Unit.getByName, p.unit)
+    local g = u and ok(u.getGroup, u)
+    local pid = g and (ok(g.getName, g) or ""):match("^DCC_(p%d+)$")
+    if pid then
+      for _, id in ipairs(B.war.T.order) do
+        for _, x in ipairs(st.nodes[id].platoons) do if x == pid then B.liveNodes[id] = true end end
+      end
+      for _, mv in pairs(st.moves) do
+        for _, x in ipairs(mv.platoons or {}) do
+          if x == pid then B.liveNodes[mv.from], B.liveNodes[mv.to] = true, true end
+        end
+      end
+    end
+  end
 end
 
 -- ===========================================================================
@@ -14360,6 +14559,11 @@ end
 local baseOpsEvent = B.onOpsEvent
 function B.onOpsEvent(e)
   baseOpsEvent(e)
+  -- a CA player taking over a vehicle that already exists (no birth event)
+  if e.id == world.event.S_EVENT_PLAYER_ENTER_UNIT and e.initiator and isGroundUnit(e.initiator)
+     and ok(e.initiator.getPlayerName, e.initiator) and not B.players[ok(e.initiator.getName, e.initiator) or ""] then
+    B.registerPlayer(e.initiator)
+  end
   if e.id == world.event.S_EVENT_TAKEOFF and e.initiator then
     local p = B.players[ok(e.initiator.getName, e.initiator) or ""]
     if p then B.qraTakeoff(p) end
@@ -14502,6 +14706,7 @@ end
 local basePoll = B.opsPoll
 function B.opsPoll()
   basePoll()
+  B.groundPresenceTick()
   B.qraScan()
   B.perfCheck()
 end
