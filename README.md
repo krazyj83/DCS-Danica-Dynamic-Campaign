@@ -851,7 +851,7 @@ Measured with the offline simulator, no players online:
 ## Testing offline
 
 Nothing here needs DCS to test. The engine is plain Lua 5.1 (the version DCS uses) and runs
-under Python via `lupa` — 16 suites, 864 checks in v0.26:
+under Python via `lupa` — 17 suites, 902 checks in v0.27:
 
 ```bash
 pip install lupa matplotlib
