@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.29.0",
+  version         = "0.30.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -386,7 +386,10 @@ DCC.config = {
     -- 6b. ground missions (ASSAULT, HOLD, GCONVOY) for players in ground vehicles:
     --     shown within rangeKm, credit after presenceMin minutes within presenceKm
     ground = { rangeKm = 60, presenceKm = 5, presenceMin = 5,
-               artyKm = 6, dangerCloseM = 300 },   -- Support > Artillery for ground players (v0.29)
+               artyKm = 6, dangerCloseM = 300,     -- Support > Artillery for ground players (v0.29)
+               -- Support > Smoke screen ahead (v0.30): 5 smoke rounds across the heading
+               smokeSU = 2, smokeAheadM = 500, smokeWidthM = 400, smokeRounds = 5,
+               smokeMinutes = 3, smokeCooldownMin = 5, smokePreset = 6 },
     -- 15. Engineer repair kit (CTLD > Engineering, any lift helicopter)
     repair = { weight = 1000.01, charge = 2, km = 3 },    -- charge x crateSU = 20 SU
     -- 16. Performance guard: fewer live units when DCS carries many ground units

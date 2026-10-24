@@ -186,6 +186,64 @@ function B.groundFire(uname, how)
   if not s then U.log("ERROR ground fire mission: %s", tostring(err)) end
 end
 
+-- Smoke screen (v0.30): a battery within artyRangeKm fires smoke rounds that
+-- build a curtain smokeAheadM in front of the vehicle, across its heading.
+-- Cheap (smokeSU) and on its own cooldown per player, not the side's guns.
+local function forwardOf(u, p)
+  local pos = ok(u.getPosition, u)
+  if pos and pos.x and (pos.x.x ~= 0 or pos.x.z ~= 0) then
+    local l = math.sqrt(pos.x.x ^ 2 + pos.x.z ^ 2)
+    return { x = pos.x.x / l, z = pos.x.z / l }
+  end
+  local here, tgt = u:getPoint(), enemyInSight(p, u)        -- no heading: toward the enemy, else north
+  if tgt then
+    local d = math.max(1, dist2D(here, tgt))
+    return { x = (tgt.x - here.x) / d, z = (tgt.z - here.z) / d }
+  end
+  return { x = 1, z = 0 }
+end
+
+function B.groundSmoke(uname)
+  local p = B.players[uname]
+  local u = p and ok(Unit.getByName, uname)
+  if not (p and alive(u)) then return end
+  local function tell(t) trigger.action.outTextForGroup(p.gid, t, 12) end
+  local gc, war = XC().ground, B.war
+  local now = timer.getTime()
+  B.x4.smokeAt = B.x4.smokeAt or {}
+  local left = (B.x4.smokeAt[p.key] or -math.huge) + gc.smokeCooldownMin * 60 - now
+  if left > 0 then return tell(string.format("Smoke rounds reloading - %d min.", math.ceil(left / 60))) end
+  local here, f = u:getPoint(), forwardOf(u, p)
+  local c = { x = here.x + f.x * gc.smokeAheadM, z = here.z + f.z * gc.smokeAheadM }
+  local range = DCC.config.ext.support.artyRangeKm * 1000
+  local battery
+  for _, b in ipairs(war:batteries(p.side) or {}) do
+    if b.status == "up" and b.node and B.nodePos[b.node] and dist2D(B.nodePos[b.node], c) <= range then battery = b; break end
+  end
+  if not battery then return tell(string.format("No battery within %d km for smoke.", DCC.config.ext.support.artyRangeKm)) end
+  if not war:paySupport(battery.node, gc.smokeSU) then return tell(war:nodeName(battery.node) .. " has no supply for smoke.") end
+  B.x4.smokeAt[p.key] = now
+  B.x4.smokeN = (B.x4.smokeN or 0) + 1
+  local n, w = gc.smokeRounds, gc.smokeWidthM
+  local names = {}
+  for i = 1, n do
+    local off = (n == 1) and 0 or (-w / 2 + w * (i - 1) / (n - 1))
+    local x, z = c.x - f.z * off, c.z + f.x * off                 -- across the heading
+    local pt = { x = x, y = ok(land.getHeight, { x = x, y = z }) or 0, z = z }
+    local name = string.format("DCC_SMOKE_%d_%d", B.x4.smokeN, i)
+    names[#names + 1] = name
+    timer.scheduleFunction(function()
+      ok(trigger.action.explosion, pt, 2)                            -- the shell bursting
+      ok(trigger.action.effectSmokeBig, pt, gc.smokePreset, 0.6, name)
+    end, nil, now + 20 + i * 2)
+  end
+  timer.scheduleFunction(function()
+    for _, name in ipairs(names) do ok(trigger.action.effectSmokeStop, name) end
+  end, nil, now + 20 + gc.smokeMinutes * 60)
+  tell(string.format("Smoke screen %d m ahead from %s - rounds on the way, curtain in 20 s for %d min.",
+    gc.smokeAheadM, war:nodeName(battery.node), gc.smokeMinutes))
+end
+
 if B.buildSupportMenu then
   local baseSupportMenu = B.buildSupportMenu
   function B.buildSupportMenu(p)
@@ -198,6 +256,7 @@ if B.buildSupportMenu then
       function(uname) B.groundFire(uname, "enemy") end, p.unit)
     missionCommands.addCommandForGroup(p.gid, "Artillery on my objective", root,
       function(uname) B.groundFire(uname, "objective") end, p.unit)
+    missionCommands.addCommandForGroup(p.gid, "Smoke screen ahead", root, B.groundSmoke, p.unit)
     if B.callArtillery then missionCommands.addCommandForGroup(p.gid, "Artillery on my map mark", root, B.callArtillery, p.unit) end
     if B.callCas then missionCommands.addCommandForGroup(p.gid, "CAS pair on my map mark", root, B.callCas, p.unit) end
     if B.callIllumination then

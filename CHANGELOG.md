@@ -6,6 +6,13 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.30.0 — 2026-10-24
+
+**Added**
+- **Smoke screen ahead** (F10 → Support for ground players): 5 smoke rounds from a battery within 35 km build a
+  400 m wide curtain 500 m in front of the vehicle, across its heading, 20 s after the call, for 3 min.
+  2 SU; own 5 min reload per player (the side's artillery cooldown is not used).
+
 ## 0.29.0 — 2026-10-24
 
 **Added**

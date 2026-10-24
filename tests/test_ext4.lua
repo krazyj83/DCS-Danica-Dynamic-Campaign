@@ -274,6 +274,27 @@ B.ext.cooldown.blue.arty = nil
 MOCK.groups.TEST_RED_T72.units[1].x = driver.x + 150
 MOCK.click(bg.id, "Artillery on the nearest enemy in sight")
 check("enemy 150 m away: danger close, no fire", (MOCK.lastGroupText(bg.id) or ""):find("Danger close", 1, true) ~= nil)
+-- smoke screen ahead
+local smokes, stops = {}, 0
+trigger.action.effectSmokeBig = function(pt, preset, dens, name) smokes[#smokes + 1] = { pt = pt, name = name } end
+trigger.action.effectSmokeStop = function() stops = stops + 1 end
+driver.getPosition = function(self) return { x = { x = 0, y = 0, z = 1 }, p = self:getPoint() } end   -- heading east
+local sSU = war.state.nodes[gnode].supply
+MOCK.click(bg.id, "Smoke screen ahead")
+check("smoke screen: 2 SU from the battery", math.abs(war.state.nodes[gnode].supply - (sSU - X.ground.smokeSU)) < 0.01)
+MOCK.advance(40)
+local allAhead = #smokes == X.ground.smokeRounds
+for _, sm in ipairs(smokes) do
+  if math.abs(sm.pt.z - (driver.z + X.ground.smokeAheadM)) > 1 or math.abs(sm.pt.x - driver.x) > X.ground.smokeWidthM / 2 + 1 then
+    allAhead = false
+  end
+end
+check("...5 smoke rounds in a curtain 500 m ahead, across the heading", allAhead, #smokes)
+MOCK.click(bg.id, "Smoke screen ahead")
+check("...own reload (artillery cooldown untouched)", (MOCK.lastGroupText(bg.id) or ""):find("reloading", 1, true) ~= nil)
+MOCK.advance(X.ground.smokeMinutes * 60)
+check("...the smoke clears after 3 min", stops == X.ground.smokeRounds)
+driver.getPosition = nil
 MOCK.killGroup("TEST_RED_T72")
 gp.mission = nil
 MOCK.click(bg.id, "Artillery on my objective")
