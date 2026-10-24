@@ -559,7 +559,7 @@ Spectators see only the front line and who owns each base.
 | **Threat** | Per side, per road: how much that side has lost there recently. Drives AI escorts, re-routing and CAP. |
 | **FARP** | A town where players delivered 3 crates: helicopter spawn, rearm, refuel. |
 | **public.json / feed.jsonl** | Public status and the event feed for the web map and Discord (written by the mission, read by `server/dcc_companion.py`). |
-| **Territory** | The ground each base holds: its Voronoi cell (closer to it than to any other base, at most 75 km). A side's territory is the union of its cells; the front is where BLUE and RED cells meet. |
+| **Territory** | The ground each base holds: its Voronoi cell (closer to it than to any other base). Cells fill the whole area spanned by the bases (no gaps between far-apart bases) and stop 75 km beyond the outermost ones. A side's territory is the union of its cells; the front is where BLUE and RED cells meet. |
 | **Theater pack** | A data file per map (`theaters/*.lua`): nodes with lat/lon, roads, start owners. No map is named in engine code. |
 | **Era catalog** | A data file per era (`catalogs/*.lua`) mapping roles to DCS unit types per side, plus convoy trucks, transports and player aircraft. |
 
@@ -734,7 +734,8 @@ The offline tests use a fake DCS API, so these need a real server to confirm:
 
 - **Territory and front line** — each side's ground is shaded in its colour and the front is a continuous
   yellow line between them, pockets and enclaves included. Every base owns the ground closer to it than
-  to any other base (its *Voronoi cell*, capped at 75 km so territory does not run out over the sea); the
+  to any other base (its *Voronoi cell*). The cells fill the whole area spanned by the bases — no gaps where
+  bases are far apart — and stop 75 km beyond the outermost bases so territory does not run out over the sea; the
   front is wherever a BLUE cell meets a RED cell. Redrawn when a base changes hands. The idea comes from
   [rurounijones/frontline](https://github.com/rurounijones/frontline) (C#, AGPL); this is an independent
   Lua implementation that runs inside the mission (`src/dcc_territory.lua`).

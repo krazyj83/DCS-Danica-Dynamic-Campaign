@@ -8,7 +8,9 @@
 -- front line is every cell border where a BLUE cell meets a RED cell.
 --
 --   * Cells are capped at territory.reachKm around their base (a 24-gon), so
---     territory does not run out over open sea or off the map.
+--     territory does not run out over open sea or off the map. With fillHoles
+--     the cap is shared: the convex hull of every base's circle, so there are
+--     no holes between bases that are far apart.
 --   * Each cell is computed by clipping that cap with the perpendicular
 --     bisector against every other base (Sutherland-Hodgman on a convex
 --     polygon; ~50 bases = 2,500 clips, a few milliseconds).
@@ -81,6 +83,29 @@ local function clip(poly, s, o, tag)
   return out
 end
 
+-- Convex hull (Andrew's monotone chain) of points {x, y}, counter-clockwise.
+local function convexHull(points)
+  local p = {}
+  for _, q in ipairs(points) do p[#p + 1] = { x = q.x, y = q.y } end
+  table.sort(p, function(a, b) if a.x ~= b.x then return a.x < b.x end return a.y < b.y end)
+  if #p < 3 then return p end
+  local function cross(o, a, b) return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x) end
+  local lower, upper = {}, {}
+  for _, q in ipairs(p) do
+    while #lower >= 2 and cross(lower[#lower - 1], lower[#lower], q) <= 0 do lower[#lower] = nil end
+    lower[#lower + 1] = q
+  end
+  for i = #p, 1, -1 do
+    local q = p[i]
+    while #upper >= 2 and cross(upper[#upper - 1], upper[#upper], q) <= 0 do upper[#upper] = nil end
+    upper[#upper + 1] = q
+  end
+  lower[#lower] = nil
+  upper[#upper] = nil
+  for _, q in ipairs(upper) do lower[#lower + 1] = q end
+  return lower
+end
+
 -- ---------------------------------------------------------------------------
 -- Cells
 -- ---------------------------------------------------------------------------
@@ -93,17 +118,35 @@ function T.cells(sites)
     pts[i] = { x = x, y = y, id = s.id, side = s.side }
   end
   local reach, k = cfg().reachKm, cfg().capSides
+  local fill = cfg().fillHoles ~= false
+  local function ring(s)
+    local r = {}
+    for j = 0, k - 1 do
+      local a = 2 * math.pi * j / k
+      r[#r + 1] = { x = s.x + reach * math.cos(a), y = s.y + reach * math.sin(a) }
+    end
+    return r
+  end
+  -- fillHoles: one cap for everybody, the convex hull of every base's reach circle
+  -- (the area spanned by all bases, plus reach around it). Ground between bases
+  -- that are far apart is always somebody's - no holes - while the outer edge still
+  -- stops at reach beyond the outermost bases.
+  local shared
+  if fill then
+    local all = {}
+    for _, s in ipairs(pts) do for _, v in ipairs(ring(s)) do all[#all + 1] = v end end
+    shared = convexHull(all)
+  end
   local cells = {}
   for i, s in ipairs(pts) do
     local poly = {}
-    for j = 0, k - 1 do
-      local a = 2 * math.pi * j / k
-      poly[#poly + 1] = { x = s.x + reach * math.cos(a), y = s.y + reach * math.sin(a), tag = false }
-    end
+    for _, v in ipairs(shared or ring(s)) do poly[#poly + 1] = { x = v.x, y = v.y, tag = false } end
+    local far = 0
+    for _, v in ipairs(poly) do far = math.max(far, (v.x - s.x) ^ 2 + (v.y - s.y) ^ 2) end
     for j, o in ipairs(pts) do
       if j ~= i and #poly > 0 then
         local dx, dy = o.x - s.x, o.y - s.y
-        if dx * dx + dy * dy < (2 * reach) ^ 2 then      -- farther sites cannot touch this cell
+        if dx * dx + dy * dy < 4 * far then               -- farther sites cannot touch this cell
           poly = clip(poly, s, o, o.id)
         end
       end

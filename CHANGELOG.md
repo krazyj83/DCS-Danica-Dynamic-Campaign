@@ -6,6 +6,17 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.26.1 — 2026-10-24
+
+**Fixed**
+- **Gap in RED's territory on Caucasus** (between Maykop, Armavir and Cherkessk): territory cells were
+  capped at 75 km around each base, leaving holes where bases are far apart. Cells now share one cap —
+  the area spanned by all bases plus 75 km around it — so every side's territory is solid on all four
+  maps; the outer edge still stops 75 km beyond the outermost bases.
+
+**Added**
+- Test: every point along every road on all four maps belongs to exactly one side's territory.
+
 ## 0.26.0 — 2026-10-23
 
 **Added**

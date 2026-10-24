@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.26.0",
+  version         = "0.26.1",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -244,6 +244,7 @@ DCC.config = {
   -- Territory and front line (Voronoi cells around every base)
   territory = {
     reachKm   = 75,     -- a base claims ground at most this far (keeps territory off open sea)
+    fillHoles = true,   -- ...except inside the area spanned by all bases: no gaps between far-apart bases
     capSides  = 24,     -- polygon used for that limit
     fillAlpha = 0.35,   -- territory shading on the F10 map (0 = none, 1 = solid)
     lineWidth = 3,      -- front line thickness style

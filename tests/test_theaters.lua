@@ -70,5 +70,39 @@ for _, name in ipairs(DCC.config.rotation) do
   end
 end
 
+print("Territory has no holes")
+local function inside(poly, lat, lon)
+  local c, n = false, #poly
+  for i = 1, n do
+    local a, b = poly[i], poly[i % n + 1]
+    if ((a.lat > lat) ~= (b.lat > lat)) and (lon < (b.lon - a.lon) * (lat - a.lat) / (b.lat - a.lat) + a.lon) then
+      c = not c
+    end
+  end
+  return c
+end
+for _, name in ipairs({ "Caucasus", "Syria", "PersianGulf", "GermanyCW" }) do
+  local w = DCC.War.new(DCC_THEATERS[name], DCC_CATALOGS.modern, DCC.config, 3)
+  local terr = DCC.territory.compute(w)
+  -- every point between two bases (thirds along every road) is in exactly one cell
+  local miss, multi = 0, 0
+  for _, e in ipairs(DCC_THEATERS[name].edges) do
+    local a, b = w.T.nodes[e[1]], w.T.nodes[e[2]]
+    for _, t in ipairs({ 1 / 3, 1 / 2, 2 / 3 }) do
+      local lat, lon = a.lat + (b.lat - a.lat) * t, a.lon + (b.lon - a.lon) * t
+      local n = 0
+      for _, cell in ipairs(terr.territory) do if inside(cell.poly, lat, lon) then n = n + 1 end end
+      if n == 0 then miss = miss + 1 elseif n > 1 then multi = multi + 1 end
+    end
+  end
+  check(name .. ": every point on every road belongs to a side (no gaps, no overlaps)", miss == 0 and multi == 0,
+    miss .. " gaps, " .. multi .. " overlaps")
+  if name == "Caucasus" then
+    local n = 0
+    for _, cell in ipairs(terr.territory) do if inside(cell.poly, 44.0, 40.8) then n = n + 1 end end
+    check("Caucasus: the old gap between Maykop, Armavir and Cherkessk is filled", n == 1)
+  end
+end
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 DCC_EXIT_CODE = failed == 0 and 0 or 1
