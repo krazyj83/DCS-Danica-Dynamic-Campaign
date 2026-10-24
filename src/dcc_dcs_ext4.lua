@@ -78,6 +78,7 @@ function B.registerPlayer(u)
   if p and isGroundUnit(u) then
     p.ground, p.heli, p.slow = true, false, false
     B.buildMenu(p)
+    if B.buildSupportMenu then B.buildSupportMenu(p) end
   end
   return p
 end
@@ -126,6 +127,83 @@ if B.EFFECT then
   B.EFFECT.ASSAULT = "Drive with the attack and take the base. Be within 5 km of it for 5 min to get the credit."
   B.EFFECT.HOLD = "Hold the base until the attack breaks. Be within 5 km of it for 5 min to get the credit."
   B.EFFECT.GCONVOY = "Escort the supply convoy by road until it arrives. Stay within 5 km of it for 5 min for the credit."
+end
+
+-- Fire support for ground players (v0.29): the same artillery as the pilots'
+-- Support menu (rank, 10 min cooldown per side, 10 SU from a battery within
+-- 35 km), aimed without a map mark: the nearest enemy in sight, or the base of
+-- the ground mission. Never within dangerCloseM of the caller.
+local function enemyInSight(p, u)
+  local here = u:getPoint()
+  local eye = { x = here.x, y = here.y + 2.5, z = here.z }
+  local enemyCoal = p.side == "blue" and 1 or 2
+  local best, bestD
+  for _, g in ipairs(ok(coalition.getGroups, enemyCoal, Group.Category.GROUND) or {}) do
+    for _, e in ipairs(ok(g.getUnits, g) or {}) do
+      if alive(e) then
+        local ep = e:getPoint()
+        local d = dist2D(here, ep)
+        if d <= XC().ground.artyKm * 1000 and (not bestD or d < bestD) then
+          local seen = ok(land.isVisible, eye, { x = ep.x, y = ep.y + 1.5, z = ep.z })
+          if seen ~= false then best, bestD = ep, d end
+        end
+      end
+    end
+  end
+  return best, bestD
+end
+
+function B.groundFire(uname, how)
+  local p = B.players[uname]
+  local u = p and ok(Unit.getByName, uname)
+  if not (p and alive(u)) then return end
+  local function tell(t) trigger.action.outTextForGroup(p.gid, t, 12) end
+  local pos, what
+  if how == "enemy" then
+    local d
+    pos, d = enemyInSight(p, u)
+    if not pos then return tell(string.format("No enemy in sight within %d km.", XC().ground.artyKm)) end
+    what = string.format("nearest enemy, %d m", math.floor(d / 10 + 0.5) * 10)
+  else
+    local m = p.mission and B.war.state.missions[p.mission]
+    if not (m and m.status == "open" and m.needs == "GROUND") then
+      return tell("Take a ground mission first (F10 > Missions).")
+    end
+    pos = B.missionPos(m)
+    if not pos then return tell("The objective cannot be located right now.") end
+    what = m.type .. " " .. m.label
+  end
+  if dist2D(u:getPoint(), pos) < XC().ground.dangerCloseM then
+    return tell("Danger close - the target is too near you. Pull back first.")
+  end
+  tell("Fire mission: " .. what .. ".")
+  local realMark, ranks = B.newestMark, DCC.config.ext.ranks
+  local realRank = ranks.arty
+  B.newestMark = function() return { pos = { x = pos.x, y = 0, z = pos.z }, t = timer.getTime(), by = uname } end
+  ranks.arty = XC().ground.artyRank           -- nil: tank crews need no rank for their own fire missions
+  local s, err = pcall(B.callArtillery, uname)
+  B.newestMark, ranks.arty = realMark, realRank
+  if not s then U.log("ERROR ground fire mission: %s", tostring(err)) end
+end
+
+if B.buildSupportMenu then
+  local baseSupportMenu = B.buildSupportMenu
+  function B.buildSupportMenu(p)
+    if not (p and p.ground) then return baseSupportMenu(p) end
+    if not p.gid then return end
+    if p.supportMenu then ok(missionCommands.removeItemForGroup, p.gid, p.supportMenu) end
+    local root = missionCommands.addSubMenuForGroup(p.gid, "Support")
+    p.supportMenu = root
+    missionCommands.addCommandForGroup(p.gid, "Artillery on the nearest enemy in sight", root,
+      function(uname) B.groundFire(uname, "enemy") end, p.unit)
+    missionCommands.addCommandForGroup(p.gid, "Artillery on my objective", root,
+      function(uname) B.groundFire(uname, "objective") end, p.unit)
+    if B.callArtillery then missionCommands.addCommandForGroup(p.gid, "Artillery on my map mark", root, B.callArtillery, p.unit) end
+    if B.callCas then missionCommands.addCommandForGroup(p.gid, "CAS pair on my map mark", root, B.callCas, p.unit) end
+    if B.callIllumination then
+      missionCommands.addCommandForGroup(p.gid, "Illumination on my map mark", root, B.callIllumination, p.unit)
+    end
+  end
 end
 
 -- Who was there: one sample per poll for every ground player on a ground mission.

@@ -252,6 +252,33 @@ B.updateLive()
 check("driven 150 km away: his platoon stays spawned", B.liveNodes[gnode] == true)
 driver.x, driver.z = driver.x - 150000, driver.z
 
+print(" Artillery for ground players (v0.29)")
+local items = table.concat(MOCK.menuItems(bg.id), " | ")
+check("Support menu: artillery on the nearest enemy / objective", items:find("Artillery on the nearest enemy in sight", 1, true)
+  and items:find("Artillery on my objective", 1, true))
+check("...no AWACS picture or armoury for a tank", not items:find("AWACS picture", 1, true))
+local bat = war:batteries("blue")[1]
+bat.node, bat.status = gnode, "up"
+war.state.nodes[gnode].supply = 100
+B.ext.cooldown.blue.arty = nil
+coalition.addGroup(81, Group.Category.GROUND, { name = "TEST_RED_T72", units = {
+  { name = "TEST_RED_T72_1", type = "T-72B", x = driver.x + 2000, y = driver.z } } })
+local su0 = war.state.nodes[gnode].supply
+MOCK.click(bg.id, "Artillery on the nearest enemy in sight")
+check("enemy 2 km away in sight: fire mission for 10 SU, no rank needed",
+  math.abs(war.state.nodes[gnode].supply - (su0 - DCC.config.ext.support.artySU)) < 0.01, war.state.nodes[gnode].supply)
+check("...the side hears it", (MOCK.texts[#MOCK.texts] or ""):find("fire mission", 1, true) ~= nil, MOCK.texts[#MOCK.texts])
+MOCK.click(bg.id, "Artillery on the nearest enemy in sight")
+check("...then the guns are busy", (MOCK.lastGroupText(bg.id) or ""):find("busy", 1, true) ~= nil, MOCK.lastGroupText(bg.id))
+B.ext.cooldown.blue.arty = nil
+MOCK.groups.TEST_RED_T72.units[1].x = driver.x + 150
+MOCK.click(bg.id, "Artillery on the nearest enemy in sight")
+check("enemy 150 m away: danger close, no fire", (MOCK.lastGroupText(bg.id) or ""):find("Danger close", 1, true) ~= nil)
+MOCK.killGroup("TEST_RED_T72")
+gp.mission = nil
+MOCK.click(bg.id, "Artillery on my objective")
+check("no ground mission: no objective to shell", (MOCK.lastGroupText(bg.id) or ""):find("ground mission first", 1, true) ~= nil)
+
 print(" A day")
 viper.air = false
 for _ = 1, 288 do MOCK.advance(300) end

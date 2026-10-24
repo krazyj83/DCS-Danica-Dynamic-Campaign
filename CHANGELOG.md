@@ -6,6 +6,15 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.29.0 — 2026-10-24
+
+**Added**
+- **Fire support for ground players:** a Combined Arms player in a vehicle gets his own F10 → Support menu —
+  *Artillery on the nearest enemy in sight* (within 6 km, line of sight), *Artillery on my objective* (the ground
+  mission's base or convoy), *Artillery / CAS pair / Illumination on my map mark*.
+- Same batteries, cost (10 SU), 12 rounds and 10 min cooldown per side as the pilots' artillery; no rank needed
+  for tank crews; targets within 300 m are refused (danger close).
+
 ## 0.28.0 — 2026-10-24
 
 **Added**

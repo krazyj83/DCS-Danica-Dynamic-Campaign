@@ -190,7 +190,7 @@ REFERENCE = [
         "Supply comes by road convoy, airlift, helicopter crates and supply ships.",
         "FARP: kit or 3 crates at a friendly town; resupply it or it runs dry.",
         "Repair kit at a friendly base: a building, then SAM, then EWR fixed at once.",
-        "Combined Arms: drive your platoons; ground missions ASSAULT / HOLD / GCONVOY.",
+        "Combined Arms: drive your platoons; ASSAULT / HOLD / GCONVOY; Support > Artillery.",
     ]),
     ("NIGHT AND WEATHER", [
         "Night 20:00-06:00: half visual range, no AI attack aircraft.",
