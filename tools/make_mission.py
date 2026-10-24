@@ -21,6 +21,7 @@ What the mission contains:
     The engine configures and starts CTLD itself (src/dcc_dcs_ctld.lua).
     --no-ctld leaves CTLD out (the engine's own helicopter Cargo menu is used).
   * Options: F10 map in fog-of-war mode, civil traffic off.
+  * Combined Arms slots per side: 2 Tactical Commander, 2 JTAC, 2 Observer (CA_SLOTS).
   * Kneeboard pages for every aircraft (tools/kneeboard.py): comms, map, reference.
   * DTC cartridges (F-16C, F/A-18C) from the templates in dtc/: radio presets and
     displays as made in the Mission Editor; the Hornet gets every airbase and town
@@ -143,6 +144,9 @@ def pick_loadout(cls, wishes):
                 left[wish] -= 1
                 break
     return chosen
+
+
+CA_SLOTS = {"commander": 2, "jtac": 2, "observer": 2}
 
 
 def build_ai_templates(m, catalog, cjtf, theater):
@@ -528,6 +532,16 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
     # the last-known enemy positions on top. ("Allies only" = optview_onlyallies.)
     m.forced_options.options_view = ForcedOptions.Views.Allies
     m.forced_options.civil_traffic = ForcedOptions.CivilTraffic.Off
+
+    # Combined Arms slots (v0.27): per side 2 tactical commanders, 2 JTACs and
+    # 2 observers. The campaign's own platoons, convoys, artillery and skirmish
+    # groups are spawned player-drivable (config ext4.ca). Needs the CA module.
+    gc = m.groundControl
+    for side in ("blue", "red"):
+        setattr(gc, f"{side}_tactical_commander", CA_SLOTS["commander"])
+        setattr(gc, f"{side}_jtac", CA_SLOTS["jtac"])
+        setattr(gc, f"{side}_observer", CA_SLOTS["observer"])
+    gc.pilot_can_control_vehicles = False
     m.set_description_text(
         "Danica Dynamic Campaign - persistent war on " + theater_name + ".\n"
         "Fly from any airbase your side owns (multiplayer: dynamic spawn) or from the fixed depot slots.\n"

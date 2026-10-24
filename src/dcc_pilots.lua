@@ -19,7 +19,7 @@ DCC.Pilots = Pilots
 Pilots.POINTS = {
   kills_air = 10, kills_ground = 3, kills_convoy = 2, kills_sam = 8, kills_structure = 5,
   missions = 20, rescues = 25, deaths = -10, captured = -5, prisoners = 15,
-  packages = 10, medevacs = 15, pows = 10, team = 5,
+  packages = 10, medevacs = 15, pows = 10, team = 5, qra = 10,
   wins_conquest = 150,   -- flew for the side that conquered the whole map
   wins_clock = 50,       -- flew for the side that was ahead when the war clock ran out
 }
@@ -37,7 +37,7 @@ end
 
 local FIELDS = { "sorties", "flightMinutes", "kills_air", "kills_ground", "kills_convoy", "kills_sam",
                  "kills_structure", "missions", "rescues", "deaths", "ejections", "captured", "saved",
-                 "wins_conquest", "wins_clock", "prisoners", "packages", "medevacs", "pows", "team" }
+                 "wins_conquest", "wins_clock", "prisoners", "packages", "medevacs", "pows", "team", "qra" }
 
 -- Squadron tag from a player name: "[VKG] Morten", "VKG | Morten", "-=VKG=- Morten",
 -- "Morten [VKG]". Tags are 2-8 letters/digits; returned upper-case, or nil.

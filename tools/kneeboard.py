@@ -165,7 +165,7 @@ REFERENCE = [
     ("F10 > OTHER", [
         "Missions > Join a flight | Mission board | My mission | Pilot records | Cargo",
         "Support > Artillery / CAS / Illumination on my map mark, AWACS picture, Armoury",
-        "CTLD > troops, crates, FARP kit (Chinook / Mi-8), FOB, sling loads",
+        "CTLD > troops, crates, FARP kit (Chinook / Mi-8), Repair kit (any helo), FOB",
         "Campaign > Campaign status (front, supply, weather, dangerous roads)",
     ]),
     ("MISSION TYPES", [
@@ -176,6 +176,7 @@ REFERENCE = [
         "Ships: SHIPSTRIKE / SHIPESCORT (supply ships on the sea lanes)",
         "Helicopters see missions within ~60 nm, slow aircraft ~120 nm.",
         "Several pilots can fly one mission: everyone gets the credit (+ team bonus).",
+        "QRA: scrambled on the ground? Airborne in 5 min = the INTERCEPT is yours (+10).",
     ]),
     ("HOW A BASE FALLS", [
         "Every defending platoon destroyed while attackers are there.",
@@ -188,6 +189,8 @@ REFERENCE = [
         "Shelves follow base supply: basic always, guided from 20 %, advanced from 45 %.",
         "Supply comes by road convoy, airlift, helicopter crates and supply ships.",
         "FARP: kit or 3 crates at a friendly town; resupply it or it runs dry.",
+        "Repair kit at a friendly base: a building, then SAM, then EWR fixed at once.",
+        "Combined Arms: commander / JTAC slots can drive your side's platoons.",
     ]),
     ("NIGHT AND WEATHER", [
         "Night 20:00-06:00: half visual range, no AI attack aircraft.",

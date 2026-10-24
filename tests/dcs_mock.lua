@@ -260,6 +260,16 @@ function coalition.addGroup(countryId, category, data)
   return g
 end
 
+-- Groups of a coalition and category (AI and player groups).
+function coalition.getGroups(coal, cat)
+  local out = {}
+  for _, g in pairs(MOCK.groups) do
+    local u = g.units[1]
+    if g.exists and u and u.coal == coal and (cat == nil or g.category == cat) then out[#out + 1] = g end
+  end
+  return out
+end
+
 -- Static objects (strike targets)
 local StaticMT = {}
 StaticMT.__index = StaticMT

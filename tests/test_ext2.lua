@@ -157,7 +157,7 @@ ctld = { dontInitialize = true }
 dofile(DCC_ROOT .. "/vendor/ctld/CTLD.lua")
 for _, f in ipairs({ "dcc_persist", "dcc_dcs", "dcc_dcs_supply", "dcc_dcs_ops", "dcc_dcs_intel", "dcc_dcs_radar",
                      "dcc_dcs_world", "dcc_dcs_jtac", "dcc_dcs_public", "dcc_dcs_air", "dcc_dcs_ground",
-                     "dcc_dcs_ctld", "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_dcs_ext2", "dcc_dcs_ext3", "dcc_dcs_armoury",
+                     "dcc_dcs_ctld", "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_dcs_ext2", "dcc_dcs_ext3", "dcc_dcs_ext4", "dcc_dcs_armoury",
                      "dcc_main" }) do
   dofile(DCC_ROOT .. "/src/" .. f .. ".lua")
 end
@@ -250,6 +250,14 @@ check("Generator and Runway repair kit in CTLD", genDesc ~= nil and rwDesc ~= ni
 war.state.nodes.kutaisi.supply = 200
 local h2 = MOCK.spawnPlayer(BLUE, "UH-1H", kp.x + 100, kp.z, "Small", true)
 check("a Huey cannot lift a generator", cm:spawnCrate(genDesc, { x = kp.x + 120, y = 0, z = kp.z }, BLUE, h2:getName(), "menu_ctld") == nil)
+local rkDesc
+for _, list in pairs(ctld.gs("spawnableCrates")) do
+  for _, c in ipairs(list) do if c.dccHeavy == "repair" then rkDesc = c end end
+end
+check("v0.27: Repair kit in CTLD > Engineering", rkDesc ~= nil)
+local suK = war.state.nodes.kutaisi.supply
+check("...a Huey can lift it, for 20 SU", rkDesc and cm:spawnCrate(rkDesc, { x = kp.x + 140, y = 0, z = kp.z }, BLUE,
+  h2:getName(), "menu_ctld") ~= nil and math.abs(war.state.nodes.kutaisi.supply - (suK - 20)) < 0.01)
 local hook = MOCK.spawnPlayer(BLUE, "CH-47Fbl1", kp.x + 100, kp.z, "Hook", true)
 local gen = cm:spawnCrate(genDesc, { x = kp.x + 130, y = 0, z = kp.z }, BLUE, hook:getName(), "menu_ctld")
 check("a Chinook can", gen ~= nil)

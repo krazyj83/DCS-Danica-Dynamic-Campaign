@@ -6,6 +6,24 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.27.0 — 2026-10-24
+
+**Added**
+- **Combined Arms slots:** per side 2 Tactical Commander, 2 JTAC and 2 Observer slots in every mission.
+  Campaign platoons, supply convoys, artillery and front skirmish groups spawn **player-drivable**
+  (`ext4.ca`); SAM, EWR and JTAC teams stay AI. A player in a vehicle is not slot-guarded and gets no
+  pilot menus.
+- **QRA scramble:** a new INTERCEPT alerts that side's grounded A2A pilots within 250 km with the threat,
+  intercept heading and range. Airborne within **5 min** = the INTERCEPT is taken automatically;
+  **+10 QRA bonus** (pilot field `qra`) when it is done.
+- **Engineer repair kit:** CTLD → Engineering → *Repair kit* (any lift helicopter, 1 t, 20 SU). Within
+  3 km of a friendly base it repairs at once a destroyed building, else the SAM, else the EWR.
+- **Performance guard:** counts the ground units in DCS every minute; from 700 / 1000 units the live
+  radius, live platoons, skirmishes and pop-ups shrink (scale 0.7 / 0.45), back at 15 % below; announced
+  to everyone.
+- Kneeboard quick reference: QRA, repair kit, Combined Arms.
+- New modules `src/dcc_ext4.lua`, `src/dcc_dcs_ext4.lua`; `tests/test_ext4.lua`.
+
 ## 0.26.1 — 2026-10-24
 
 **Fixed**

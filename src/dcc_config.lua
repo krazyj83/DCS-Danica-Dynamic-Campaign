@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.26.1",
+  version         = "0.27.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -372,6 +372,21 @@ DCC.config = {
     -- 10. night illumination: flares over night battles near players, and on call
     illum = { autoKm = 25, everySec = 120, heightM = 650, power = 1000000,
               callSU = 2, callKm = 30, callFlares = 4, callCooldownMin = 5 },
+  },
+
+  -- v0.27: Combined Arms, QRA, engineers, performance guard ----------------------
+  ext4 = {
+    -- 6. Combined Arms: campaign ground groups a CA commander / JTAC can drive
+    --    (platoons, supply convoys, artillery, skirmishes). Slots: make_mission.py.
+    ca = { playerCanDrive = true,
+           patterns = { "^DCC_p%d+$", "^DCC_c%d+$", "^DCC_ARTY_", "^DCC_SKIRM_" } },
+    -- 7. Quick reaction alert: grounded fighters are scrambled onto new INTERCEPTs
+    qra = { minutes = 5, km = 250 },
+    -- 15. Engineer repair kit (CTLD > Engineering, any lift helicopter)
+    repair = { weight = 1000.01, charge = 2, km = 3 },    -- charge x crateSU = 20 SU
+    -- 16. Performance guard: fewer live units when DCS carries many ground units
+    perf = { everySec = 60, restore = 0.85, minRadiusKm = 20,
+             levels = { { units = 700, scale = 0.7 }, { units = 1000, scale = 0.45 } } },
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------
