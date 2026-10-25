@@ -270,6 +270,16 @@ Når tallet falder 15 % under grænsen, kommer det tilbage.
 
 Feedback:
 
+### S-307
+**Minelægger uden Currenthill-mod**
+`Status: IKKE TESTET` · Kort: alle med søruter · Siden v0.35 · Offline: test_ext4
+
+1. Start en mission på en server uden Currenthill-asset-mod'en. Vent på en RED-minelægger.
+
+**Forvent:** RED's minelægger er en Molniya-korvet i stedet for Vasily Bykov. Ingen `DCC: ERROR` om ukendt type.
+
+Feedback:
+
 ---
 
 # P – Pilot
@@ -778,12 +788,27 @@ Feedback:
 
 ### P-803
 **Havneminer og MINESWEEP**
-`Status: IKKE TESTET` · Spillere: 1 i helikopter · Kort: alle med søruter · Siden v0.34 · Offline: test_ext4
+`Status: IKKE TESTET` · Spillere: 1 i helikopter · Kort: alle med søruter · Siden v0.34, ændret v0.35 · Offline: test_ext4
 
-1. Vent på en orange MINES-cirkel ved en egen havn. Tag MINESWEEP. Flyv under 150 m inden for 3 km af havnen
-   i 5 minutter.
+1. Vent på en orange MINES-cirkel ved en egen havn (fra v0.35 lagt af en minelægger, se P-804). Tag MINESWEEP.
+   Flyv under 150 m inden for 3 km af havnen i 5 minutter.
 
 **Forvent:** Missionen fuldføres, og cirklen forsvinder. Mens havnen er mineret, sejler ingen forsyningsskibe dertil.
+
+Feedback:
+
+### P-804
+**Minelægger og MINELAYER**
+`Status: IKKE TESTET` · Spillere: 1 i A2G-fly eller kamphelikopter · Kort: alle med søruter · Siden v0.35 · Offline: test_ext4
+
+1. Vent på en fjendtlig minelægger på vej mod en egen havn (BLUE: Castle class, RED: Vasily Bykov). Den kan tage
+   op til 6 timer at komme.
+2. Når den er opdaget: tag MINELAYER og sænk den.
+3. Lad en anden minelægger nå havnen.
+
+**Forvent:** Skibet sejler sørutens vej uden at gå på grund. Det kommer på din sides kort (*MINELAYER > havn*) og
+board, når det er en tredjedel inde, eller når en pilot er inden for 20 km. Sænket: ingen miner. Når det når 85 %
+af ruten: MINES-cirkel ved havnen, og skibet sejler hjem.
 
 Feedback:
 
