@@ -65,7 +65,7 @@ CARDS.append(("Oversigt", f"""
  ("Missions → My mission", "Briefing igen · Abandon mission"),
  ("Missions → Pilot records", "Journal · Leaderboard · Squadron"),
  ("Missions → JTAC", "Report target · Smoke · Next target"),
- ("Support", "Armoury · lysgranater · artilleri · CAS-par"),
+ ("Support", "Bogey dope · Armoury · lysgranater · artilleri · CAS-par"),
  ("CTLD", "Kasser · tropper · FOB · AA (heli)"),
 ])}
 <h2>Første sortie</h2>
@@ -74,7 +74,7 @@ CARDS.append(("Oversigt", f"""
  ("2", "Campaign status: main effort, SU, krigsur, seneste erobringer"),
  ("3", "Tag en mission → briefing + kortmærke »TYPE: …« (kun din gruppe)"),
  ("4", "Løs opgaven – hop gerne med via Join a flight"),
- ("5", "LAND på venlig base eller carrier → point krediteres"),
+ ("5", "LAND på venlig base, FARP eller carrier → point + debrief"),
 ])}
 """, [
  "Point tæller først ved landing – dør du på vej hjem, er de tabt",
@@ -116,6 +116,8 @@ CARDS.append(("Missioner: A2A & øvrige", f"""
  ("CONVOY", "Eskorter konvoj (heli) ≤3 km → aldrig baghold"),
  ("FARP", "FARP-kit eller 3 kasser til venlig by → helikopter-spawn"),
  ("MEDEVAC · POW", "Sårede/fanger hjem → garnison +10 % / intel om 2 baser"),
+ ("MINELAYER", "Fjendtlig minelægger mod egen havn → sænk den = ingen miner"),
+ ("MINESWEEP", "Heli <150 m ≤3 km af mineret havn, 5 min → minerne væk"),
 ])}
 """, [
  "Strike-pakker kommer ca. hvert 45. min – 2 strikers, 2 escorts, evt. 2 SEAD",
@@ -140,6 +142,7 @@ CARDS.append(("Fog of war & trusler", f"""
  ("SAM tænder", "uden radarstøtte", "25 km"),
  ("HARM", "SAM-radar mørk", "1–2 min"),
  ("Punktforsvar", "flytter sig efter skud", "1,5–4 km"),
+ ("Bogey dope", "Support: nærmeste set fjendtlige fly, BRAA", "≤100 nm"),
 ])}
 """, [
  "Lavt og væk fra AWACS = usynlig på fjendens kort",
@@ -219,7 +222,10 @@ CARDS.append(("Frekvenser & tal", f"""
 async def main():
     total = len(CARDS)
     async with async_playwright() as p:
-        b = await p.chromium.launch()
+        try:
+            b = await p.chromium.launch()
+        except Exception:  # Playwright's own Chromium not installed: use Google Chrome
+            b = await p.chromium.launch(channel="chrome")
         pg = await b.new_page(viewport={"width": W, "height": H})
         for i, (t, m, s, tip) in enumerate(CARDS, 1):
             html = card(i, total, t, m, s, tip)

@@ -1,6 +1,6 @@
 # Danica Dynamic Campaign – Pilotguide
 
-Oct 22, 2026 · @Mark
+Opdateret 25. oktober 2026 til v0.35 · @Mark
 
 ## Velkommen
 
@@ -42,7 +42,15 @@ Din første sortie handler om én ting: tag en mission fra boardet, løs den, og
 3. **Tjek dine våben.** Ved spawn får du at vide, hvad basen kan bevæbne dig med. Det nemmeste overblik får du i Ground Crew → Rearm and Refuel.
 4. **Tag en mission.** *F10 → Other → Missions → Mission board* viser kun det, dit fly kan flyve, sorteret efter type (9 pr. side, *More missions* for resten). Du får en briefing med målets koordinater (grader/decimalminutter, DMS og MGRS), målets højde, kurs og afstand fra dig, og hvad succes gør. På F10-kortet kommer et DCS-kortmærke med missionens navn, fx »CAS: …« – kun synligt for din gruppe.
 5. **Flyv sammen.** *Join a flight* viser missioner, som andre piloter på din side flyver lige nu, uanset afstand. Ét klik, og du er med.
-6. **Løs opgaven og flyv hjem.** Missionspoint krediteres først, når du lander på en venlig base eller dit hangarskib. Dør du eller skyder dig ud på vejen hjem, mister du pointene – men skaden på fjenden tæller stadig i krigen.
+6. **Løs opgaven og flyv hjem.** Missionspoint krediteres først, når du lander på en venlig base, en FARP eller dit hangarskib. Dør du eller skyder dig ud på vejen hjem, mister du pointene – men skaden på fjenden tæller stadig i krigen.
+7. **Læs din debrief.** Når du lander, får du en debrief: flyvetid, kills fordelt på luft og jord, de missioner du var på, og hvad de gjorde ved krigen, point og eventuel forfremmelse.
+
+```
+DEBRIEF - 42 min
+Kills: 2 air, 3 ground
+CAS defend Senaki: COMPLETE - the battle went our way
+Points: +56 (total 412) - PROMOTED: Captain -> Major!
+```
 
 *My mission* gentager briefingen, og *Abandon mission* frigiver dig. Fortryder du et valg, er det helt fint at opgive og tage en anden.
 
@@ -79,7 +87,12 @@ SU (supply units) er brændstof, ammunition og reservedele i ét tal, og hver ba
 
 Krigen er en forsyningskæde: depoter producerer, transport fører frem, AI'en samler styrker til et angreb, og slaget afgør hvem der ejer basen. Hver ny base giver mere produktion – og hvert led kan du ramme.
 
-&#91;embedded content: krigens kredsløb · 4 led, og hvor du griber ind\]
+| Led i kredsløbet | Hvad sker der | Hvor du griber ind |
+| --- | --- | --- |
+| **Depoter** | Eneste sted der laves SU og nye delinger | STRIKE, INDUSTRY: færre delinger og mindre SU |
+| **Transport** | Konvojer, fly og skibe fører SU frem til fronten | BAI, INTERCEPT, SHIPSTRIKE: lasten når aldrig frem |
+| **Main effort** | AI'en samler styrker mod ét mål | CAP, SEAD, RECON: beskytter angrebet og finder målene |
+| **Slaget** | Angrebet afgør, hvem der ejer basen | CAS, tropper med helikopter: hvert kill er permanent |
 
 - **Noder og veje.** Kortet består af baser (flyvepladser, byer og depoter) forbundet af veje. Al jordbevægelse følger vejene. Depoter kan først angribes, når intet andet fra den side er inden for rækkevidde.
 - **Main effort** er hver sides éne hovedmål: den fjendtlige base, AI'en stabler delinger og SU op ved siden af, inden den angriber med det, den har samlet. Der er ikke et særligt mærke på kortet – du ser det i *Campaign status* (»Main effort: …«), i beskeder til din side, og som pile på F10-kortet, når angrebet rulles ud. CAP-missioner over det er mærket »(main effort)«. Er intet erobret i 12 timer, vælges et nyt.
@@ -122,7 +135,7 @@ Helikoptere ser kun missioner inden for **60 nm** af, hvor de spawnede, og langs
 
 ### Alle de øvrige missionstyper
 
-Boardet har 36 missionstyper i alt. Ud over dem ovenfor:
+Boardet har 38 missionstyper i alt (heraf 3 jordmissioner til Combined Arms). Ud over dem ovenfor:
 
 | Mission | Hvem | Mål | Succes når | Effekt i krigen |
 | --- | --- | --- | --- | --- |
@@ -132,6 +145,8 @@ Boardet har 36 missionstyper i alt. Ud over dem ovenfor:
 | **AMPHIB** | Alle | Dine marinesoldaters landgangshelikoptere fra Tarawa/Kuznetsov | Du er inden for 20 km, før de lander | Marinesoldaterne angriber en kystby |
 | **ANTISHIP** | Luft-til-jord | Fjendens hangarskibsgruppe (når den er fundet) | Sunket | Dens luftvinge er væk resten af krigen |
 | **SHIPSTRIKE / SHIPESCORT** | Luft-til-jord / alle | Et forsyningsskib på en sørute | Sunket / det lægger til med dig i nærheden | 40 SU tabt / leveret |
+| **MINELAYER** | Luft-til-jord og kamphelikoptere | En fjendtlig minelægger på vej mod din havn | Sunket, før den når 85 % af ruten | Ingen miner i havnen |
+| **MINESWEEP** | Helikoptere | Din minerede havn | 5 min i alt under 150 m inden for 3 km af havnen | Minerne er væk, og forsyningsskibene sejler igen |
 | **SCUD** | Luft-til-jord | En RED SCUD-launcher, der lige har skudt | Ødelagt, inden den flytter sig (\~15 min) | Ingen SCUD-nedslag fra den i 12 t |
 | **POPUP** | Luft-til-jord | En MANPADS-gruppe eller mobil SAM, nogen har set | Ødelagt | Én skjult trussel mindre ved fronten |
 | **COIN** | Luft-til-jord | Partisancelle ved en by, du holder (Syria, Golfen) | Gruppen er udslettet | Stopper sabotage og baghold omkring byen |
@@ -157,6 +172,14 @@ Begge sider har en pulje af AI-jagere og -angrebsfly: 16 af hver ved krigens sta
 | **Lagdelt luftforsvar** | En SAM tænder først på 60 km, når sidens EWR eller AWACS sporer dig; ellers venter den til 25 km. Hver stilling har punktforsvar (Avenger / Tor), der bliver tændt, når hovedradaren går mørk. | EWR først, så SEAD |
 
 **QRA (quick reaction alert).** Når en ny INTERCEPT åbner, får alle på din side, der står på jorden i et luft-til-luft-fly uden mission inden for 150 km, en scramble-besked med kurs og afstand. Er du i luften inden for **5 minutter**, er INTERCEPT'en din, og alle, der nåede det, får **+10 point**, når pakken er skudt ned. Helikoptere scrambles aldrig.
+
+**Bogey dope.** *F10 → Other → Support → Bogey dope* giver BRAA og aspekt til det nærmeste fjendtlige fly, din side har set inden for det seneste minut (radar, AWACS eller øjne), inden for 100 nm. Ingen rang kræves, og det virker i alle fly.
+
+```
+BOGEY DOPE: BRAA 090 / 20 nm / 20000 ft, HOT - MiG-29S (12 s old)
+```
+
+Aspekt: HOT (kommer mod dig), FLANKING, BEAM, DRAG. Det fulde AWACS-billede (de 5 nærmeste) kræver stadig Colonel.
 
 **Datalink.** Alle script-spawnede fly (AWACS, tankfly, AI-jagere, CTLD-helikoptere) har EPLRS tændt, så Link 16- og SADL-brugere ser AWACS-sporene. Faste slots har Mission Editorens datalink-opsætning og unikke Link 16 STN'er.
 
@@ -204,6 +227,8 @@ Alle fire kort har hangarskibsgrupper til begge sider.
 - **Når en gruppe er fundet** med radar eller øjne, får fjenden ANTISHIP-missioner, og hans AI slår til en gang imellem (RED Su-34 med Kh-31A, BLUE Hornets med 4 Harpoons). **Sunket = væk resten af krigen** med hele luftvingen, også efter en genstart.
 - **Landgang:** cirka hver 2. time sender Tarawa eller Kuznetsov 2 delinger marinesoldater med helikopter mod den svageste fjendtlige kystby inden for 70 km. Egen side: AMPHIB-eskorte. Fjenden: INTERCEPT på landgangshelikopterne.
 - **Søruter:** hvert kort har 5–8 ruter fra åbent hav til en havn. Hver 3. time sender en side et forsyningsskib (40 SU, 10 knob, 2–4 t) til sin laveste havn. Fjenden: SHIPSTRIKE. Ejeren: SHIPESCORT.
+- **Minelæggere og havneminer:** hver 6. time kan hver side (40 % chance) sende en minelægger mod en fjendtlig havn på en sørute – BLUE Castle class, RED Vasily Bykov (Molniya-korvet på servere uden Currenthill-mod'en). Den sejler ind ad ruten med 16 knob. Kystradaren opdager den en tredjedel inde, eller når en pilot er inden for 20 km; så får havnens side et kortmærke og en **MINELAYER**-mission. Sænkes den, bliver der ingen miner. Når den når 85 % af ruten, lægger den minerne og sejler hjem.
+- **Mineret havn:** orange MINES-cirkel på kortet, ingen forsyningsskibe sejler dertil, og et skib, der allerede er på vej, går på en mine. Havnens side får **MINESWEEP** til helikoptere: 5 minutter i alt under 150 m inden for 3 km af havnen – flere helikoptere rydder hurtigere. Uryddede miner forsvinder af sig selv efter 24 timer.
 
 ## Fog of war: du ser kun det, din side har fundet
 
@@ -288,6 +313,7 @@ Helikopterpiloter flytter krigen lige så meget som jetpiloter: de holder baser 
 - **MEDEVAC:** sårede efter et slag flyves til egen flyveplads eller depot → garnisonen +10 %.
 - **POW:** fanger efter en erobring flyves hjem → efterretning om de 2 nærmeste fjendtlige baser.
 - **Repair kit** (1 t, 20 SU): sat ned inden for 3 km af egen base reparerer det straks en bygning, en SAM eller en radar.
+- **MINESWEEP (v0.34):** er en egen havn mineret, ryd den ved at flyve under 150 m inden for 3 km af havnen i 5 minutter i alt. Så sejler forsyningsskibene igen.
 - **Lokale opgaver:** helikoptere ser kun missioner inden for 60 nm af, hvor de spawnede, og kampagnen laver opgaver tæt på dem, så en base bag linjen altid har arbejde.
 
 **CSAR:** når en pilot skyder sig ud, får hans side en redningsmission. Land inden for 150 m (grøn røg), og flyv ham hjem: han er reddet, og flyet refunderes. Efter 2 timer bliver han taget til fange. **SNATCH** er det omvendte: hent en fjendtlig pilot, og din side lærer hans hjemmebase at kende.
@@ -412,7 +438,7 @@ I DCS ses vejret som **tåge**, der ruller ind og letter (let dis før regn, 4 k
 | Missions → My mission | Gentag briefing / Abandon mission |
 | Missions → Pilot records | Din journal, leaderboard, squadron leaderboard |
 | Missions → JTAC | Report target, Mark with smoke, Next target (kun på CAS) |
-| Support | Artilleri, CAS-par, AWACS-billede, Armoury at this base, lysgranater på kortmærke |
+| Support | Bogey dope, artilleri, CAS-par, AWACS-billede, Armoury at this base, lysgranater på kortmærke |
 | CTLD | Kasser, tropper, FOB, AA, køretøjer (helikoptere) |
 
 **Frekvenser og koder**
@@ -446,4 +472,4 @@ I DCS ses vejret som **tåge**, der ruller ind og letter (let dis før regn, 4 k
 | Teambonus / pakkebonus | +5 / +10 |
 | Sejrsbonus | 3 sorties eller 1 mission: +150 erobring / +50 krigsur |
 
-Kilde: [DCS-Danica-Dynamic-Campaign på GitHub](https://github.com/krazyj83/DCS-Danica-Dynamic-Campaign) (v0.33). Missionen har også sine egne kneeboard-sider med frekvenser, kort og en quick reference.
+Kilde: [DCS-Danica-Dynamic-Campaign på GitHub](https://github.com/krazyj83/DCS-Danica-Dynamic-Campaign) (v0.35). Missionen har også sine egne kneeboard-sider med frekvenser, kort og en quick reference.
