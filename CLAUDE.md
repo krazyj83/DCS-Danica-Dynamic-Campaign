@@ -95,3 +95,16 @@ pages baked into the .miz), `dtc/` (DTC templates).
 Each change is a version bump: update `version` in `src/dcc_config.lua`, add a CHANGELOG.md entry
 (**Added** / **Changed** / **Fixed**), update README.md where behaviour is described, rebuild `dist/` (bundle
 and all .miz files are committed), and commit as `vX.Y.Z: <summary>`.
+
+## In-DCS test plan and feedback loop
+
+`docs/dcs-testplan.md` (Danish) lists every check that needs real DCS: `S-` tests need server access, `P-` tests
+can be done by a pilot in multiplayer. Each test has a stable ID, a `Status:` line (`IKKE TESTET`, `OK`, `DELVIS`,
+`FEJL`, `RETEST`, `SPRUNGET OVER`), a `Feedback:` field and the offline suite that covers it.
+
+- A new feature gets a new test there in the same commit; a changed feature sets its tests to `RETEST`. Never
+  renumber IDs; new tests take the next free number in their area.
+- When the user says they have tested: read every `FEJL` / `DELVIS` test and its feedback, first reproduce the
+  problem as a failing check in the named offline suite, then fix, run all suites, do the release steps above, set
+  the test to `RETEST` and add a `Rettet i vX.Y.Z: …` line under its feedback.
+- Keep the *Røgtest* list current: it is the set the user runs after every release.
