@@ -173,7 +173,7 @@ REFERENCE = [
         "CAP  ESCORT  PKGESCORT  HVAESCORT  INTERCEPT  TANKER  HVAA",
         "RECON (any aircraft, low pass)   SCUD hunt   POPUP (MANPADS / mobile SAM)",
         "Helicopters: CONVOY  CSAR  LOGISTICS  FARP  FARPSUP  MEDEVAC  POW  AMPHIB  MINESWEEP",
-        "Ships: SHIPSTRIKE / SHIPESCORT (supply ships on the sea lanes)",
+        "Ships: SHIPSTRIKE / SHIPESCORT (supply ships), MINELAYER (sink it before it mines a port)",
         "Helicopters see missions within ~60 nm, slow aircraft ~120 nm.",
         "Several pilots can fly one mission: everyone gets the credit (+ team bonus).",
         "QRA: scrambled on the ground? Airborne in 5 min = the INTERCEPT is yours (+10).",

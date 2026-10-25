@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.34.0",
+  version         = "0.35.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -108,7 +108,7 @@ DCC.config = {
                 FARPSUP = 2, INTERCEPT = 3, HVAESCORT = 2, PKGESCORT = 2, MEDEVAC = 2, POW = 2,
                 AMPHIB = 1, SHIPSTRIKE = 2, SHIPESCORT = 2, SCUD = 2, POPUP = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
                 RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2,
-                ASSAULT = 4, HOLD = 4, GCONVOY = 3, MINESWEEP = 2 },   -- ground missions (CA players), mine sweeping
+                ASSAULT = 4, HOLD = 4, GCONVOY = 3, MINESWEEP = 2, MINELAYER = 2 },   -- ground missions (CA players), mine sweeping
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
     slowTypes       = { "A-10A", "A-10C", "A-10C_2", "Su-25", "Su-25T", "L-39ZA", "C-101CC", "MB-339A",
@@ -400,7 +400,12 @@ DCC.config = {
     --    chance; they last lifeTicks; a ship past strikeAt of its lane hits them; a
     --    helicopter clears them flying sweepMin minutes below sweepAglM within sweepKm
     mines = { everyTicks = 72, chance = 0.4, lifeTicks = 288, strikeAt = 0.85,
-              sweepMin = 5, sweepAglM = 150, sweepKm = 3 },
+              sweepMin = 5, sweepAglM = 150, sweepKm = 3,
+              -- v0.35: laid by a real minelayer ship sailing the lane; spotted at detectAt
+              -- (coastal radar) or by an enemy aircraft within spotKm; first type that spawns
+              layerSpeedKmh = 30, detectAt = 0.3, spotKm = 20,
+              layerShips = { blue = { "CastleClass_01" },
+                             red = { "CHAP_Project22160", "MOLNIYA" } } },   -- Bykov is the Currenthill mod
     -- 1. Support > Bogey dope: nearest enemy aircraft your side has seen in the last staleSec
     bogey = { staleSec = 60, maxNm = 100 },
     -- 15. Engineer repair kit (CTLD > Engineering, any lift helicopter)

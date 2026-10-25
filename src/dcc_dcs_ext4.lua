@@ -840,10 +840,125 @@ function B.drawMines()
   end
 end
 
+-- Minelayer ships (v0.35) ----------------------------------------------------
+local function groupUnits(gname)
+  local g = gname and ok(Group.getByName, gname)
+  local out = {}
+  if g and ok(g.isExist, g) then
+    for _, u in ipairs(ok(g.getUnits, g) or {}) do if alive(u) then out[#out + 1] = u end end
+  end
+  return out
+end
+
+function B.minelayerPos(ml)
+  local rec = (B.x4.layers or {})[ml.id]
+  local u = rec and groupUnits(rec.group)[1]
+  if u then return u:getPoint() end
+  local l = B.war:laneOf(ml.port)
+  if not l then return nil end
+  local a, b = llv(l.start), llv(l.dock)
+  return { x = a.x + (b.x - a.x) * ml.progress, y = 0, z = a.z + (b.z - a.z) * ml.progress }
+end
+
+-- Spawn with the first type this server has (the Bykov is a mod: falls back).
+local function spawnLayer(ml, p, dock)
+  local cfg = XC().mines
+  local speed = cfg.layerSpeedKmh / 3.6
+  local hdg = math.atan2(dock.z - p.z, dock.x - p.x)
+  B.x4.layerN = (B.x4.layerN or 0) + 1
+  for _, t in ipairs((cfg.layerShips or {})[ml.side] or {}) do
+    local gname = string.format("DCC_MINELAYER_%s_%d", ml.id, B.x4.layerN)
+    local okA = pcall(coalition.addGroup, B.countryId(ml.side), Group.Category.SHIP, { name = gname,
+      units = { { name = gname .. "_1", type = t, skill = "Excellent", x = p.x, y = p.z, heading = hdg } },
+      route = { points = {
+        { x = p.x, y = p.z, type = "Turning Point", action = "Turning Point", speed = speed, ETA = 0,
+          ETA_locked = false, speed_locked = true },
+        { x = dock.x, y = dock.z, type = "Turning Point", action = "Turning Point", speed = speed, ETA = 0,
+          ETA_locked = false, speed_locked = true } } } })
+    if okA and #groupUnits(gname) > 0 then return gname, t end
+    local g = ok(Group.getByName, gname)
+    if g then ok(g.destroy, g) end
+    U.log("minelayer type %s not available, trying the next", t)
+  end
+  return nil
+end
+
+function B.reconcileMinelayers()
+  local war = B.war
+  B.x4.layers = B.x4.layers or {}
+  local mls = war:minelayers()
+  for id, rec in pairs(B.x4.layers) do
+    if not mls[id] then
+      local g = ok(Group.getByName, rec.group)
+      if g then ok(g.destroy, g) end                       -- mines laid (or called off): it heads home
+      B.x4.layers[id] = nil
+    elseif #groupUnits(rec.group) == 0 then
+      B.x4.layers[id] = nil
+      war:minelayerSunk(id)
+    end
+  end
+  local cfg = XC().mines
+  for _, id in ipairs(U.sortedKeys(war:minelayers())) do
+    local ml = war:minelayers()[id]
+    local pos = B.minelayerPos(ml)
+    -- spotted by an enemy aircraft that comes close
+    if pos and not ml.seen then
+      for _, u in ipairs(coalition.getPlayers(B.COAL[ml.side == "blue" and "red" or "blue"]) or {}) do
+        if alive(u) and dist2D(u:getPoint(), pos) <= cfg.spotKm * 1000 then war:spotMinelayer(id); break end
+      end
+    end
+    local l = war:laneOf(ml.port)
+    if l and pos and not B.x4.layers[id] and #B.playerPositions() > 0 then
+      local gname, t = spawnLayer(ml, pos, llv(l.dock))
+      if gname then B.x4.layers[id] = { group = gname, type = t } end
+    end
+  end
+end
+
+local baseMissionPos6 = B.missionPos
+function B.missionPos(m)
+  if m.type == "MINELAYER" then
+    local ml = B.war:minelayers()[m.target]
+    return ml and B.minelayerPos(ml)
+  end
+  return baseMissionPos6(m)
+end
+
+if B.EFFECT then
+  B.EFFECT.MINELAYER = "Sink the minelayer before it reaches the harbour. Once it lays its mines, no supply ship "
+    .. "can use the port until a helicopter sweeps it."
+end
+
+-- the hunted minelayer on the defender's map, redrawn every 5 min
+function B.drawMinelayers()
+  for _, id in ipairs(B.x4.layerMarks or {}) do ok(trigger.action.removeMark, id) end
+  B.x4.layerMarks = {}
+  for _, id in ipairs(U.sortedKeys(B.war:minelayers())) do
+    local ml = B.war:minelayers()[id]
+    local pos = ml.seen and B.minelayerPos(ml)
+    if pos then
+      B.x4.mineN = (B.x4.mineN or 0) + 1
+      local mid = DCC.config.markIdBase + 950000 + B.x4.mineN * 2
+      local coal = B.COAL[ml.side == "blue" and "red" or "blue"]
+      ok(trigger.action.textToAll, coal, mid, pos, { 1, 0.55, 0, 1 }, { 0, 0, 0, 0.4 }, 13, true,
+        "MINELAYER > " .. B.war:nodeName(ml.port))
+      B.x4.layerMarks[#B.x4.layerMarks + 1] = mid
+    end
+  end
+end
+
 local baseAnnounce5 = B.announce
 function B.announce(events)
   baseAnnounce5(events)
   for _, ev in ipairs(events) do
+    if ev.kind == "minelayer_out" or ev.kind == "minelayer_seen" or ev.kind == "minelayer_sunk" then
+      if B.COAL[ev.side] then trigger.action.outTextForCoalition(B.COAL[ev.side], "Command: " .. ev.text, 15) end
+      if ev.kind == "minelayer_sunk" then
+        local other = ev.side == "blue" and "red" or "blue"
+        trigger.action.outTextForCoalition(B.COAL[other], "Command: our minelayer for " .. B.war:nodeName(ev.node)
+          .. " has been sunk.", 15)
+      end
+    end
     if ev.kind == "mines_laid" or ev.kind == "mines_cleared" or ev.kind == "mine_strike" then
       if B.COAL[ev.side] then trigger.action.outTextForCoalition(B.COAL[ev.side], "Command: " .. ev.text, 15) end
       if ev.kind == "mines_laid" and ev.layer and B.COAL[ev.layer] then
@@ -862,6 +977,7 @@ local baseTick5 = B.opsTick
 function B.opsTick()
   baseTick5()
   B.drawMines()
+  B.drawMinelayers()
 end
 
 -- ===========================================================================
@@ -872,6 +988,7 @@ function B.opsPoll()
   basePoll()
   B.groundPresenceTick()
   B.sweepTick()
+  B.reconcileMinelayers()
   B.aiSmokeTick()
   B.defenseSmokeTick()
   B.qraScan()

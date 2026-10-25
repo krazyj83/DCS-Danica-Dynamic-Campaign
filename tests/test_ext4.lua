@@ -117,10 +117,30 @@ local laid = 0
 for k = 1, 12 do
   hm.state.tick = X.mines.everyTicks * k
   hm:harbourMinesTick()
-  for _ in pairs(hm.state.seaMines) do laid = laid + 1 end
-  hm.state.seaMines = {}
+  for _ in pairs(hm.state.minelayers or {}) do laid = laid + 1 end
+  hm.state.minelayers, hm.state.seaMines = {}, {}
 end
-check("the AI lays mines now and then", laid >= 2 and laid <= 20, laid)
+check("the AI sends minelayers now and then", laid >= 2 and laid <= 20, laid)
+print(" Minelayer ships (v0.35)")
+hm.state.tick = 5
+local mlid = hm:sendMinelayer("red", bport)
+local ml = hm.state.minelayers[mlid]
+check("RED minelayer sails for the BLUE port", ml and ml.progress == 0 and not ml.seen)
+hm:missionsTick()
+local mlm
+for _, m in pairs(hm.state.missions) do if m.type == "MINELAYER" then mlm = m end end
+check("...unseen: no mission yet", mlm == nil)
+while not ml.seen do hm:minelayerTick() end
+check("coastal radar picks it up at 30 %", ml.progress >= X.mines.detectAt and ml.progress < X.mines.strikeAt)
+hm:missionsTick()
+for _, m in pairs(hm.state.missions) do if m.type == "MINELAYER" and m.target == mlid then mlm = m end end
+check("...BLUE gets a MINELAYER mission (sink it)", mlm and mlm.side == "blue" and mlm.needs == "A2G")
+hm:minelayerSunk(mlid)
+check("sunk: no mines, mission done", not hm:isMined(bport) and hm:missionOutcome(mlm, {}) == "done")
+local ml2 = hm:sendMinelayer("red", bport)
+for _ = 1, 200 do if hm.state.minelayers[ml2] then hm:minelayerTick() end end
+check("not stopped: it lays the mines and heads home", hm:isMined(bport) and hm.state.minelayers[ml2] == nil)
+hm:missionsTick()
 
 -- ===========================================================================
 print("Bridge")
@@ -473,6 +493,37 @@ check("...mission complete", war.state.missions[swm.id].status == "done")
 B.drawMines()
 check("...and off the map", MOCK.countMarks("circle") == c0)
 huey.alive = false
+
+print(" Minelayer ships (v0.35)")
+war.state.seaMines = {}
+local mA = war:sendMinelayer("red", sport)
+viper.x, viper.z = kp.x, kp.z
+B.reconcileMinelayers()
+check("the minelayer is a real ship: Vasily Bykov", B.x4.layers[mA] and B.x4.layers[mA].type == "CHAP_Project22160")
+local rawAdd = coalition.addGroup
+coalition.addGroup = function(c, cat, data)
+  if data.units[1].type == "CHAP_Project22160" then error("unknown type") end
+  return rawAdd(c, cat, data)
+end
+war.state.minelayers[mA] = nil
+B.reconcileMinelayers()
+local mB = war:sendMinelayer("red", sport)
+B.reconcileMinelayers()
+coalition.addGroup = rawAdd
+check("...server without the mod: falls back to a core ship", B.x4.layers[mB] and B.x4.layers[mB].type == "MOLNIYA",
+  B.x4.layers[mB] and B.x4.layers[mB].type)
+local lp = B.minelayerPos(war.state.minelayers[mB])
+viper.x, viper.z, viper.air = lp.x + 10000, lp.z, true
+B.reconcileMinelayers()
+check("a BLUE pilot 10 km away spots it", war.state.minelayers[mB].seen)
+war:missionsTick()
+local hunt
+for _, m in pairs(war.state.missions) do if m.type == "MINELAYER" and m.target == mB then hunt = m end end
+check("...MINELAYER on BLUE's board, at the ship", hunt and B.missionPos(hunt) ~= nil)
+MOCK.killGroup(B.x4.layers[mB].group)
+B.reconcileMinelayers()
+check("sunk in DCS: sunk in the war, no mines", war.state.minelayers[mB] == nil and not war:isMined(sport))
+viper.air = false
 
 print(" A day")
 viper.air = false

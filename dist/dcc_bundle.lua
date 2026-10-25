@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.34.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.35.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.34.0",
+  version         = "0.35.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -112,7 +112,7 @@ DCC.config = {
                 FARPSUP = 2, INTERCEPT = 3, HVAESCORT = 2, PKGESCORT = 2, MEDEVAC = 2, POW = 2,
                 AMPHIB = 1, SHIPSTRIKE = 2, SHIPESCORT = 2, SCUD = 2, POPUP = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
                 RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2,
-                ASSAULT = 4, HOLD = 4, GCONVOY = 3, MINESWEEP = 2 },   -- ground missions (CA players), mine sweeping
+                ASSAULT = 4, HOLD = 4, GCONVOY = 3, MINESWEEP = 2, MINELAYER = 2 },   -- ground missions (CA players), mine sweeping
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
     slowTypes       = { "A-10A", "A-10C", "A-10C_2", "Su-25", "Su-25T", "L-39ZA", "C-101CC", "MB-339A",
@@ -404,7 +404,12 @@ DCC.config = {
     --    chance; they last lifeTicks; a ship past strikeAt of its lane hits them; a
     --    helicopter clears them flying sweepMin minutes below sweepAglM within sweepKm
     mines = { everyTicks = 72, chance = 0.4, lifeTicks = 288, strikeAt = 0.85,
-              sweepMin = 5, sweepAglM = 150, sweepKm = 3 },
+              sweepMin = 5, sweepAglM = 150, sweepKm = 3,
+              -- v0.35: laid by a real minelayer ship sailing the lane; spotted at detectAt
+              -- (coastal radar) or by an enemy aircraft within spotKm; first type that spawns
+              layerSpeedKmh = 30, detectAt = 0.3, spotKm = 20,
+              layerShips = { blue = { "CastleClass_01" },
+                             red = { "CHAP_Project22160", "MOLNIYA" } } },   -- Bykov is the Currenthill mod
     -- 1. Support > Bogey dope: nearest enemy aircraft your side has seen in the last staleSec
     bogey = { staleSec = 60, maxNm = 100 },
     -- 15. Engineer repair kit (CTLD > Engineering, any lift helicopter)
@@ -6334,15 +6339,99 @@ function War:harbourMinesTick()
       local best, bestScore
       for _, l in ipairs(self:lanes()) do
         local ns = self.state.nodes[l.port]
-        if ns and ns.side ~= side and not self.state.seaMines[l.port] then
+        local busy = false
+        for _, ml in pairs(self.state.minelayers or {}) do if ml.port == l.port then busy = true end end
+        if ns and ns.side ~= side and not self.state.seaMines[l.port] and not busy then
           local score = (ns.supply or 0) / math.max(1, self:supplyCap(l.port))
           for _, s in pairs(self.state.shipping) do if s.port == l.port then score = score - 10 end end
           if not bestScore or score < bestScore then best, bestScore = l.port, score end
         end
       end
-      if best then self:layMines(side, best) end
+      if best then self:sendMinelayer(side, best) end
     end
   end
+  self:minelayerTick()
+end
+
+-- ----------------------------------------------------------------------------
+-- 8b. Minelayer ships (v0.35): mines are laid by a real patrol ship (BLUE Castle
+-- class, RED Vasily Bykov) that sails the lane into the enemy harbour and lays
+-- them at strikeAt. It is spotted by coastal radar at detectAt (or by anyone
+-- who sees it) and the port's side gets a MINELAYER mission: sink it first.
+-- ----------------------------------------------------------------------------
+War.MISSION_NEEDS.MINELAYER = "A2G"
+War.MISSION_ORDER[#War.MISSION_ORDER + 1] = "MINELAYER"
+
+function War:minelayers() return self.state.minelayers or {} end
+
+function War:sendMinelayer(side, port)
+  local l = self:laneOf(port)
+  if not l then return nil end
+  self.state.minelayers = self.state.minelayers or {}
+  local id = self:newId("ml")
+  self.state.minelayers[id] = { id = id, side = side, port = port, progress = 0, km = U.distKm(l.start, l.dock),
+                                started = self.state.tick }
+  self:log("minelayer_out", side, string.format("%s minelayer sails for %s", side:upper(), self:nodeName(port)),
+    { node = port, minelayer = id })
+  return id
+end
+
+-- The port's side sees it (coastal radar, or a pilot): the hunt is on.
+function War:spotMinelayer(id)
+  local ml = (self.state.minelayers or {})[id]
+  if not ml or ml.seen then return false end
+  ml.seen = true
+  local enemy = U.otherSide(ml.side)
+  self:log("minelayer_seen", enemy, string.format("%s minelayer heading for %s - sink it before it lays mines",
+    ml.side:upper(), self:nodeName(ml.port)), { node = ml.port, minelayer = id })
+  return true
+end
+
+function War:minelayerSunk(id)
+  local ml = (self.state.minelayers or {})[id]
+  if not ml then return false end
+  self.state.minelayers[id] = nil
+  self.state.sunkMinelayers = self.state.sunkMinelayers or {}
+  self.state.sunkMinelayers[id] = self.state.tick
+  self:log("minelayer_sunk", U.otherSide(ml.side), string.format("%s minelayer bound for %s sunk - no mines",
+    ml.side:upper(), self:nodeName(ml.port)), { node = ml.port, minelayer = id })
+  return true
+end
+
+function War:minelayerTick()
+  local cfg = MC(self)
+  local step = cfg.layerSpeedKmh * self.cfg.tickSeconds / 3600
+  for _, id in ipairs(U.sortedKeys(self.state.minelayers or {})) do
+    local ml = self.state.minelayers[id]
+    ml.progress = math.min(1, ml.progress + step / math.max(ml.km, 0.1))
+    if ml.progress >= cfg.detectAt then self:spotMinelayer(id) end
+    if self.state.nodes[ml.port].side == ml.side then
+      self.state.minelayers[id] = nil                              -- the port changed hands: called off
+    elseif ml.progress >= cfg.strikeAt then
+      self.state.minelayers[id] = nil                              -- mines down, the ship heads home
+      self.state.laidBy = self.state.laidBy or {}
+      self.state.laidBy[id] = self.state.tick
+      self:layMines(ml.side, ml.port)
+    end
+  end
+  for id, t in pairs(self.state.sunkMinelayers or {}) do
+    if self.state.tick - t > 12 then self.state.sunkMinelayers[id] = nil end
+  end
+  for id, t in pairs(self.state.laidBy or {}) do
+    if self.state.tick - t > 12 then self.state.laidBy[id] = nil end
+  end
+end
+
+gen.MINELAYER = function(self, side)
+  local out = {}
+  for _, id in ipairs(U.sortedKeys(self.state.minelayers or {})) do
+    local ml = self.state.minelayers[id]
+    if ml.side ~= side and ml.seen then
+      out[#out + 1] = { type = "MINELAYER", target = id, node = ml.port, prio = 0,
+        label = string.format("%s minelayer bound for %s", ml.side:upper(), self:nodeName(ml.port)) }
+    end
+  end
+  return out
 end
 
 -- No ship sails for a mined port: they look "busy" to the planner.
@@ -6401,6 +6490,12 @@ end
 
 local baseOutcome2 = War.missionOutcome
 function War:missionOutcome(m, events)
+  if m.type == "MINELAYER" then
+    if (self.state.minelayers or {})[m.target] then return "open" end
+    if (self.state.sunkMinelayers or {})[m.target] then return "done" end
+    if (self.state.laidBy or {})[m.target] then return "failed" end
+    return "expired"
+  end
   if m.type ~= "MINESWEEP" then return baseOutcome2(self, m, events) end
   if m.sweepDone then return "done" end
   if self.state.nodes[m.target].side ~= m.side or not self:isMined(m.target) then return "expired" end
@@ -15317,10 +15412,125 @@ function B.drawMines()
   end
 end
 
+-- Minelayer ships (v0.35) ----------------------------------------------------
+local function groupUnits(gname)
+  local g = gname and ok(Group.getByName, gname)
+  local out = {}
+  if g and ok(g.isExist, g) then
+    for _, u in ipairs(ok(g.getUnits, g) or {}) do if alive(u) then out[#out + 1] = u end end
+  end
+  return out
+end
+
+function B.minelayerPos(ml)
+  local rec = (B.x4.layers or {})[ml.id]
+  local u = rec and groupUnits(rec.group)[1]
+  if u then return u:getPoint() end
+  local l = B.war:laneOf(ml.port)
+  if not l then return nil end
+  local a, b = llv(l.start), llv(l.dock)
+  return { x = a.x + (b.x - a.x) * ml.progress, y = 0, z = a.z + (b.z - a.z) * ml.progress }
+end
+
+-- Spawn with the first type this server has (the Bykov is a mod: falls back).
+local function spawnLayer(ml, p, dock)
+  local cfg = XC().mines
+  local speed = cfg.layerSpeedKmh / 3.6
+  local hdg = math.atan2(dock.z - p.z, dock.x - p.x)
+  B.x4.layerN = (B.x4.layerN or 0) + 1
+  for _, t in ipairs((cfg.layerShips or {})[ml.side] or {}) do
+    local gname = string.format("DCC_MINELAYER_%s_%d", ml.id, B.x4.layerN)
+    local okA = pcall(coalition.addGroup, B.countryId(ml.side), Group.Category.SHIP, { name = gname,
+      units = { { name = gname .. "_1", type = t, skill = "Excellent", x = p.x, y = p.z, heading = hdg } },
+      route = { points = {
+        { x = p.x, y = p.z, type = "Turning Point", action = "Turning Point", speed = speed, ETA = 0,
+          ETA_locked = false, speed_locked = true },
+        { x = dock.x, y = dock.z, type = "Turning Point", action = "Turning Point", speed = speed, ETA = 0,
+          ETA_locked = false, speed_locked = true } } } })
+    if okA and #groupUnits(gname) > 0 then return gname, t end
+    local g = ok(Group.getByName, gname)
+    if g then ok(g.destroy, g) end
+    U.log("minelayer type %s not available, trying the next", t)
+  end
+  return nil
+end
+
+function B.reconcileMinelayers()
+  local war = B.war
+  B.x4.layers = B.x4.layers or {}
+  local mls = war:minelayers()
+  for id, rec in pairs(B.x4.layers) do
+    if not mls[id] then
+      local g = ok(Group.getByName, rec.group)
+      if g then ok(g.destroy, g) end                       -- mines laid (or called off): it heads home
+      B.x4.layers[id] = nil
+    elseif #groupUnits(rec.group) == 0 then
+      B.x4.layers[id] = nil
+      war:minelayerSunk(id)
+    end
+  end
+  local cfg = XC().mines
+  for _, id in ipairs(U.sortedKeys(war:minelayers())) do
+    local ml = war:minelayers()[id]
+    local pos = B.minelayerPos(ml)
+    -- spotted by an enemy aircraft that comes close
+    if pos and not ml.seen then
+      for _, u in ipairs(coalition.getPlayers(B.COAL[ml.side == "blue" and "red" or "blue"]) or {}) do
+        if alive(u) and dist2D(u:getPoint(), pos) <= cfg.spotKm * 1000 then war:spotMinelayer(id); break end
+      end
+    end
+    local l = war:laneOf(ml.port)
+    if l and pos and not B.x4.layers[id] and #B.playerPositions() > 0 then
+      local gname, t = spawnLayer(ml, pos, llv(l.dock))
+      if gname then B.x4.layers[id] = { group = gname, type = t } end
+    end
+  end
+end
+
+local baseMissionPos6 = B.missionPos
+function B.missionPos(m)
+  if m.type == "MINELAYER" then
+    local ml = B.war:minelayers()[m.target]
+    return ml and B.minelayerPos(ml)
+  end
+  return baseMissionPos6(m)
+end
+
+if B.EFFECT then
+  B.EFFECT.MINELAYER = "Sink the minelayer before it reaches the harbour. Once it lays its mines, no supply ship "
+    .. "can use the port until a helicopter sweeps it."
+end
+
+-- the hunted minelayer on the defender's map, redrawn every 5 min
+function B.drawMinelayers()
+  for _, id in ipairs(B.x4.layerMarks or {}) do ok(trigger.action.removeMark, id) end
+  B.x4.layerMarks = {}
+  for _, id in ipairs(U.sortedKeys(B.war:minelayers())) do
+    local ml = B.war:minelayers()[id]
+    local pos = ml.seen and B.minelayerPos(ml)
+    if pos then
+      B.x4.mineN = (B.x4.mineN or 0) + 1
+      local mid = DCC.config.markIdBase + 950000 + B.x4.mineN * 2
+      local coal = B.COAL[ml.side == "blue" and "red" or "blue"]
+      ok(trigger.action.textToAll, coal, mid, pos, { 1, 0.55, 0, 1 }, { 0, 0, 0, 0.4 }, 13, true,
+        "MINELAYER > " .. B.war:nodeName(ml.port))
+      B.x4.layerMarks[#B.x4.layerMarks + 1] = mid
+    end
+  end
+end
+
 local baseAnnounce5 = B.announce
 function B.announce(events)
   baseAnnounce5(events)
   for _, ev in ipairs(events) do
+    if ev.kind == "minelayer_out" or ev.kind == "minelayer_seen" or ev.kind == "minelayer_sunk" then
+      if B.COAL[ev.side] then trigger.action.outTextForCoalition(B.COAL[ev.side], "Command: " .. ev.text, 15) end
+      if ev.kind == "minelayer_sunk" then
+        local other = ev.side == "blue" and "red" or "blue"
+        trigger.action.outTextForCoalition(B.COAL[other], "Command: our minelayer for " .. B.war:nodeName(ev.node)
+          .. " has been sunk.", 15)
+      end
+    end
     if ev.kind == "mines_laid" or ev.kind == "mines_cleared" or ev.kind == "mine_strike" then
       if B.COAL[ev.side] then trigger.action.outTextForCoalition(B.COAL[ev.side], "Command: " .. ev.text, 15) end
       if ev.kind == "mines_laid" and ev.layer and B.COAL[ev.layer] then
@@ -15339,6 +15549,7 @@ local baseTick5 = B.opsTick
 function B.opsTick()
   baseTick5()
   B.drawMines()
+  B.drawMinelayers()
 end
 
 -- ===========================================================================
@@ -15349,6 +15560,7 @@ function B.opsPoll()
   basePoll()
   B.groundPresenceTick()
   B.sweepTick()
+  B.reconcileMinelayers()
   B.aiSmokeTick()
   B.defenseSmokeTick()
   B.qraScan()

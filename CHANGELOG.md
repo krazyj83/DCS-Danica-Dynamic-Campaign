@@ -6,6 +6,14 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.35.0 — 2026-10-25
+
+**Added**
+- **Minelayer ships:** harbour mines are now laid by a real ship sailing the lane — BLUE **Castle class**, RED
+  **Vasily Bykov** (Currenthill mod; falls back to the core Molniya corvette if the server lacks it). Spotted by coastal
+  radar at 30 % of the lane or by an enemy pilot within 20 km; the port's side then gets a **MINELAYER** mission (sink
+  it, any A2G aircraft) and a map mark. Sunk = no mines; at 85 % it lays them and heads home.
+
 ## 0.34.0 — 2026-10-25
 
 **Added**
