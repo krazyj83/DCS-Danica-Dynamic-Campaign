@@ -1,7 +1,10 @@
 # Pilotmateriale (dansk)
 
 Introduktion til Danica Dynamic Campaign for piloter: hvordan man vinder, hvordan økonomien (SU) virker,
-og hvordan ens sorties flytter fronten. Skrevet til v0.33 af kampagnen.
+og hvordan ens sorties flytter fronten. Opdateret til v0.35 af kampagnen.
+
+**Til Discord:** `pilotguide.pdf`, `briefing/briefing.pdf`, `kneeboards/DCC_kneeboards.pdf` og
+`kneeboards/png/*.png` (læg PNG'erne i `Saved Games\DCS\Kneeboard\` for at have dem i alle fly).
 
 | Mappe / fil | Hvad | Sådan redigeres den |
 | --- | --- | --- |
@@ -11,14 +14,18 @@ og hvordan ens sorties flytter fronten. Skrevet til v0.33 af kampagnen.
 | `kneeboards/make_kneeboards.py` | Kneeboard-kortene – al tekst står i `CARDS` i scriptet | Ret teksten, kør scriptet igen |
 | `kneeboards/png/` | Kortene som PNG (1200×1600) til DCS' kneeboard-mappe | Genereres af scriptet |
 | `kneeboards/DCC_kneeboards.pdf` | Alle kort samlet | Genereres af scriptet |
+| `export_pdf.py` | Laver `pilotguide.pdf` og `briefing/briefing.pdf` til deling | `python docs/pilots/export_pdf.py` |
 
 ## Byg
 
-```bash
-python3 docs/pilots/briefing/build_briefing.py      # -> briefing/briefing.html (piletaster, N = noter)
+Brug repoets `.venv` (se CLAUDE.md). Scripts bruger Google Chrome, hvis Playwrights egen Chromium ikke er installeret.
 
-pip install playwright pillow && python3 -m playwright install chromium   # én gang
-python3 docs/pilots/kneeboards/make_kneeboards.py   # -> kneeboards/png/*.png + DCC_kneeboards.pdf
+```bash
+pip install playwright pillow markdown              # én gang
+
+python docs/pilots/briefing/build_briefing.py       # -> briefing/briefing.html (piletaster, N = noter)
+python docs/pilots/kneeboards/make_kneeboards.py    # -> kneeboards/png/*.png + DCC_kneeboards.pdf
+python docs/pilots/export_pdf.py                    # -> pilotguide.pdf + briefing/briefing.pdf
 ```
 
 ## Når kampagnen ændrer sig
