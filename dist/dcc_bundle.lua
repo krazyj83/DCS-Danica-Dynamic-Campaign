@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.33.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.34.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.33.0",
+  version         = "0.34.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -112,7 +112,7 @@ DCC.config = {
                 FARPSUP = 2, INTERCEPT = 3, HVAESCORT = 2, PKGESCORT = 2, MEDEVAC = 2, POW = 2,
                 AMPHIB = 1, SHIPSTRIKE = 2, SHIPESCORT = 2, SCUD = 2, POPUP = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
                 RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2,
-                ASSAULT = 4, HOLD = 4, GCONVOY = 3 },   -- ground missions: Combined Arms players only
+                ASSAULT = 4, HOLD = 4, GCONVOY = 3, MINESWEEP = 2 },   -- ground missions (CA players), mine sweeping
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
     slowTypes       = { "A-10A", "A-10C", "A-10C_2", "Su-25", "Su-25T", "L-39ZA", "C-101CC", "MB-339A",
@@ -400,6 +400,13 @@ DCC.config = {
     aiSmoke = { enabled = true, withinKm = 2, everyMin = 10,
                 defend = true, defendKm = 2, airKm = 6, airMaxAltM = 2500, defendEveryMin = 10, defendOffsetM = 300,
                 shotSec = 60, diveMps = 15 },   -- aircraft only when attacking: fired in 60 s, or diving at the base
+    -- 8. harbour mines (v0.34): every everyTicks each side mines an enemy lane port with
+    --    chance; they last lifeTicks; a ship past strikeAt of its lane hits them; a
+    --    helicopter clears them flying sweepMin minutes below sweepAglM within sweepKm
+    mines = { everyTicks = 72, chance = 0.4, lifeTicks = 288, strikeAt = 0.85,
+              sweepMin = 5, sweepAglM = 150, sweepKm = 3 },
+    -- 1. Support > Bogey dope: nearest enemy aircraft your side has seen in the last staleSec
+    bogey = { staleSec = 60, maxNm = 100 },
     -- 15. Engineer repair kit (CTLD > Engineering, any lift helicopter)
     repair = { weight = 1000.01, charge = 2, km = 3 },    -- charge x crateSU = 20 SU
     -- 16. Performance guard: fewer live units when DCS carries many ground units
@@ -6272,6 +6279,132 @@ function War:missionOutcome(m, events)
   end
   if r == "done" then onlyPresent(self, m) end
   return r
+end
+
+-- ============================================================================
+-- 8. Harbour mines (v0.34)
+-- ----------------------------------------------------------------------------
+-- Now and then each side's minelayers (submarines, aircraft - abstract) mine an
+-- enemy port on a shipping lane. While mined: no supply ship sails for that
+-- port, and a ship already on its way strikes a mine on the approach (sunk,
+-- cargo lost). The port's side gets a MINESWEEP mission (helicopters: fly low
+-- over the harbour). Mines also clear by themselves after lifeTicks.
+-- ============================================================================
+local function MC(self) return self.cfg.ext4.mines end
+
+War.MISSION_NEEDS.MINESWEEP = "SWEEP"                -- the bridge: any helicopter
+War.MISSION_ORDER[#War.MISSION_ORDER + 1] = "MINESWEEP"
+
+function War:minedPorts() return self.state.seaMines or {} end
+function War:isMined(port) return (self.state.seaMines or {})[port] ~= nil end
+
+-- side lays mines off port (an enemy port on a lane). Returns true if laid.
+function War:layMines(side, port)
+  local ns = self.state.nodes[port]
+  self.state.seaMines = self.state.seaMines or {}
+  if not ns or ns.side == side or self.state.seaMines[port] or not self:laneOf(port) then return false end
+  self.state.seaMines[port] = { side = side, tick = self.state.tick, till = self.state.tick + MC(self).lifeTicks }
+  self:log("mines_laid", ns.side, string.format("Mines reported off %s - %s supply ships hold until it is swept",
+    self:nodeName(port), ns.side:upper()), { node = port, layer = side })
+  return true
+end
+
+function War:clearMines(port, how)
+  local m = (self.state.seaMines or {})[port]
+  if not m then return false end
+  self.state.seaMines[port] = nil
+  local ns = self.state.nodes[port]
+  self:log("mines_cleared", ns.side, string.format("%s harbour %s - shipping resumes", self:nodeName(port),
+    how == "swept" and "swept clear of mines" or "clear, the mines have drifted or sunk"), { node = port })
+  return true
+end
+
+function War:harbourMinesTick()
+  local cfg = MC(self)
+  self.state.seaMines = self.state.seaMines or {}
+  for port, m in pairs(self.state.seaMines) do
+    if self.state.tick >= m.till or self.state.nodes[port].side == m.side then self:clearMines(port, "time") end
+  end
+  if self.state.tick % cfg.everyTicks ~= 0 or self.state.tick == 0 then return end
+  for _, side in ipairs({ "blue", "red" }) do
+    -- own pseudo-random draw: does not shift the war's dice for everything else
+    local roll = ((self.state.tick * 7919 + (side == "blue" and 13 or 61)) % 997) / 997
+    if roll < cfg.chance then
+      -- the enemy port that hurts most: a ship on its way, else the lowest supply
+      local best, bestScore
+      for _, l in ipairs(self:lanes()) do
+        local ns = self.state.nodes[l.port]
+        if ns and ns.side ~= side and not self.state.seaMines[l.port] then
+          local score = (ns.supply or 0) / math.max(1, self:supplyCap(l.port))
+          for _, s in pairs(self.state.shipping) do if s.port == l.port then score = score - 10 end end
+          if not bestScore or score < bestScore then best, bestScore = l.port, score end
+        end
+      end
+      if best then self:layMines(side, best) end
+    end
+  end
+end
+
+-- No ship sails for a mined port: they look "busy" to the planner.
+local basePlan = War.planShipping
+function War:planShipping()
+  local dummies = {}
+  for port in pairs(self.state.seaMines or {}) do
+    local id = "_mined_" .. port
+    self.state.shipping[id] = { id = id, side = "none", port = port, su = 0, km = 1, progress = 0 }
+    dummies[#dummies + 1] = id
+  end
+  local s, err = pcall(basePlan, self)
+  for _, id in ipairs(dummies) do self.state.shipping[id] = nil end
+  if not s then error(err) end
+end
+
+-- A ship on the last stretch into a mined port strikes a mine.
+local baseShipTick = War.shippingTick
+function War:shippingTick()
+  for _, id in ipairs(U.sortedKeys(self.state.shipping)) do
+    local s = self.state.shipping[id]
+    local m = (self.state.seaMines or {})[s.port]
+    if m and m.side ~= s.side and (s.progress or 0) >= MC(self).strikeAt then
+      self:log("mine_strike", s.side, string.format("%s supply ship struck a mine off %s", s.side:upper(),
+        self:nodeName(s.port)), { node = s.port, ship = id })
+      self:shippingSunk(id)
+    end
+  end
+  return baseShipTick(self)
+end
+
+local baseOps4 = War.opsTick
+function War:opsTick()
+  baseOps4(self)
+  self:harbourMinesTick()
+end
+
+gen.MINESWEEP = function(self, side)
+  local out = {}
+  for _, port in ipairs(U.sortedKeys(self.state.seaMines or {})) do
+    if self.state.nodes[port].side == side then
+      out[#out + 1] = { type = "MINESWEEP", target = port, node = port, prio = 0,
+        label = "sweep the harbour at " .. self:nodeName(port) }
+    end
+  end
+  return out
+end
+
+-- The bridge: a helicopter on the mission was low over the harbour for `seconds`.
+function War:sweepSample(mid, seconds)
+  local m = self.state.missions[mid]
+  if not m or m.status ~= "open" or m.type ~= "MINESWEEP" then return end
+  m.swept = (m.swept or 0) + seconds
+  if m.swept >= MC(self).sweepMin * 60 and self:clearMines(m.target, "swept") then m.sweepDone = true end
+end
+
+local baseOutcome2 = War.missionOutcome
+function War:missionOutcome(m, events)
+  if m.type ~= "MINESWEEP" then return baseOutcome2(self, m, events) end
+  if m.sweepDone then return "done" end
+  if self.state.nodes[m.target].side ~= m.side or not self:isMined(m.target) then return "expired" end
+  return "open"
 end
 
 end
@@ -14988,12 +15121,234 @@ function B.perfCheck(force)
 end
 
 -- ===========================================================================
+-- 1. Bogey dope (v0.34)
+-- ===========================================================================
+-- The nearest enemy aircraft your side has seen (radars, AWACS, eyes - the same
+-- fog-of-war picture as the map) in the last staleSec: BRAA and aspect.
+local function aspectOf(c, u, me)
+  local v = u and ok(u.getVelocity, u)
+  if not (v and v.x and (math.abs(v.x) + math.abs(v.z)) > 5) then return nil end
+  local h = math.sqrt(v.x * v.x + v.z * v.z)
+  local tx, tz = me.x - c.pos.x, me.z - c.pos.z
+  local d = math.max(1, math.sqrt(tx * tx + tz * tz))
+  local cosA = (v.x * tx + v.z * tz) / (h * d)                 -- 1 = flying straight at you
+  if cosA >= 0.866 then return "HOT" elseif cosA >= 0.26 then return "FLANKING"
+  elseif cosA >= -0.5 then return "BEAM" else return "DRAG" end
+end
+
+function B.bogeyDope(uname)
+  local p = B.players[uname]
+  local u = p and ok(Unit.getByName, uname)
+  if not (p and alive(u)) then return end
+  local me, cfg, now = u:getPoint(), XC().bogey, timer.getTime()
+  local best
+  for name, c in pairs(B.airContacts and B.airContacts[p.side] or {}) do
+    if c.pos and now - (c.t or 0) <= cfg.staleSec then
+      local d = dist2D(me, c.pos)
+      if d <= cfg.maxNm * 1852 and (not best or d < best.d) then best = { name = name, c = c, d = d } end
+    end
+  end
+  if not best then
+    return trigger.action.outTextForGroup(p.gid, string.format("BOGEY DOPE: clean - no contacts within %d nm.", cfg.maxNm), 12)
+  end
+  local c = best.c
+  local brg = (math.deg(math.atan2(c.pos.z - me.z, c.pos.x - me.x)) + 360) % 360
+  local asp = aspectOf(c, ok(Unit.getByName, best.name), me)
+  trigger.action.outTextForGroup(p.gid, string.format("BOGEY DOPE: BRAA %03d / %d nm / %d ft%s - %s (%d s old)",
+    math.floor(brg + 0.5) % 360, math.floor(best.d / 1852 + 0.5), math.floor((c.alt or 0) * 3.28084 / 1000 + 0.5) * 1000,
+    asp and (", " .. asp) or "", c.type or "aircraft", math.floor(now - (c.t or now))), 15)
+end
+
+if B.buildSupportMenu then
+  local baseSupport4 = B.buildSupportMenu
+  function B.buildSupportMenu(p)
+    baseSupport4(p)
+    if p and not p.ground and p.gid and p.supportMenu then
+      missionCommands.addCommandForGroup(p.gid, "Bogey dope", p.supportMenu, B.bogeyDope, p.unit)
+    end
+  end
+end
+
+-- ===========================================================================
+-- 2. Sortie debrief (v0.34)
+-- ===========================================================================
+-- From take-off to landing at a friendly base / FARP / own carrier: flight
+-- time, kills, missions and what they did, points and rank.
+local KILLS = { { "kills_air", "air" }, { "kills_ground", "ground" }, { "kills_convoy", "convoy" },
+                { "kills_sam", "SAM" }, { "kills_structure", "buildings" } }
+local EFFECT_DONE = {
+  CAS = "the battle went our way", BAI = "the column will never arrive", STRIKE = "base output cut",
+  SEAD = "air defence down", CAP = "1 h of air cover", ESCORT = "delivered", CONVOY = "delivered, no ambush",
+  RECON = "intel on the map", CSAR = "pilot home, aircraft refunded", LOGISTICS = "supply delivered",
+  INTERCEPT = "the attack never arrived", TANKER = "enemy tanker down", EWR = "radar off the air",
+  ARTY = "battery silenced", FORT = "defences weakened", BRIDGE = "road cut", RUNWAY = "runway closed",
+  FARP = "new FARP open", FARPSUP = "FARP stocked", MEDEVAC = "wounded home", POW = "prisoners home",
+  SHIPSTRIKE = "cargo sunk", SHIPESCORT = "ship docked", SCUD = "launcher destroyed", POPUP = "threat cleared",
+  ANTISHIP = "ship hit", HVAA = "enemy AWACS down", MINESWEEP = "harbour open again",
+}
+
+local function snapshot(p)
+  local rec = DCC.pilots:get(p.key, p.name)
+  local s = { t = timer.getTime(), score = DCC.pilots:score(p.key), rank = DCC.pilots:rank(p.key), kills = {}, missions = {} }
+  for _, k in ipairs(KILLS) do s.kills[k[1]] = rec[k[1]] or 0 end
+  return s
+end
+
+local function atHome(p, u)
+  local pos = u:getPoint()
+  if B.nearestNodeOf(pos, p.side, 5000) then return true end
+  for _, rec in pairs(B.naval or {}) do
+    local g = ok(Group.getByName, rec.group)
+    local cv = g and ok(g.getUnit, g, 1)
+    if rec.side == p.side and alive(cv) and dist2D(cv:getPoint(), pos) < 800 then return true end
+  end
+  return false
+end
+
+function B.debrief(p)
+  local s = p.debrief
+  if not s then return end
+  p.debrief = nil
+  local rec = DCC.pilots:get(p.key, p.name)
+  local lines = { string.format("DEBRIEF - %d min", math.floor((timer.getTime() - s.t) / 60 + 0.5)) }
+  local kills = {}
+  for _, k in ipairs(KILLS) do
+    local n = (rec[k[1]] or 0) - s.kills[k[1]]
+    if n > 0 then kills[#kills + 1] = n .. " " .. k[2] end
+  end
+  lines[#lines + 1] = "Kills: " .. (#kills > 0 and table.concat(kills, ", ") or "none")
+  if #s.missions == 0 then lines[#lines + 1] = "Missions: none finished" end
+  for _, m in ipairs(s.missions) do
+    lines[#lines + 1] = string.format("%s %s: %s%s", m.type, m.label, m.outcome == "done" and "COMPLETE" or m.outcome:upper(),
+      (m.outcome == "done" and EFFECT_DONE[m.type]) and (" - " .. EFFECT_DONE[m.type]) or "")
+  end
+  local score, rank = DCC.pilots:score(p.key), DCC.pilots:rank(p.key)
+  lines[#lines + 1] = string.format("Points: %+d (total %d)%s", score - s.score, score,
+    rank ~= s.rank and string.format(" - PROMOTED: %s -> %s!", s.rank, rank) or "")
+  trigger.action.outTextForGroup(p.gid, table.concat(lines, "\n"), 30)
+end
+
+local baseOps5 = B.onOpsEvent
+function B.onOpsEvent(e)
+  baseOps5(e)
+  local u = e.initiator
+  local p = u and B.players[ok(u.getName, u) or ""]
+  if not p or p.ground then return end
+  if e.id == world.event.S_EVENT_TAKEOFF then
+    if not p.debrief then p.debrief = snapshot(p) end
+  elseif e.id == world.event.S_EVENT_LAND and p.debrief and alive(u) and atHome(p, u) then
+    B.debrief(p)
+  end
+end
+
+local baseDone5 = B.onMissionDone
+function B.onMissionDone(m, outcome)
+  for key in pairs(m.taken or {}) do
+    for _, p in pairs(B.players) do
+      if p.key == key and p.debrief then
+        table.insert(p.debrief.missions, { type = m.type, label = m.label, outcome = outcome })
+      end
+    end
+  end
+  return baseDone5(m, outcome)
+end
+
+-- ===========================================================================
+-- 8. Harbour mines (v0.34)
+-- ===========================================================================
+local function llv(p) local v = coord.LLtoLO(p.lat, p.lon, 0); return { x = v.x, y = 0, z = v.z } end
+function B.harbourPos(port)
+  local l = B.war:laneOf(port)
+  return l and llv(l.dock)
+end
+
+local baseCanFly5 = B.canFly
+function B.canFly(p, m)
+  if m and m.needs == "SWEEP" then return p and p.heli == true and not p.ground end
+  return baseCanFly5(p, m)
+end
+
+local baseMissionPos5 = B.missionPos
+function B.missionPos(m)
+  if m.type == "MINESWEEP" then return B.harbourPos(m.target) or baseMissionPos5(m) end
+  return baseMissionPos5(m)
+end
+
+if B.EFFECT then
+  B.EFFECT.MINESWEEP = "Fly a helicopter below 150 m within 3 km of the harbour (the orange circle) for 5 min in total "
+    .. "- several helicopters sweep faster. No supply ship sails for a mined port."
+end
+
+function B.sweepTick()
+  local now = timer.getTime()
+  local dt = now - (B.x4.sweepAt or now)
+  B.x4.sweepAt = now
+  if dt <= 0 then return end
+  local cfg = XC().mines
+  for _, p in pairs(B.players or {}) do
+    local m = p.heli and p.mission and B.war.state.missions[p.mission]
+    local u = m and m.type == "MINESWEEP" and ok(Unit.getByName, p.unit)
+    if u and alive(u) and ok(u.inAir, u) then
+      local up, hp = u:getPoint(), B.harbourPos(m.target)
+      local agl = up.y - (ok(land.getHeight, { x = up.x, y = up.z }) or 0)
+      if hp and agl <= cfg.sweepAglM and dist2D(up, hp) <= cfg.sweepKm * 1000 then B.war:sweepSample(m.id, dt) end
+    end
+  end
+end
+
+function B.drawMines()
+  B.x4.mineMarks = B.x4.mineMarks or {}
+  local mined = B.war:minedPorts()
+  for port, ids in pairs(B.x4.mineMarks) do
+    if not mined[port] then
+      for _, id in ipairs(ids) do ok(trigger.action.removeMark, id) end
+      B.x4.mineMarks[port] = nil
+    end
+  end
+  for port in pairs(mined) do
+    local hp = B.harbourPos(port)
+    if hp and not B.x4.mineMarks[port] then
+      B.x4.mineN = (B.x4.mineN or 0) + 1
+      local id = DCC.config.markIdBase + 950000 + B.x4.mineN * 2
+      ok(trigger.action.circleToAll, -1, id, hp, XC().mines.sweepKm * 1000, { 1, 0.55, 0, 1 }, { 1, 0.55, 0, 0.15 }, 2, true)
+      ok(trigger.action.textToAll, -1, id + 1, hp, { 1, 0.55, 0, 1 }, { 0, 0, 0, 0 }, 14, true, "MINES")
+      B.x4.mineMarks[port] = { id, id + 1 }
+    end
+  end
+end
+
+local baseAnnounce5 = B.announce
+function B.announce(events)
+  baseAnnounce5(events)
+  for _, ev in ipairs(events) do
+    if ev.kind == "mines_laid" or ev.kind == "mines_cleared" or ev.kind == "mine_strike" then
+      if B.COAL[ev.side] then trigger.action.outTextForCoalition(B.COAL[ev.side], "Command: " .. ev.text, 15) end
+      if ev.kind == "mines_laid" and ev.layer and B.COAL[ev.layer] then
+        trigger.action.outTextForCoalition(B.COAL[ev.layer], string.format("Command: our minelayers have mined %s.",
+          B.war:nodeName(ev.node)), 15)
+      end
+      if ev.kind == "mine_strike" then
+        local hp = B.harbourPos(ev.node)
+        if hp then ok(trigger.action.explosion, { x = hp.x, y = 0, z = hp.z }, 300) end
+      end
+    end
+  end
+end
+
+local baseTick5 = B.opsTick
+function B.opsTick()
+  baseTick5()
+  B.drawMines()
+end
+
+-- ===========================================================================
 -- Loops
 -- ===========================================================================
 local basePoll = B.opsPoll
 function B.opsPoll()
   basePoll()
   B.groundPresenceTick()
+  B.sweepTick()
   B.aiSmokeTick()
   B.defenseSmokeTick()
   B.qraScan()

@@ -164,7 +164,7 @@ def map_page(theater, theater_name, carrier_xy=None):
 REFERENCE = [
     ("F10 > OTHER", [
         "Missions > Join a flight | Mission board | My mission | Pilot records | Cargo",
-        "Support > Artillery / CAS / Illumination on my map mark, AWACS picture, Armoury",
+        "Support > Artillery / CAS / Illumination on my map mark, Bogey dope, AWACS picture",
         "CTLD > troops, crates, FARP kit (Chinook / Mi-8), Repair kit (any helo), FOB",
         "Campaign > Campaign status (front, supply, weather, dangerous roads)",
     ]),
@@ -172,7 +172,7 @@ REFERENCE = [
         "CAS  BAI  STRIKE  SEAD  EWR  ARTY  FORT  BRIDGE  RUNWAY  INDUSTRY  COIN  ANTISHIP",
         "CAP  ESCORT  PKGESCORT  HVAESCORT  INTERCEPT  TANKER  HVAA",
         "RECON (any aircraft, low pass)   SCUD hunt   POPUP (MANPADS / mobile SAM)",
-        "Helicopters: CONVOY  CSAR  LOGISTICS  FARP  FARPSUP  MEDEVAC  POW  AMPHIB",
+        "Helicopters: CONVOY  CSAR  LOGISTICS  FARP  FARPSUP  MEDEVAC  POW  AMPHIB  MINESWEEP",
         "Ships: SHIPSTRIKE / SHIPESCORT (supply ships on the sea lanes)",
         "Helicopters see missions within ~60 nm, slow aircraft ~120 nm.",
         "Several pilots can fly one mission: everyone gets the credit (+ team bonus).",

@@ -4,9 +4,9 @@ A perpetual, persistent dynamic campaign for DCS World. One Lua engine runs insi
 mission, the war keeps going whether anyone is online or not, and when one side loses its last
 base the server moves on to the next map in the rotation.
 
-**Status: v0.33 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
+**Status: v0.34 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
 nodes, mass for assaults and capture bases. Every base runs on supply that trucks, transport aircraft,
-helicopters and **supply ships** carry forward. Each side has a **mission board** of 36 mission types —
+helicopters and **supply ships** carry forward. Each side has a **mission board** of 37 mission types —
 CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy escort, recon, CSAR, logistics, FARPs, anti-ship, SCUD
 hunts, amphibious landings and more — and every mission writes its effect into the war. Several pilots can
 **fly one mission together**. AI fighters, strike packages, tankers, AWACS and carrier air wings fly for
@@ -551,6 +551,35 @@ Everyone sees *"Server busy …"*; it steps back only once the count is 15 % bel
 and *"Server load back to normal"* is shown. The war model itself never changes — only how much of it is
 real DCS units.
 
+## Bogey dope, debriefs and harbour mines
+
+**Bogey dope (v0.34).** F10 → Support → **Bogey dope** (every aircraft): the nearest enemy aircraft your side has
+seen in the last minute — by radar, AWACS or eyes, the same fog-of-war picture as the map — within 100 nm:
+
+```
+BOGEY DOPE: BRAA 090 / 20 nm / 20000 ft, HOT - MiG-29S (12 s old)
+```
+
+Aspect: HOT (coming at you), FLANKING, BEAM, DRAG. No rank needed (the full *AWACS picture* still needs Colonel).
+
+**Sortie debrief (v0.34).** Land at a friendly base, FARP or your carrier and you get:
+
+```
+DEBRIEF - 42 min
+Kills: 2 air, 3 ground
+CAS defend Senaki: COMPLETE - the battle went our way
+Points: +56 (total 412) - PROMOTED: Captain -> Major!
+```
+
+Covers everything from take-off: kills by kind, every mission you were on that finished (complete or failed, and
+what it did to the war), points and promotions. Helicopter field landings (CTLD, CSAR) don't end the sortie.
+
+**Harbour mines (v0.34).** Every 6 h each side may mine an enemy port on a shipping lane (40 %; the port that hurts
+most — a supply ship inbound, else the emptiest). A mined port gets an orange **MINES** circle on the map,
+**no supply ship sails for it**, and a ship already on its way **strikes a mine** on the approach (sunk, cargo
+lost). The port's side gets a **MINESWEEP** mission (any helicopter): fly **below 150 m within 3 km** of the
+harbour for **5 min** in total — several helicopters sweep faster. Unswept mines clear by themselves after 24 h.
+
 ## Carriers and the naval war
 
 Every map has carrier groups for both sides:
@@ -871,6 +900,8 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `ext4.aiSmoke` | on, 2 km, 10 min | AI attacks lay smoke near the base |
 | `ext4.aiSmoke.defend*`, `airKm`, `airMaxAltM` | on, 2 km, 6 km, 2500 m, 10 min, 300 m | Garrisons screen themselves |
 | `ext4.aiSmoke.shotSec` / `diveMps` | 60 s, 15 m/s | What counts as an attacking aircraft |
+| `ext4.mines` | 6 h, 40 %, 24 h, 5 min, 150 m, 3 km | Harbour mines and sweeping |
+| `ext4.bogey` | 60 s, 100 nm | Bogey dope: contact age and range |
 | `ext4.repair` | 1 t, 20 SU, 3 km | Engineer repair kit |
 | `ext4.perf.levels` | 700 → 0.7, 1000 → 0.45 | Performance guard: ground units and scale per level |
 
@@ -900,7 +931,7 @@ Measured with the offline simulator, no players online:
 ## Testing offline
 
 Nothing here needs DCS to test. The engine is plain Lua 5.1 (the version DCS uses) and runs
-under Python via `lupa` — 17 suites, 936 checks in v0.33:
+under Python via `lupa` — 17 suites, 959 checks in v0.34:
 
 ```bash
 pip install lupa matplotlib

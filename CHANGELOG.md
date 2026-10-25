@@ -6,6 +6,18 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.34.0 — 2026-10-25
+
+**Added**
+- **Bogey dope** (F10 → Support, every aircraft): BRAA and aspect of the nearest enemy aircraft your side has seen in
+  the last minute, within 100 nm. No rank needed.
+- **Sortie debrief** on landing at a friendly base, FARP or own carrier: flight time, kills by kind, finished missions
+  with their effect on the war, points and promotions.
+- **Harbour mines:** every 6 h each side may mine an enemy lane port (40 %). Mined: orange MINES circle on the map, no
+  supply ships sail for it, a ship on the approach strikes a mine. **MINESWEEP** mission for helicopters: 5 min below
+  150 m within 3 km of the harbour. Mines clear by themselves after 24 h (`ext4.mines`).
+- Kneeboard quick reference: bogey dope, MINESWEEP.
+
 ## 0.33.0 — 2026-10-24
 
 **Changed**

@@ -153,3 +153,129 @@ function War:missionOutcome(m, events)
   if r == "done" then onlyPresent(self, m) end
   return r
 end
+
+-- ============================================================================
+-- 8. Harbour mines (v0.34)
+-- ----------------------------------------------------------------------------
+-- Now and then each side's minelayers (submarines, aircraft - abstract) mine an
+-- enemy port on a shipping lane. While mined: no supply ship sails for that
+-- port, and a ship already on its way strikes a mine on the approach (sunk,
+-- cargo lost). The port's side gets a MINESWEEP mission (helicopters: fly low
+-- over the harbour). Mines also clear by themselves after lifeTicks.
+-- ============================================================================
+local function MC(self) return self.cfg.ext4.mines end
+
+War.MISSION_NEEDS.MINESWEEP = "SWEEP"                -- the bridge: any helicopter
+War.MISSION_ORDER[#War.MISSION_ORDER + 1] = "MINESWEEP"
+
+function War:minedPorts() return self.state.seaMines or {} end
+function War:isMined(port) return (self.state.seaMines or {})[port] ~= nil end
+
+-- side lays mines off port (an enemy port on a lane). Returns true if laid.
+function War:layMines(side, port)
+  local ns = self.state.nodes[port]
+  self.state.seaMines = self.state.seaMines or {}
+  if not ns or ns.side == side or self.state.seaMines[port] or not self:laneOf(port) then return false end
+  self.state.seaMines[port] = { side = side, tick = self.state.tick, till = self.state.tick + MC(self).lifeTicks }
+  self:log("mines_laid", ns.side, string.format("Mines reported off %s - %s supply ships hold until it is swept",
+    self:nodeName(port), ns.side:upper()), { node = port, layer = side })
+  return true
+end
+
+function War:clearMines(port, how)
+  local m = (self.state.seaMines or {})[port]
+  if not m then return false end
+  self.state.seaMines[port] = nil
+  local ns = self.state.nodes[port]
+  self:log("mines_cleared", ns.side, string.format("%s harbour %s - shipping resumes", self:nodeName(port),
+    how == "swept" and "swept clear of mines" or "clear, the mines have drifted or sunk"), { node = port })
+  return true
+end
+
+function War:harbourMinesTick()
+  local cfg = MC(self)
+  self.state.seaMines = self.state.seaMines or {}
+  for port, m in pairs(self.state.seaMines) do
+    if self.state.tick >= m.till or self.state.nodes[port].side == m.side then self:clearMines(port, "time") end
+  end
+  if self.state.tick % cfg.everyTicks ~= 0 or self.state.tick == 0 then return end
+  for _, side in ipairs({ "blue", "red" }) do
+    -- own pseudo-random draw: does not shift the war's dice for everything else
+    local roll = ((self.state.tick * 7919 + (side == "blue" and 13 or 61)) % 997) / 997
+    if roll < cfg.chance then
+      -- the enemy port that hurts most: a ship on its way, else the lowest supply
+      local best, bestScore
+      for _, l in ipairs(self:lanes()) do
+        local ns = self.state.nodes[l.port]
+        if ns and ns.side ~= side and not self.state.seaMines[l.port] then
+          local score = (ns.supply or 0) / math.max(1, self:supplyCap(l.port))
+          for _, s in pairs(self.state.shipping) do if s.port == l.port then score = score - 10 end end
+          if not bestScore or score < bestScore then best, bestScore = l.port, score end
+        end
+      end
+      if best then self:layMines(side, best) end
+    end
+  end
+end
+
+-- No ship sails for a mined port: they look "busy" to the planner.
+local basePlan = War.planShipping
+function War:planShipping()
+  local dummies = {}
+  for port in pairs(self.state.seaMines or {}) do
+    local id = "_mined_" .. port
+    self.state.shipping[id] = { id = id, side = "none", port = port, su = 0, km = 1, progress = 0 }
+    dummies[#dummies + 1] = id
+  end
+  local s, err = pcall(basePlan, self)
+  for _, id in ipairs(dummies) do self.state.shipping[id] = nil end
+  if not s then error(err) end
+end
+
+-- A ship on the last stretch into a mined port strikes a mine.
+local baseShipTick = War.shippingTick
+function War:shippingTick()
+  for _, id in ipairs(U.sortedKeys(self.state.shipping)) do
+    local s = self.state.shipping[id]
+    local m = (self.state.seaMines or {})[s.port]
+    if m and m.side ~= s.side and (s.progress or 0) >= MC(self).strikeAt then
+      self:log("mine_strike", s.side, string.format("%s supply ship struck a mine off %s", s.side:upper(),
+        self:nodeName(s.port)), { node = s.port, ship = id })
+      self:shippingSunk(id)
+    end
+  end
+  return baseShipTick(self)
+end
+
+local baseOps4 = War.opsTick
+function War:opsTick()
+  baseOps4(self)
+  self:harbourMinesTick()
+end
+
+gen.MINESWEEP = function(self, side)
+  local out = {}
+  for _, port in ipairs(U.sortedKeys(self.state.seaMines or {})) do
+    if self.state.nodes[port].side == side then
+      out[#out + 1] = { type = "MINESWEEP", target = port, node = port, prio = 0,
+        label = "sweep the harbour at " .. self:nodeName(port) }
+    end
+  end
+  return out
+end
+
+-- The bridge: a helicopter on the mission was low over the harbour for `seconds`.
+function War:sweepSample(mid, seconds)
+  local m = self.state.missions[mid]
+  if not m or m.status ~= "open" or m.type ~= "MINESWEEP" then return end
+  m.swept = (m.swept or 0) + seconds
+  if m.swept >= MC(self).sweepMin * 60 and self:clearMines(m.target, "swept") then m.sweepDone = true end
+end
+
+local baseOutcome2 = War.missionOutcome
+function War:missionOutcome(m, events)
+  if m.type ~= "MINESWEEP" then return baseOutcome2(self, m, events) end
+  if m.sweepDone then return "done" end
+  if self.state.nodes[m.target].side ~= m.side or not self:isMined(m.target) then return "expired" end
+  return "open"
+end

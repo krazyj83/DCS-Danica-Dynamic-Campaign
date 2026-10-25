@@ -82,6 +82,46 @@ g.state.moves.mC = nil
 g.state.deliveredMoves.mC = { tick = g.state.tick, health = 1 }
 check("convoy arrived: GCONVOY done", g:missionOutcome(gcv, {}) == "done")
 
+
+-- ===========================================================================
+print("Pure model: harbour mines (v0.34)")
+-- ===========================================================================
+local hm = DCC.War.new(T, C, cfg, 43)
+hm:tick()
+local bport
+for _, l in ipairs(hm:lanes()) do if hm.state.nodes[l.port].side == "blue" and not bport then bport = l.port end end
+check("RED mines a BLUE port", hm:layMines("red", bport) and hm:isMined(bport))
+check("...not twice, and never its own", not hm:layMines("red", bport))
+hm.state.nodes[bport].supply = 1
+hm.state.tick = X.mines.everyTicks * 0 + DCC.config.ext3.shipping.everyTicks * 40
+hm:planShipping()
+local toPort = false
+for _, sh in pairs(hm.state.shipping) do if sh.port == bport then toPort = true end end
+check("no supply ship sails for a mined port", not toPort)
+hm.state.shipping.shX = { id = "shX", side = "blue", port = bport, su = 40, km = 50, progress = 0.9 }
+hm:shippingTick()
+check("a ship on the approach strikes a mine", hm.state.shipping.shX == nil and hm.state.sunkShips.shX ~= nil)
+hm:missionsTick()
+local sw
+for _, m in pairs(hm.state.missions) do if m.type == "MINESWEEP" and m.target == bport then sw = m end end
+check("BLUE gets a MINESWEEP (helicopters)", sw and sw.side == "blue" and sw.needs == "SWEEP")
+hm:sweepSample(sw.id, 200)
+check("200 s of sweeping: still mined", hm:isMined(bport))
+hm:sweepSample(sw.id, 200)
+check("5 min: harbour clear", not hm:isMined(bport) and hm:missionOutcome(sw, {}) == "done")
+hm:layMines("red", bport)
+hm.state.tick = hm.state.seaMines[bport].till
+hm:harbourMinesTick()
+check("unswept mines clear after 24 h", not hm:isMined(bport))
+local laid = 0
+for k = 1, 12 do
+  hm.state.tick = X.mines.everyTicks * k
+  hm:harbourMinesTick()
+  for _ in pairs(hm.state.seaMines) do laid = laid + 1 end
+  hm.state.seaMines = {}
+end
+check("the AI lays mines now and then", laid >= 2 and laid <= 20, laid)
+
 -- ===========================================================================
 print("Bridge")
 -- ===========================================================================
@@ -378,6 +418,61 @@ MOCK.killGroup("TEST_RED_T72")
 gp.mission = nil
 MOCK.click(bg.id, "Artillery on my objective")
 check("no ground mission: no objective to shell", (MOCK.lastGroupText(bg.id) or ""):find("ground mission first", 1, true) ~= nil)
+
+print(" Bogey dope (v0.34)")
+viper.x, viper.z, viper.air = kp.x, kp.z, false
+B.airContacts.blue = { RED_MIG = { pos = { x = kp.x, z = kp.z + 20 * 1852 }, alt = 6096, type = "MiG-29S",
+                                   t = timer.getTime() } }
+check("Support menu: Bogey dope", MOCK.click(vg.id, "Bogey dope"))
+local bd = MOCK.lastGroupText(vg.id) or ""
+check("...BRAA to the nearest contact", bd:find("BRAA 090 / 20 nm / 20000 ft", 1, true) ~= nil, bd)
+B.airContacts.blue.RED_MIG.t = timer.getTime() - 300
+MOCK.click(vg.id, "Bogey dope")
+check("...an old contact does not count: clean", (MOCK.lastGroupText(vg.id) or ""):find("clean", 1, true) ~= nil)
+B.airContacts.blue = {}
+
+print(" Sortie debrief (v0.34)")
+p.debrief = nil
+viper.air = true
+MOCK.fire({ id = world.event.S_EVENT_TAKEOFF, initiator = viper })
+DCC.pilots:add(p.key, "kills_air", 2, p.name)
+B.onMissionDone({ id = "xdeb", type = "CAS", label = "defend Senaki", taken = { [p.key] = p.name } }, "done")
+viper.air = false
+MOCK.fire({ id = world.event.S_EVENT_LAND, initiator = viper })
+local deb = ""
+for _, t in ipairs(MOCK.groupTexts[vg.id] or {}) do if t:find("DEBRIEF", 1, true) then deb = t end end
+check("landed at home: debrief", deb ~= "", deb)
+check("...kills", deb:find("Kills: 2 air", 1, true) ~= nil, deb)
+check("...missions and their effect", deb:find("CAS defend Senaki: COMPLETE - the battle went our way", 1, true) ~= nil)
+check("...points", deb:find("Points: +", 1, true) ~= nil)
+
+print(" Mine sweeping (v0.34)")
+local sport
+for _, l in ipairs(war:lanes()) do if war.state.nodes[l.port].side == "blue" and not sport then sport = l.port end end
+war.state.seaMines = {}
+war:layMines("red", sport)
+war:missionsTick()
+local swm
+for _, m in pairs(war.state.missions) do if m.type == "MINESWEEP" and m.target == sport then swm = m end end
+check("bridge: MINESWEEP on the board", swm ~= nil)
+check("...not for a jet", not B.canFly(p, swm))
+local c0 = MOCK.countMarks("circle")
+B.drawMines()
+check("...the mined harbour is on the map", MOCK.countMarks("circle") == c0 + 1)
+local huey, hg = MOCK.spawnPlayer(BLUE, "UH-1H", kp.x + 300, kp.z, "Sweeper", true)
+local hp = B.players[huey:getName()]
+check("...a Huey can take it", B.canFly(hp, swm))
+B.takeMission({ unit = huey:getName(), mid = swm.id })
+local hpos = B.harbourPos(sport)
+huey.x, huey.z, huey.alt, huey.air = hpos.x + 1000, hpos.z, 60, true
+B.x4.sweepAt = timer.getTime() - 400
+B.sweepTick()
+check("low over the harbour 5 min: swept", not war:isMined(sport))
+war:missionsTick()
+check("...mission complete", war.state.missions[swm.id].status == "done")
+B.drawMines()
+check("...and off the map", MOCK.countMarks("circle") == c0)
+huey.alive = false
 
 print(" A day")
 viper.air = false
