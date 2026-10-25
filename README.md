@@ -805,46 +805,11 @@ The engine announces the winner and the next map, sets **user flag 9900** to 1 a
 
 ### 6. First flight test — what to check
 
-The offline tests use a fake DCS API, so these need a real server to confirm:
-
-- [ ] Dynamic spawn lists **only your side's** aircraft at each base, and a captured base switches lists.
-- [ ] Fixed depot slots spawn, cold start.
-- [ ] Garrisons appear when you fly within 40 km of a front; columns and convoys drive on roads.
-- [ ] A transport (C-130 / Il-76) appears when the F10 status reports an airlift, and lands at its destination.
-- [ ] Destroying a convoy prints "… convoy … destroyed" and the target base's SU stops rising.
-- [ ] **F10 → Other → Missions** shows mission types your aircraft can fly; taking one gives a briefing and a map mark.
-- [ ] A SAM site appears within 80 km of an enemy airbase or depot; killing its radar reports "radar … knocked out".
-- [ ] Strike buildings sit near (not on) the airfield; destroying one reports "… destroyed (1 of N)".
-- [ ] AI pairs appear ("Command: … CAP sortie airborne") and actually orbit / attack.
-- [ ] Ejecting creates a downed pilot; a Huey landing next to them and then at a friendly base rescues them.
-- [ ] Huey *Load supply crate* / *Unload* changes the base's SU on your map.
-- [ ] **Rotation:** on a test server, delete all but one RED node from the save (or set `garrisonStart` tiny), let BLUE win, and watch the hook load `DCC_Syria.miz` after the chat warning. Check `dcs.log` for `DCC-ROTATION` lines.
-- [ ] The E-3A / A-50 appear ("Command: … AWACS on station") and fly a race-track behind the front.
-- [ ] An EWR unit (FPS-117 / 1L13) stands near each depot when you fly within 80 km; destroying it reports "early-warning radar … destroyed".
-- [ ] Flying high toward an enemy depot puts you on *their* map (ask someone on the other side); flying low at 100 km does not.
-- [ ] A recon pass gives the photo report message and `[photo]` labels per platoon.
-- [ ] Syria, Persian Gulf and Germany missions start a war, set airbase owners and spawn units (each map once).
-- [ ] **Mission Editor → Options → F10 view** reads *Fog of war* (the generator writes `optview_allies`). Enemy units appear only while a friendly unit sees them.
-- [ ] Flying at 6000 m toward an enemy airbase: within 60 km a red SAM ring with an error circle appears on your map, and the circle shrinks over a few minutes.
-- [ ] Firing a HARM at a lit SAM makes it stop guiding (dark) for 1–2 minutes.
-- [ ] A low pass over an enemy base puts "N vehicles seen" there; a hill between you and it does not.
-- [ ] Spectators see only the front line and base owners (intel is per coalition).
-- [ ] **FARP:** deliver 3 crates to a friendly town; the trucks appear, and the town's FARP offers your side's helicopters in the slot list (dynamic spawn on script-stocked invisible FARPs is the least-tested DCS feature here).
-- [ ] **JTAC:** take a CAS mission, *Report target*, and check the laser on 1688 in your targeting pod.
-- [ ] **Carriers (every map):** slots spawn on the decks; TACAN 74X / 75X and ICLS 4 / 5 work; every ship group and its leg is on open water; the S-3B answers on 76X.
-- [ ] **Supply ships** sail their lane to the port without running aground (Hormuz and the German Bight especially).
-- [ ] **Kneeboard** pages show in every aircraft; the Hornet's DTC loads its steerpoints (MUMI).
-- [ ] **Datalink:** with the AWACS up, a fixed-slot Hornet / Viper sees tracks on the SA page / HSD.
-- [ ] **Night:** flares over a battle (650 m) are bright enough; *Support → Illumination* works.
-- [ ] **Weather:** in a storm (status says so) fog closes in (DCS 2.9.10+).
-- [ ] **Companion:** the web map shows the front; a capture shows up in Discord within a minute.
-- [ ] **Hosted server without file access:** the start message says the war cannot be saved; after a win the mission ends after 2 min and the next mission in the list loads.
-- [ ] A RED strike package ("Command: RED STRIKE sortie airborne") shows up as INTERCEPT on BLUE's board.
-- [ ] Tanker: TACAN 51X, refuelling from the KC-135MPRS works (drogue).
-- [ ] Near a battle, the artillery battery fires (shell splashes at the base).
-- [ ] Skirmishes: vehicles fighting on the front roads far from any player.
-- [ ] Destroying a bridge on a road between two bases reports "Bridge on the road … destroyed".
-- [ ] `dcs.log` has no `DCC: ERROR` lines (errors now include a stack traceback).
+The offline tests use a fake DCS API, so some things can only be confirmed on a real server. Every such
+check is in **[docs/dcs-testplan.md](docs/dcs-testplan.md)** (in Danish), split into server tests (files,
+`dcs.log`, restarts, rotation) and pilot tests (anything a player can check in multiplayer). Each test has
+steps, the expected result, a status and room for feedback. Its *Røgtest* section is the short set to run
+after every new version.
 
 ---
 
@@ -963,7 +928,7 @@ python tools/run_lua.py tools/interdiction.lua 8                         # convo
 `tests/dcs_mock.lua` fakes the parts of the DCS scripting API the bridge uses (spawning, groups,
 aircraft, airbases and warehouses, F10 drawing, timers, files, player births, line of sight,
 AI detections, alarm states, weapon shots). It catches wiring
-bugs; it does not replace a real test flight.
+bugs; it does not replace a real test flight — those checks are in [docs/dcs-testplan.md](docs/dcs-testplan.md).
 
 ---
 
