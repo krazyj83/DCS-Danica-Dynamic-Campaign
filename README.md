@@ -4,7 +4,7 @@ A perpetual, persistent dynamic campaign for DCS World. One Lua engine runs insi
 mission, the war keeps going whether anyone is online or not, and when one side loses its last
 base the server moves on to the next map in the rotation.
 
-**Status: v0.35 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
+**Status: v0.36 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
 nodes, mass for assaults and capture bases. Every base runs on supply that trucks, transport aircraft,
 helicopters and **supply ships** carry forward. Each side has a **mission board** of 38 mission types —
 CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy escort, recon, CSAR, logistics, FARPs, anti-ship, SCUD
@@ -388,8 +388,7 @@ You are told the base's armoury when you spawn (and **F10 → Support → Armour
 
 The missions have **limited munitions**: the engine stocks every airbase's and FARP's shelf by its
 supply, so **the re-arm menu only offers what the base has** ("NOT AVAILABLE" otherwise). Shelves are
-topped up every 5 min (500 of each basic, 60 of each guided and 30 of each advanced weapon type per base,
-double at depots);
+topped up every 5 min (**100 of every weapon type** at every airbase and FARP from the start of the war, v0.36);
 what pilots took since the last top-up is paid from the base's supply. When supply drops, the higher tier
 comes off the shelf. Nobody is ever removed. Bombs, rockets, launchers, pods and tanks are always there.
 The engine gets the weapon list from DCS itself (`Warehouse.getResourceMap`, 1537 types on a 2026 server)
@@ -459,7 +458,7 @@ Every town can become a FARP — the **FARP** mission points you at towns right 
 * **3 supply crates** from any lift helicopter, or a CTLD **FOB** next to it.
 
 Fuel and ammo trucks arrive, it shows on everyone's map, and your side's helicopters can **spawn there**
-(2 of each type, dynamic spawn). **A FARP holds its own stock** (40 SU) and uses it up in about 13 hours;
+(20 of each type, dynamic spawn). **A FARP holds its own stock** (40 SU) and uses it up in about 13 hours;
 below half a **FARPSUP** mission asks for crates (a FARP kit refills it completely). A **dry** FARP stays
 yours but has no spawns and empty shelves until someone brings supply. A captured town loses its FARP —
 FARP towns are captured like any other base. Behind the scenes each town has two invisible FARPs in the
@@ -754,8 +753,12 @@ Use the generated **`dist/DCC_<map>.miz`** (Caucasus, Syria, PersianGulf, German
 
 | Side | Planes | Helicopters |
 | --- | --- | --- |
-| BLUE | F/A-18C, F-16C, F-15E, F-15C, F-14B, F-14B(U), F-14A (3 versions), F-4E, A-10C II, A-10C, A-10A, AV-8B, M-2000C, Mirage F1EE/CE/BE, F-5E (2), AJS37, F-100D, F-86F (2), C-101 (2), MB-339 (2), Hawk, C-130J, Christen Eagle, P-51D (2), TF-51D, P-47D (3), Spitfire IX (2), Mosquito, F4U Corsair, **A-4E-C (mod)** | AH-64D, UH-1H, OH-58D, CH-47F, Gazelle M/L/Mistral/Minigun, **UH-60L (mod)** |
+| BLUE | F/A-18C, F-16C, F-15E, F-15C, F-14B, F-14B(U), F-14A (3 versions), F-4E, A-10C II, A-10C, A-10A, AV-8B, M-2000C, Mirage F1EE/CE/BE, F-5E (2), AJS37, F-100D, F-86F (2), C-101 (2), MB-339 (2), Hawk, C-130J, Christen Eagle, P-51D (2), TF-51D, P-47D (3), Spitfire IX (2), Mosquito, F4U Corsair, **A-4E-C (mod)**; *allied eastern types (v0.36):* MiG-29A/S/G, MiG-29 Fulcrum, JF-17, MiG-21bis, Su-25, L-39ZA/C | AH-64D, UH-1H, OH-58D, CH-47F, Gazelle M/L/Mistral/Minigun, **UH-60L (mod)**; *allied:* Mi-24P, Mi-8MTV2 |
 | RED | Su-27, Su-33, MiG-29S/A/G, MiG-29 Fulcrum, J-11A, JF-17, Su-25T, Su-25, MiG-21bis, MiG-19P, MiG-15bis (2), L-39ZA/C, Yak-52, Bf-109K-4, Fw-190 A-8/D-9, I-16, La-7 | Ka-50 III, Ka-50, Mi-24P, Mi-8MTV2 |
+
+Eastern types flown by allied air forces (MiG-29: Germany, Poland, Slovakia, Bulgaria; JF-17: Pakistan; MiG-21:
+Croatia, Romania; Su-25: Georgia, Bulgaria; L-39, Mi-24, Mi-8: many) are on **both** sides' lists: a BLUE base
+stocks them for BLUE too.
 
 You can only fly modules you own. The **A-4E-C** and **UH-60L** are community mods: the server and every
 player need them installed — or build the missions with `make_mission.py --no-mods`.
@@ -887,7 +890,7 @@ contact aging (`staleTicks`, `expireTicks`), visual ranges, ELINT range, height 
 (`elintKm`, `elintMinAglM`, `elintBaseErrM`, `elintMinErrM`, `elintShrink`), SAM wake distance,
 dark time after an anti-radiation missile, troops-in-contact distance and redraw interval.
 
-Player aircraft stock per base is `aircraftStock` in the catalog (4 per type, 8 at depots).
+Player aircraft stock per base is `aircraftStock` in the catalog (20 of each type at every airbase, v0.36).
 Per-map balance lives in the theater pack: `balance = { blue = 1.0, red = 1.0 }` multiplies each
 side's production.
 
@@ -904,7 +907,7 @@ Measured with the offline simulator, no players online:
 ## Testing offline
 
 Nothing here needs DCS to test. The engine is plain Lua 5.1 (the version DCS uses) and runs
-under Python via `lupa` — 17 suites, 970 checks in v0.35:
+under Python via `lupa` — 17 suites, 974 checks in v0.36:
 
 ```bash
 pip install lupa matplotlib

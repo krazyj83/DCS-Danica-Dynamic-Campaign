@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.35.0",
+  version         = "0.36.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -184,7 +184,7 @@ DCC.config = {
     farpStock      = 40,      -- SU a FARP holds itself (a FARP kit or 4 crates fills it)
     farpUsePerTick = 0.25,    -- ...used per tick (5 min): full to dry in ~13 h
     farpLowShare   = 0.5,     -- below this a FARPSUP mission is posted
-    farpHelos      = 2,       -- helicopters of each own type a FARP can spawn
+    farpHelos      = 20,      -- helicopters of each own type a FARP can spawn (v0.36: was 2)
     antishipChance = 0.4,     -- chance per hour of an AI strike on a known enemy ship
   },
   jtac = { laserCode = 1688, searchKm = 6, standoffKm = 4 },
@@ -262,7 +262,8 @@ DCC.config = {
                                        -- "takeoff": unlimited munitions, warn when taxiing, recall at
                                        --   take-off (missions built with --armoury takeoff)
                 enforce = true,        -- takeoff mode: false = charge only, never recall
-                stock = { basic = 500, guided = 60, advanced = 30 },   -- per weapon type per base (depots x2)
+                stock = { basic = 100, guided = 100, advanced = 100 },  -- per weapon type, every base and FARP
+                depotStock = 1,        -- depots hold this many times the stock (v0.36: 1 = same as any base)
                 testMenu = false },    -- F10 > Armoury test (on in the test mission)
     runwayHits = 3, runwayTicks = 48, runwayRepairSU = 30,   -- 3 bomb hits close an airfield for 4 h
     runwayHitM = 60,             -- a bomb this close to the runway centre line counts

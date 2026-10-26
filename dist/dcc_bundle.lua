@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.35.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.36.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.35.0",
+  version         = "0.36.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -188,7 +188,7 @@ DCC.config = {
     farpStock      = 40,      -- SU a FARP holds itself (a FARP kit or 4 crates fills it)
     farpUsePerTick = 0.25,    -- ...used per tick (5 min): full to dry in ~13 h
     farpLowShare   = 0.5,     -- below this a FARPSUP mission is posted
-    farpHelos      = 2,       -- helicopters of each own type a FARP can spawn
+    farpHelos      = 20,      -- helicopters of each own type a FARP can spawn (v0.36: was 2)
     antishipChance = 0.4,     -- chance per hour of an AI strike on a known enemy ship
   },
   jtac = { laserCode = 1688, searchKm = 6, standoffKm = 4 },
@@ -266,7 +266,8 @@ DCC.config = {
                                        -- "takeoff": unlimited munitions, warn when taxiing, recall at
                                        --   take-off (missions built with --armoury takeoff)
                 enforce = true,        -- takeoff mode: false = charge only, never recall
-                stock = { basic = 500, guided = 60, advanced = 30 },   -- per weapon type per base (depots x2)
+                stock = { basic = 100, guided = 100, advanced = 100 },  -- per weapon type, every base and FARP
+                depotStock = 1,        -- depots hold this many times the stock (v0.36: 1 = same as any base)
                 testMenu = false },    -- F10 > Armoury test (on in the test mission)
     runwayHits = 3, runwayTicks = 48, runwayRepairSU = 30,   -- 3 bomb hits close an airfield for 4 h
     runwayHitM = 60,             -- a bomb this close to the runway centre line counts
@@ -15763,7 +15764,7 @@ function B.restockArmoury()
     local whs = (ns.side == "blue" or ns.side == "red") and warehousesOf(id, ns.side) or {}
     if #whs > 0 then
       local tier = war:armouryTier(id)
-      local big = war.T.nodes[id].depot and 2 or 1
+      local big = war.T.nodes[id].depot and (cfg.depotStock or 1) or 1
       for k, w in ipairs(whs) do
         for _, name in ipairs(B.arm.names) do
           local t = B.arm.tier[name]
@@ -16263,9 +16264,14 @@ DCC_CATALOGS.modern = {
                       "C-101CC", "C-101EB", "MB-339A", "MB-339APAN", "Hawk", "C-130J-30", "Christen Eagle II",
                       "P-51D", "P-51D-30-NA", "TF-51D", "P-47D-30", "P-47D-30bl1", "P-47D-40", "SpitfireLFMkIX",
                       "SpitfireLFMkIXCW", "MosquitoFBMkVI", "F4U-1D",
-                      "A-4E-C" },                                  -- mod: Community A-4E
+                      "A-4E-C",                                    -- mod: Community A-4E
+                      -- v0.36: eastern types flown by allied air forces (Germany, Poland, Slovakia, Bulgaria,
+                      -- Croatia, Pakistan, Georgia ...) - BLUE may fly them too
+                      "MiG-29A", "MiG-29S", "MiG-29G", "MiG-29 Fulcrum", "JF-17", "MiG-21Bis", "Su-25",
+                      "L-39ZA", "L-39C" },
       helicopters = { "AH-64D_BLK_II", "UH-1H", "OH58D", "CH-47Fbl1", "SA342M", "SA342L", "SA342Mistral",
-                      "SA342Minigun", "UH-60L" },                  -- mod: UH-60L Black Hawk
+                      "SA342Minigun", "UH-60L",                    -- mod: UH-60L Black Hawk
+                      "Mi-24P", "Mi-8MT" },                        -- v0.36: allied eastern helicopters
     },
     red = {
       planes      = { "Su-27", "Su-33", "MiG-29S", "MiG-29A", "MiG-29G", "MiG-29 Fulcrum", "J-11A", "JF-17",
@@ -16277,7 +16283,7 @@ DCC_CATALOGS.modern = {
 
   -- Stock of each player type at an airbase. Depots hold more. The supply
   -- system (phase 2) restocks lost aircraft only while the base is supplied.
-  aircraftStock = { airbase = 4, depot = 8 },
+  aircraftStock = { airbase = 20, depot = 20 },     -- v0.36: 20 of each type everywhere (was 4 / 8)
 
   -- ---------------------------------------------------------------------------
   -- Phase 3

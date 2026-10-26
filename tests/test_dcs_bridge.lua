@@ -62,16 +62,22 @@ check("status menu added for both sides", #MOCK.menus == 2)
 
 print("Warehouses (dynamic spawn)")
 local kut = MOCK.airbases["Kutaisi"].wh
--- Kutaisi is a BLUE depot: depots hold 8 of each type
-check("BLUE base: BLUE aircraft stocked", kut:getItemCount("FA-18C_hornet") == 8, kut:getItemCount("FA-18C_hornet"))
+-- v0.36: 20 of each type at every airbase, depots too
+local N = DCC_CATALOGS.modern.aircraftStock.depot
+check("v0.36: 20 of each type in the catalog", N == 20 and DCC_CATALOGS.modern.aircraftStock.airbase == 20)
+check("BLUE base: BLUE aircraft stocked", kut:getItemCount("FA-18C_hornet") == N, kut:getItemCount("FA-18C_hornet"))
 check("BLUE base: RED-only aircraft removed", kut:getItemCount("Su-27") == 0)
-check("every BLUE type on the shelf (F-15C, M-2000C, Gazelle)", kut:getItemCount("F-15C") == 8
-  and kut:getItemCount("M-2000C") == 8 and kut:getItemCount("SA342L") == 8, kut:getItemCount("F-15C"))
-check("...and no RED type (Su-25T is RED now)", kut:getItemCount("Su-25T") == 0 and kut:getItemCount("Ka-50") == 0)
+check("every BLUE type on the shelf (F-15C, M-2000C, Gazelle)", kut:getItemCount("F-15C") == N
+  and kut:getItemCount("M-2000C") == N and kut:getItemCount("SA342L") == N, kut:getItemCount("F-15C"))
+check("...and no RED-only type (Su-25T, Ka-50)", kut:getItemCount("Su-25T") == 0 and kut:getItemCount("Ka-50") == 0)
+check("v0.36: allied eastern types for BLUE (MiG-29A, JF-17, Mi-24P)", kut:getItemCount("MiG-29A") == N
+  and kut:getItemCount("JF-17") == N and kut:getItemCount("Mi-24P") == N, kut:getItemCount("MiG-29A"))
 local bat = MOCK.airbases["Batumi"].wh
-check("depot holds more", bat:getItemCount("F-16C_50") == 8, bat:getItemCount("F-16C_50"))
+check("every depot 20 too", bat:getItemCount("F-16C_50") == N, bat:getItemCount("F-16C_50"))
 local soc = MOCK.airbases["Sochi-Adler"].wh
 check("RED base: BLUE aircraft removed", soc:getItemCount("FA-18C_hornet") == 0)
+check("...but RED keeps its MiG-29s and JF-17s", soc:getItemCount("MiG-29A") > 0 and soc:getItemCount("JF-17") > 0,
+  soc:getItemCount("MiG-29A"))
 
 print("Slot guard")
 local sochi = B.nodePos.sochi
