@@ -66,11 +66,12 @@ local kut = MOCK.airbases["Kutaisi"].wh
 local N = DCC_CATALOGS.modern.aircraftStock.depot
 check("v0.36: 20 of each type in the catalog", N == 20 and DCC_CATALOGS.modern.aircraftStock.airbase == 20)
 check("BLUE base: BLUE aircraft stocked", kut:getItemCount("FA-18C_hornet") == N, kut:getItemCount("FA-18C_hornet"))
-check("BLUE base: RED-only aircraft removed", kut:getItemCount("Su-27") == 0)
+check("BLUE base: RED-only aircraft removed (Su-33, J-11A)", kut:getItemCount("Su-33") == 0 and kut:getItemCount("J-11A") == 0)
 check("every BLUE type on the shelf (F-15C, M-2000C, Gazelle)", kut:getItemCount("F-15C") == N
   and kut:getItemCount("M-2000C") == N and kut:getItemCount("SA342L") == N, kut:getItemCount("F-15C"))
 check("...and no RED-only type (Su-25T, Ka-50)", kut:getItemCount("Su-25T") == 0 and kut:getItemCount("Ka-50") == 0)
-check("v0.36: allied eastern types for BLUE (MiG-29A, JF-17, Mi-24P)", kut:getItemCount("MiG-29A") == N
+check("v0.36: allied eastern types for BLUE (MiG-29A, JF-17, Su-27, Mi-24P)", kut:getItemCount("MiG-29A") == N
+  and kut:getItemCount("Su-27") == N
   and kut:getItemCount("JF-17") == N and kut:getItemCount("Mi-24P") == N, kut:getItemCount("MiG-29A"))
 local bat = MOCK.airbases["Batumi"].wh
 check("every depot 20 too", bat:getItemCount("F-16C_50") == N, bat:getItemCount("F-16C_50"))

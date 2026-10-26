@@ -342,7 +342,7 @@ Feedback:
 **Allierede østlige flytyper for BLUE**
 `Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.36 · Offline: test_dcs_bridge
 
-1. Åbn dynamic spawn på en BLUE-base. Se efter MiG-29, JF-17, MiG-21bis, Su-25, L-39, Mi-24P og Mi-8.
+1. Åbn dynamic spawn på en BLUE-base. Se efter MiG-29, JF-17, Su-27, MiG-21bis, Su-25, L-39, Mi-24P og Mi-8.
 2. Spawn i en af dem som BLUE og flyv en mission.
 
 **Forvent:** Typerne står på BLUE's liste (20 af hver) og spawner som BLUE. RED har dem stadig på sine baser.

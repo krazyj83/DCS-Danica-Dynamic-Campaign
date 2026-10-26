@@ -144,7 +144,7 @@ do
     for _, ns in pairs(w.state.nodes) do if not ns.supply or ns.supply <= 0 then return false end end
     return true end)())
   check("airbases start with their owner's aircraft", w.state.nodes.senaki.air["FA-18C_hornet"] == C.aircraftStock.airbase
-    and w.state.nodes.senaki.air["Su-27"] == nil)
+    and w.state.nodes.senaki.air["Su-33"] == nil)
   local convoys, airlifts = 0, 0
   for _ = 1, 400 do
     w:tick()

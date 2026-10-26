@@ -16266,8 +16266,8 @@ DCC_CATALOGS.modern = {
                       "SpitfireLFMkIXCW", "MosquitoFBMkVI", "F4U-1D",
                       "A-4E-C",                                    -- mod: Community A-4E
                       -- v0.36: eastern types flown by allied air forces (Germany, Poland, Slovakia, Bulgaria,
-                      -- Croatia, Pakistan, Georgia ...) - BLUE may fly them too
-                      "MiG-29A", "MiG-29S", "MiG-29G", "MiG-29 Fulcrum", "JF-17", "MiG-21Bis", "Su-25",
+                      -- Croatia, Pakistan, Georgia, Ukraine ...) - BLUE may fly them too
+                      "MiG-29A", "MiG-29S", "MiG-29G", "MiG-29 Fulcrum", "JF-17", "MiG-21Bis", "Su-25", "Su-27",
                       "L-39ZA", "L-39C" },
       helicopters = { "AH-64D_BLK_II", "UH-1H", "OH58D", "CH-47Fbl1", "SA342M", "SA342L", "SA342Mistral",
                       "SA342Minigun", "UH-60L",                    -- mod: UH-60L Black Hawk

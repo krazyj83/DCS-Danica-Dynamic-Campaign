@@ -753,11 +753,11 @@ Use the generated **`dist/DCC_<map>.miz`** (Caucasus, Syria, PersianGulf, German
 
 | Side | Planes | Helicopters |
 | --- | --- | --- |
-| BLUE | F/A-18C, F-16C, F-15E, F-15C, F-14B, F-14B(U), F-14A (3 versions), F-4E, A-10C II, A-10C, A-10A, AV-8B, M-2000C, Mirage F1EE/CE/BE, F-5E (2), AJS37, F-100D, F-86F (2), C-101 (2), MB-339 (2), Hawk, C-130J, Christen Eagle, P-51D (2), TF-51D, P-47D (3), Spitfire IX (2), Mosquito, F4U Corsair, **A-4E-C (mod)**; *allied eastern types (v0.36):* MiG-29A/S/G, MiG-29 Fulcrum, JF-17, MiG-21bis, Su-25, L-39ZA/C | AH-64D, UH-1H, OH-58D, CH-47F, Gazelle M/L/Mistral/Minigun, **UH-60L (mod)**; *allied:* Mi-24P, Mi-8MTV2 |
+| BLUE | F/A-18C, F-16C, F-15E, F-15C, F-14B, F-14B(U), F-14A (3 versions), F-4E, A-10C II, A-10C, A-10A, AV-8B, M-2000C, Mirage F1EE/CE/BE, F-5E (2), AJS37, F-100D, F-86F (2), C-101 (2), MB-339 (2), Hawk, C-130J, Christen Eagle, P-51D (2), TF-51D, P-47D (3), Spitfire IX (2), Mosquito, F4U Corsair, **A-4E-C (mod)**; *allied eastern types (v0.36):* MiG-29A/S/G, MiG-29 Fulcrum, JF-17, Su-27, MiG-21bis, Su-25, L-39ZA/C | AH-64D, UH-1H, OH-58D, CH-47F, Gazelle M/L/Mistral/Minigun, **UH-60L (mod)**; *allied:* Mi-24P, Mi-8MTV2 |
 | RED | Su-27, Su-33, MiG-29S/A/G, MiG-29 Fulcrum, J-11A, JF-17, Su-25T, Su-25, MiG-21bis, MiG-19P, MiG-15bis (2), L-39ZA/C, Yak-52, Bf-109K-4, Fw-190 A-8/D-9, I-16, La-7 | Ka-50 III, Ka-50, Mi-24P, Mi-8MTV2 |
 
 Eastern types flown by allied air forces (MiG-29: Germany, Poland, Slovakia, Bulgaria; JF-17: Pakistan; MiG-21:
-Croatia, Romania; Su-25: Georgia, Bulgaria; L-39, Mi-24, Mi-8: many) are on **both** sides' lists: a BLUE base
+Croatia, Romania; Su-27: Ukraine; Su-25: Georgia, Bulgaria; L-39, Mi-24, Mi-8: many) are on **both** sides' lists: a BLUE base
 stocks them for BLUE too.
 
 You can only fly modules you own. The **A-4E-C** and **UH-60L** are community mods: the server and every

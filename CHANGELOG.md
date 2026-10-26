@@ -15,7 +15,7 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
   each helicopter type at a FARP (was 2; `world.farpHelos`).
 
 **Added**
-- **BLUE can fly allied eastern types:** MiG-29A/S/G, MiG-29 Fulcrum, JF-17, MiG-21bis, Su-25, L-39ZA/C, Mi-24P and
+- **BLUE can fly allied eastern types:** MiG-29A/S/G, MiG-29 Fulcrum, JF-17, Su-27, MiG-21bis, Su-25, L-39ZA/C, Mi-24P and
   Mi-8MTV2 are on both sides' lists (dynamic spawn at BLUE bases, fixed slots at BLUE depots).
 - DCS test plan: P-106 (allied types for BLUE); P-101, P-603 and P-702 set to RETEST.
 
