@@ -77,9 +77,14 @@ DCC_CATALOGS.modern = {
                       "C-101CC", "C-101EB", "MB-339A", "MB-339APAN", "Hawk", "C-130J-30", "Christen Eagle II",
                       "P-51D", "P-51D-30-NA", "TF-51D", "P-47D-30", "P-47D-30bl1", "P-47D-40", "SpitfireLFMkIX",
                       "SpitfireLFMkIXCW", "MosquitoFBMkVI", "F4U-1D",
-                      "A-4E-C" },                                  -- mod: Community A-4E
+                      "A-4E-C",                                    -- mod: Community A-4E
+                      -- v0.36: eastern types flown by allied air forces (Germany, Poland, Slovakia, Bulgaria,
+                      -- Croatia, Pakistan, Georgia, Ukraine ...) - BLUE may fly them too
+                      "MiG-29A", "MiG-29S", "MiG-29G", "MiG-29 Fulcrum", "JF-17", "MiG-21Bis", "Su-25", "Su-27",
+                      "L-39ZA", "L-39C" },
       helicopters = { "AH-64D_BLK_II", "UH-1H", "OH58D", "CH-47Fbl1", "SA342M", "SA342L", "SA342Mistral",
-                      "SA342Minigun", "UH-60L" },                  -- mod: UH-60L Black Hawk
+                      "SA342Minigun", "UH-60L",                    -- mod: UH-60L Black Hawk
+                      "Mi-24P", "Mi-8MT" },                        -- v0.36: allied eastern helicopters
     },
     red = {
       planes      = { "Su-27", "Su-33", "MiG-29S", "MiG-29A", "MiG-29G", "MiG-29 Fulcrum", "J-11A", "JF-17",
@@ -91,7 +96,7 @@ DCC_CATALOGS.modern = {
 
   -- Stock of each player type at an airbase. Depots hold more. The supply
   -- system (phase 2) restocks lost aircraft only while the base is supplied.
-  aircraftStock = { airbase = 4, depot = 8 },
+  aircraftStock = { airbase = 20, depot = 20 },     -- v0.36: 20 of each type everywhere (was 4 / 8)
 
   -- ---------------------------------------------------------------------------
   -- Phase 3

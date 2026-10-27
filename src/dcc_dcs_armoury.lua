@@ -183,7 +183,7 @@ function B.restockArmoury()
     local whs = (ns.side == "blue" or ns.side == "red") and warehousesOf(id, ns.side) or {}
     if #whs > 0 then
       local tier = war:armouryTier(id)
-      local big = war.T.nodes[id].depot and 2 or 1
+      local big = war.T.nodes[id].depot and (cfg.depotStock or 1) or 1
       for k, w in ipairs(whs) do
         for _, name in ipairs(B.arm.names) do
           local t = B.arm.tier[name]

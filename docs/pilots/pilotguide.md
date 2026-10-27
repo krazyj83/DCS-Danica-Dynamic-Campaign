@@ -37,7 +37,7 @@ En side vinder kortet på to måder, og begge afgøres af spillerne – ikke af 
 
 Din første sortie handler om én ting: tag en mission fra boardet, løs den, og land på en venlig base – først da tæller pointene.
 
-1. **Vælg side og fly.** Spawn på en base, din side ejer. Du kan kun vælge din sides flytyper – og kun dem, basen har på lager (4 af hver type, 8 på depoter). Erobres en base, får den den nye ejers fly. Spawner du på en base, din side ikke ejer, bliver du fjernet med en besked.
+1. **Vælg side og fly.** Spawn på en base, din side ejer. Du kan kun vælge din sides flytyper – og kun dem, basen har på lager (20 af hver type). Erobres en base, får den den nye ejers fly. Spawner du på en base, din side ikke ejer, bliver du fjernet med en besked.
 2. **Læs situationen.** *F10 → Other → Campaign → Campaign status* viser: antal baser pr. side, dine delinger, din sides **main effort**, din sides samlede SU, konvojer og airlifts på vej, baser uden forsyning, krigsuret og hvem der fører, dit luftvåben (jagere og angrebsfly), antal åbne missioner og de 5 seneste erobringer og tab. Kig også på F10-kortet: fronten er den gule linje, og dine egne baser viser `plt | SU`.
 3. **Tjek dine våben.** Ved spawn får du at vide, hvad basen kan bevæbne dig med. Det nemmeste overblik får du i Ground Crew → Rearm and Refuel.
 4. **Tag en mission.** *F10 → Other → Missions → Mission board* viser kun det, dit fly kan flyve, sorteret efter type (9 pr. side, *More missions* for resten). Du får en briefing med målets koordinater (grader/decimalminutter, DMS og MGRS), målets højde, kurs og afstand fra dig, og hvad succes gør. På F10-kortet kommer et DCS-kortmærke med missionens navn, fx »CAS: …« – kun synligt for din gruppe.
@@ -287,7 +287,7 @@ Baser starter krigen på 50 %, så alt er på hylden, indtil fjenden skærer for
 
 - *F10 → Other → Support → Armoury at this base* viser, hvad basen har. Det nemmeste overblik for dit eget fly får du i Ground Crew → Rearm and Refuel: det, der ikke er på hylden, står som "NOT AVAILABLE".
 - **Depoter har dobbelt lager.** Mangler du AMRAAM eller HARM, så flyt til en base længere tilbage.
-- **Fly er også begrænsede:** hver base har et lager af hver type (4, eller 8 på depoter). Mistede fly erstattes ét i timen og koster forsyning.
+- **Fly er også begrænsede:** hver base har et lager af hver type (20). Mistede fly erstattes ét i timen og koster forsyning.
 - **Cooldown:** to dødsfald inden for en time giver 15 minutters flyveforbud i hurtige jetfly. Helikoptere er altid tilladt.
 
 Den økonomiske pointe: hver AMRAAM, du skyder ud i det blå, er forsyning, som fronten ikke får. Flyv med det, opgaven kræver.
@@ -424,7 +424,7 @@ I DCS ses vejret som **tåge**, der ruller ind og letter (let dis før regn, 4 k
 - **Varsler:** alle får besked 24 t, 6 t og 1 t før krigsuret løber ud, med navnet på den side, der fører. Ved sejr skifter serveren kort efter 2 minutter.
 - **Performance guard:** tæller motoren over 700 jordenheder i DCS, skrumper den krigen i felten (live-zone 34 km, færre spawnede delinger og sammenstød); over 1000 endnu mere (29 km). Alle ser »Server busy …«. Selve krigsmodellen ændres aldrig – kun hvor meget af den der er rigtige DCS-enheder.
 - **Kneeboard og DTC:** hver mission har 3–4 kneeboard-sider pr. fly (flyvepladsfrekvenser, skibenes TACAN/ICLS, tankfly, kampagnekortet ved start og en quick reference). F-16C og F/A-18C har DTC-cartridges med radiopresets og trusselstabeller; Hornet får alle flyvepladser og byer som navngivne steerpoints.
-- **Flytyper:** alle flyvbare typer i DCS, fordelt efter hvem der fløj dem – fra F/A-18C, F-16C, F-15E, F-14, A-10 og AV-8B til Su-27, Su-33, MiG-29, JF-17 og Su-25, plus warbirds og træningsfly. Helikoptere: AH-64D, UH-1H, OH-58D, CH-47F, Gazelle (BLUE) og Ka-50, Mi-24P, Mi-8 (RED). A-4E-C og UH-60L er mods, som både server og spiller skal have installeret. Du kan kun flyve moduler, du ejer.
+- **Flytyper:** alle flyvbare typer i DCS, fordelt efter hvem der fløj dem – fra F/A-18C, F-16C, F-15E, F-14, A-10 og AV-8B til Su-27, Su-33, MiG-29, JF-17 og Su-25, plus warbirds og træningsfly. Helikoptere: AH-64D, UH-1H, OH-58D, CH-47F, Gazelle (BLUE) og Ka-50, Mi-24P, Mi-8 (RED). BLUE kan også flyve østlige typer, som allierede lande bruger: MiG-29, JF-17, Su-27, MiG-21bis, Su-25, L-39, Mi-24P og Mi-8. A-4E-C og UH-60L er mods, som både server og spiller skal have installeret. Du kan kun flyve moduler, du ejer.
 
 ## Hurtig reference
 

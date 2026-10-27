@@ -83,7 +83,9 @@ local wh = MOCK.airbases[B.airbases.kutaisi].wh
 local ns = war.state.nodes.kutaisi
 local cap = war:supplyCap("kutaisi")
 local stock = DCC.config.ext.armoury.stock
-local big = war.T.nodes.kutaisi.depot and 2 or 1
+local big = war.T.nodes.kutaisi.depot and (DCC.config.ext.armoury.depotStock or 1) or 1
+check("v0.36: 100 of every weapon type, depots too", stock.basic == 100 and stock.guided == 100
+  and stock.advanced == 100 and big == 1)
 ns.supply = cap * 0.1
 B.restockArmoury()
 check("dry base: Mk-82 on the shelf", wh.items["weapons.bombs.Mk_82"] == stock.basic * big)

@@ -288,11 +288,11 @@ Feedback:
 
 ### P-101
 **Kun egne flytyper på basen**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.2 · Offline: test_dcs_bridge
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.2 · Offline: test_dcs_bridge
 
 1. Åbn dynamic spawn på en base, din side ejer, og på en, fjenden ejer.
 
-**Forvent:** Egen base: kun din sides typer, 4 af hver (8 på depoter). En erobret base skifter liste ved næste
+**Forvent:** Egen base: kun din sides typer, 20 af hver (v0.36: før 4 / 8). En erobret base skifter liste ved næste
 tick.
 
 Feedback:
@@ -335,6 +335,17 @@ Feedback:
 1. Dø to gange inden for en time i et jetfly. Prøv at spawne et jetfly og derefter en helikopter.
 
 **Forvent:** Jetfly afvist i 15 minutter med besked. Helikopteren er tilladt.
+
+Feedback:
+
+### P-106
+**Allierede østlige flytyper for BLUE**
+`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.36 · Offline: test_dcs_bridge
+
+1. Åbn dynamic spawn på en BLUE-base. Se efter MiG-29, JF-17, Su-27, MiG-21bis, Su-25, L-39, Mi-24P og Mi-8.
+2. Spawn i en af dem som BLUE og flyv en mission.
+
+**Forvent:** Typerne står på BLUE's liste (20 af hver) og spawner som BLUE. RED har dem stadig på sine baser.
 
 Feedback:
 
@@ -682,11 +693,12 @@ Feedback:
 
 ### P-603
 **Armoury at this base**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.13 · Offline: test_armoury, test_ext
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.13 · Offline: test_armoury, test_ext
 
 1. *Support → Armoury at this base* og *Rearm and Refuel* på en base med høj og én med lav SU.
 
-**Forvent:** Høj SU: alt på hylden. Under 20 %: kun ustyret. Det, der mangler, står som NOT AVAILABLE.
+**Forvent:** Høj SU: alt på hylden, 100 af hvert våben (v0.36), også på FARPs og fra krigens start. Under 20 %: kun
+ustyret. Det, der mangler, står som NOT AVAILABLE.
 
 Feedback:
 
@@ -714,11 +726,11 @@ Feedback:
 
 ### P-702
 **FARP af 3 kasser**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.8 · Offline: test_ctld, test_dcs_world
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.8 · Offline: test_ctld, test_dcs_world
 
 1. Lever 3 kasser til en venlig by.
 
-**Forvent:** Lastbilerne kommer, og byens FARP tilbyder din sides helikoptere i slot-listen. (Dynamic spawn på
+**Forvent:** Lastbilerne kommer, og byens FARP tilbyder din sides helikoptere i slot-listen, 20 af hver (v0.36). (Dynamic spawn på
 script-oprettede FARPs er den mindst testede DCS-feature.)
 
 Feedback:
