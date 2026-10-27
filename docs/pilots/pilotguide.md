@@ -286,7 +286,7 @@ F10-kortet viser ikke fjenden af sig selv – kun de kontakter, din side faktisk
 Baser starter krigen på 50 %, så alt er på hylden, indtil fjenden skærer forsyningen over.
 
 - *F10 → Other → Support → Armoury at this base* viser, hvad basen har. Det nemmeste overblik for dit eget fly får du i Ground Crew → Rearm and Refuel: det, der ikke er på hylden, står som "NOT AVAILABLE".
-- **Fly er også begrænsede:** hver base har et lager af hver type (20). Mistede fly erstattes ét i timen og koster forsyning.
+- **Fly er også begrænsede:** hver base har et lager af hver type (20, og aldrig under 2). Mistede fly erstattes ét i timen og koster forsyning.
 - **Cooldown:** to dødsfald inden for en time giver 15 minutters flyveforbud i hurtige jetfly. Helikoptere er altid tilladt.
 
 Den økonomiske pointe: hver AMRAAM, du skyder ud i det blå, er forsyning, som fronten ikke får. Flyv med det, opgaven kræver.

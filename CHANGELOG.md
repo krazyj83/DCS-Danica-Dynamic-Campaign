@@ -6,6 +6,20 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.38.0 — 2026-10-27
+
+**Added**
+- **HQ for each side:** `main` in every theater pack (Caucasus Kutaisi / Krasnodar-Center, Syria Ramat David / Damascus,
+  Persian Gulf Al Dhafra / Bandar Abbas, Germany Frankfurt / Schönefeld). A star and a double ring on everyone's F10
+  map, named in Campaign status, marked on the kneeboard map. Lost: the side's next depot takes over.
+- **2 helipads per FARP** (`world.farpPads`): two helicopters can spawn at a FARP at once.
+
+**Changed**
+- **At least 2 of every own aircraft type** at every own airbase, always (`supply.airMinStock`, free): captured bases,
+  used-up types and types added after the war started were empty in dynamic spawn.
+- **Every base starts with at least 50 SU** (`supply.startSU`; depots keep 150).
+- DCS test plan: P-101, P-702 to RETEST; new P-108 (HQ star) and P-109 (FARP: 2 helicopters).
+
 ## 0.37.0 — 2026-10-27 (bugs from the 9-player test)
 
 **Fixed**

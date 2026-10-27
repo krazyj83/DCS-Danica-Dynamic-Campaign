@@ -27,6 +27,7 @@ DCC_THEATERS.Caucasus = {
   -- Country used for spawned units. CJTF countries accept any unit type.
   country = { blue = "CJTF_BLUE", red = "CJTF_RED" },
   balance = { blue = 1.0, red = 1.0 },
+  main    = { blue = "kutaisi", red = "krasnodar_c" },   -- each side's HQ (a depot): the star on the map
 
   nodes = {
     -- ---------------- BLUE (Georgia) ----------------

@@ -138,6 +138,13 @@ def map_page(theater, theater_name, carrier_xy=None):
         else:
             d.ellipse([x - r, y - r, x + r, y + r], fill=col, outline=INK)
         d.text((x + r + 3, y - 8), n["name"][:22], font=font(13), fill=INK)
+    for side, nid in (theater.get("main") or {}).items():         # each side's HQ (v0.38)
+        n = nodes.get(nid)
+        if n:
+            x, y = xy(n["lat"], n["lon"])
+            col = BLUE if side == "blue" else RED
+            d.ellipse([x - 16, y - 16, x + 16, y + 16], outline=col, width=3)
+            d.text((x - 9, y - 34), "\u2605 HQ", font=font(15, bold=True), fill=col)
     for sh in theater.get("naval", []) or []:
         x, y = xy(sh["lat"], sh["lon"])
         col = BLUE if sh["side"] == "blue" else RED
@@ -156,6 +163,8 @@ def map_page(theater, theater_name, carrier_xy=None):
     d.text((618, y), "road", font=font(16), fill=INK)
     d.line([690, y + 11, 740, y + 11], fill=(120, 160, 210), width=3)
     d.text((748, y), "sea lane", font=font(16), fill=INK)
+    d.ellipse([820, y + 2, 838, y + 20], outline=BLUE, width=3)
+    d.text((846, y), "HQ", font=font(16), fill=INK)
     d.text((40, y + 40), "Live front line, enemy contacts and FARPs: F10 map. Owner here = start of the war.",
            font=font(16), fill=DIM)
     return img

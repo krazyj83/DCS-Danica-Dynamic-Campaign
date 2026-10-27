@@ -167,9 +167,11 @@ local function warehousesOf(id, side)
   local w = ab and ok(ab.getWarehouse, ab)
   if w then out[#out + 1] = w end
   if B.war:canHaveFarp(id) and B.war:farpAt(id) then
-    local fab = ok(Airbase.getByName, "DCC_FARP_" .. id .. "_" .. side)
-    local fw = fab and ok(fab.getWarehouse, fab)
-    if fw then out[#out + 1] = fw; out.farp[#out] = true end
+    for _, pad in ipairs(B.farpPadNames and B.farpPadNames(id, side) or { "DCC_FARP_" .. id .. "_" .. side }) do
+      local fab = ok(Airbase.getByName, pad)
+      local fw = fab and ok(fab.getWarehouse, fab)
+      if fw then out[#out + 1] = fw; out.farp[#out] = true end
+    end
   end
   return out
 end

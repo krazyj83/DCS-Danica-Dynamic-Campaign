@@ -78,7 +78,9 @@ end
 -- Fresh stock for a node: full at war start, empty after a capture.
 function War:initNodeSupply(id, fresh)
   local ns, tn = self.state.nodes[id], self.T.nodes[id]
-  if ns.supply == nil then ns.supply = self:supplyCap(id) * S(self).startFraction end
+  if ns.supply == nil then
+    ns.supply = math.max(S(self).startSU or 0, self:supplyCap(id) * S(self).startFraction)
+  end
   if tn.kind == "airbase" and (ns.air == nil or fresh ~= nil) then
     ns.air = {}
     local n = (fresh == "empty") and 0 or self:airTarget(id)
@@ -135,6 +137,19 @@ end
 -- Lost player aircraft come back one at a time, paid for in supply.
 function War:restockAircraft()
   local cfg = S(self)
+  -- v0.38: every own type at least airMinStock at every airbase, free and every tick (a captured
+  -- base starts empty, players use them up, an old save lacks newer types): never a type with
+  -- nothing to spawn
+  local min = cfg.airMinStock or 0
+  for _, id in ipairs(self.T.order) do
+    local ns = self.state.nodes[id]
+    if ns.air and (ns.side == "blue" or ns.side == "red") then
+      for _, t in ipairs(self:aircraftTypes(ns.side)) do
+        if ns.air[t] == nil then ns.air[t] = self:airTarget(id) end          -- a type added since the save
+        if ns.air[t] < min then ns.air[t] = min end
+      end
+    end
+  end
   if self.state.tick % cfg.airRestockTicks ~= 0 then return end
   for _, id in ipairs(self.T.order) do
     local ns = self.state.nodes[id]

@@ -143,6 +143,24 @@ check("not stopped: it lays the mines and heads home", hm:isMined(bport) and hm.
 hm:missionsTick()
 
 -- ===========================================================================
+print("Pure model: HQ (v0.38)")
+-- ===========================================================================
+local hq = DCC.War.new(T, C, cfg, 44)
+check("each side has its HQ from the theater pack", hq:mainBase("blue") == "kutaisi" and hq:mainBase("red") == "krasnodar_c")
+hq.state.nodes.kutaisi.side = "red"
+check("HQ lost: the next own depot takes over", hq:mainBase("blue") == "batumi", hq:mainBase("blue"))
+local allMain = true
+for _, name in ipairs({ "Syria", "PersianGulf", "GermanyCW" }) do
+  local th = DCC_THEATERS[name]
+  local w9 = DCC.War.new(th, C, cfg, 45)
+  for _, side in ipairs({ "blue", "red" }) do
+    local id = w9:mainBase(side)
+    if not (id and id == th.main[side] and w9.T.nodes[id].depot and w9.state.nodes[id].side == side) then allMain = false end
+  end
+end
+check("every map: both HQs are own depots", allMain)
+
+-- ===========================================================================
 print("Bridge")
 -- ===========================================================================
 dofile(DCC_ROOT .. "/tests/dcs_mock.lua")
@@ -524,6 +542,19 @@ MOCK.killGroup(B.x4.layers[mB].group)
 B.reconcileMinelayers()
 check("sunk in DCS: sunk in the war, no mines", war.state.minelayers[mB] == nil and not war:isMined(sport))
 viper.air = false
+
+print(" HQ on the map (v0.38)")
+B.draw()
+local hqBlue, hqRed = false, false
+for _, id in ipairs(B.marks) do
+  local mk = MOCK.marks[id]
+  local txt = mk and mk.kind == "text" and tostring(mk.args[#mk.args]) or ""
+  if txt:find("BLUE HQ - " .. war:nodeName(war:mainBase("blue")), 1, true) and mk.coal == -1 then hqBlue = true end
+  if txt:find("RED HQ - ", 1, true) and mk.coal == -1 then hqRed = true end
+end
+check("both HQs starred on everyone's map", hqBlue and hqRed)
+local st = table.concat(B.opsStatusLines("blue"), "\n")
+check("Campaign status names the HQs", st:find("HQ: ", 1, true) ~= nil, st:sub(1, 80))
 
 print(" A day")
 viper.air = false

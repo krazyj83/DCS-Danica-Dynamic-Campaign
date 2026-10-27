@@ -21,6 +21,7 @@ DCC_THEATERS.PersianGulf = {
   era     = "modern",
   country = { blue = "CJTF_BLUE", red = "CJTF_RED" },
   balance = { blue = 1.05, red = 1.0 },
+  main    = { blue = "al_dhafra_afb", red = "bandar_abbas_intl" },   -- each side's HQ (a depot): the star on the map
 
   nodes = {
     -- ---------------- BLUE ----------------

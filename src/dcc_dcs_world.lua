@@ -189,6 +189,13 @@ end
 -- ===========================================================================
 -- 3. FARPs
 -- ===========================================================================
+-- A FARP's helipads (v0.38: farpPads of them, so more than one helicopter can spawn).
+function B.farpPadNames(id, side)
+  local out = { "DCC_FARP_" .. id .. "_" .. side }
+  for k = 2, WC().farpPads or 1 do out[#out + 1] = "DCC_FARP_" .. id .. "_" .. side .. "_" .. k end
+  return out
+end
+
 local function farpWarehouse(id, side)
   local ab = ok(Airbase.getByName, "DCC_FARP_" .. id .. "_" .. side)
   return ab and ok(ab.getWarehouse, ab), ab
@@ -203,9 +210,13 @@ function B.reconcileFarps()
       for _, side in ipairs(SIDES) do
         local wh, ab = farpWarehouse(id, side)
         local want = war:farpAt(id) and ns.side == side
-        if wh then
-          local n = (want and not war:farpDry(id)) and WC().farpHelos or 0   -- a dry FARP spawns nothing
-          for _, t in ipairs(B.catalog.aircraft[side].helicopters or {}) do pcall(wh.setItem, wh, t, n) end
+        local n = (want and not war:farpDry(id)) and WC().farpHelos or 0   -- a dry FARP spawns nothing
+        for _, pad in ipairs(B.farpPadNames(id, side)) do
+          local pab = ok(Airbase.getByName, pad)
+          local pwh = pab and ok(pab.getWarehouse, pab)
+          if pwh then
+            for _, t in ipairs(B.catalog.aircraft[side].helicopters or {}) do pcall(pwh.setItem, pwh, t, n) end
+          end
         end
         local rec = B.farps[id]
         if want and (not rec or rec.side ~= side) then

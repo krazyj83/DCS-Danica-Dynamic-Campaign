@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.37.0",
+  version         = "0.38.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -52,7 +52,8 @@ DCC.config = {
   supply = {
     cap              = { town = 60, airbase = 80, depot = 300 }, -- normal stock limit per node
     overfillFactor   = 2.5,   -- deliveries may fill a node up to cap x this (staging areas)
-    startFraction    = 0.5,   -- every node starts half full
+    startFraction    = 0.5,   -- every node starts half full ...
+    startSU          = 50,    -- ... but with at least this much (v0.38: 50 SU at every base; depots 150)
     depotPerTick     = 6,     -- SU a depot produces per tick (x the same factor as platoons)
     upkeepPerPlatoon = 0.05,  -- SU each platoon uses per tick (an 18-platoon town: ~11 SU/h)
     outOfSupplyAttrition = 0.005, -- health lost per tick at 0 supply (~12 h to collapse)
@@ -80,6 +81,7 @@ DCC.config = {
     captureShare     = 0.5,   -- share of a captured node's stores the attacker keeps
     airRestockTicks  = 12,    -- every hour each airbase may replace one lost aircraft...
     airRestockCost   = 5,     -- ...for this much supply
+    airMinStock      = 2,     -- v0.38: never fewer than this of any own type at an own airbase (free)
   },
 
   -- Operations (phase 3): what players can hit or help.
@@ -185,6 +187,8 @@ DCC.config = {
     farpUsePerTick = 0.25,    -- ...used per tick (5 min): full to dry in ~13 h
     farpLowShare   = 0.5,     -- below this a FARPSUP mission is posted
     farpHelos      = 20,      -- helicopters of each own type a FARP can spawn (v0.36: was 2)
+    farpPads       = 2,       -- helipads per FARP (v0.38: one invisible pad let only one helicopter spawn);
+                              --   make_mission.py builds DCC_FARP_<town>_<side>, ..._2, ...
     antishipChance = 0.4,     -- chance per hour of an AI strike on a known enemy ship
   },
   jtac = { laserCode = 1688, searchKm = 6, standoffKm = 4 },

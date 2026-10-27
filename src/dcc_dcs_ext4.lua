@@ -981,6 +981,39 @@ function B.opsTick()
 end
 
 -- ===========================================================================
+-- Main base / HQ on the map (v0.38)
+-- ===========================================================================
+-- A star and a double ring round each side's HQ, on everyone's map, redrawn
+-- with the rest of the map (it moves if the HQ falls).
+local baseDrawOps7 = B.drawOps
+function B.drawOps(newMark, toVec3)
+  baseDrawOps7(newMark, toVec3)
+  local war, cfg = B.war, DCC.config
+  for _, side in ipairs({ "blue", "red" }) do
+    local id = war:mainBase(side)
+    local pos = id and B.nodePos[id]
+    if pos then
+      local col = cfg.colours[side]
+      ok(trigger.action.circleToAll, -1, newMark(), pos, 5200, col, { col[1], col[2], col[3], 0 }, 1, true)
+      ok(trigger.action.circleToAll, -1, newMark(), pos, 5800, col, { col[1], col[2], col[3], 0 }, 1, true)
+      ok(trigger.action.textToAll, -1, newMark(), { x = pos.x + 7000, y = pos.y, z = pos.z - 3000 }, col,
+        { 0, 0, 0, 0.45 }, 22, true, string.format("\226\152\133 %s HQ - %s", side:upper(), war:nodeName(id)))
+    end
+  end
+end
+
+if B.opsStatusLines then
+  local baseStatus7 = B.opsStatusLines
+  function B.opsStatusLines(side)
+    local lines = baseStatus7(side) or {}
+    local own, enemy = B.war:mainBase(side), B.war:mainBase(side == "blue" and "red" or "blue")
+    table.insert(lines, 1, string.format("HQ: %s (enemy HQ: %s) - the star on the map",
+      own and B.war:nodeName(own) or "none", enemy and B.war:nodeName(enemy) or "none"))
+    return lines
+  end
+end
+
+-- ===========================================================================
 -- Loops
 -- ===========================================================================
 local basePoll = B.opsPoll

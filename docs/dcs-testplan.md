@@ -300,6 +300,8 @@ base. En erobret base skifter liste ved næste tick.
 Feedback: v0.36, 9 spillere: på flere baser kunne der ikke spawnes mere end ét fly.
 Rettet i v0.37.0: faste klient-slots fyldte hele forpladsen på Kutaisi, Batumi og Beslan, så dynamic spawn ikke
 havde ledige pladser. Faste slots må nu højst bruge 25 % af en bases parkering.
+v0.37: de store baser havde kun få fly i dynamic spawn.
+Rettet i v0.38.0: mindst 2 af hver egen type på alle egne baser, altid (også erobrede baser og nye typer).
 
 ### P-102
 **Faste slots spawner**
@@ -364,6 +366,27 @@ Feedback:
 Feedback: v0.36, 9 spillere: Hercules C-130 loadede ikke (slottet spawnede ikke / hang ved join).
 Rettet i v0.37.0: faste slots tog de store standpladser først (pydcs vælger efter navn), så en C-130J ikke fandt
 plads. Faste slots står nu på den mindste plads, flyet passer på, og de store pladser er fri til transportfly.
+
+### P-108
+**HQ på kortet**
+`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.38 · Offline: test_ext4
+
+1. Åbn F10-kortet og *Campaign status*.
+
+**Forvent:** Begge siders HQ har en stjerne og en dobbelt ring (Caucasus: Kutaisi / Krasnodar-Center), og
+*Campaign status* nævner dem.
+
+Feedback:
+
+### P-109
+**FARP: to helikoptere ad gangen**
+`Status: IKKE TESTET` · Spillere: 2 · Kort: alle · Siden v0.38 · Offline: test_dcs_world
+
+1. Byg en FARP. Lad to spillere spawne en helikopter der samtidig.
+
+**Forvent:** Begge spawner (to helipads).
+
+Feedback: v0.37: kun én helikopter kunne spawne på en FARP (én usynlig helipad).
 
 ## P-200 · F10-menuer og missioner
 
