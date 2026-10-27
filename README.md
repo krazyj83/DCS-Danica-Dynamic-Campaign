@@ -671,7 +671,7 @@ Spectators see only the front line and who owns each base.
 | **Main effort** | Each side picks one enemy node to break, piles platoons and supply next to it, then attacks with everything it staged. |
 | **Live bubble** | Nodes within 40 km of any player are *live*: their garrisons, columns and convoys are spawned as real DCS groups, and DCS does the fighting. Everywhere else the war runs on dice. |
 | **Read-back** | Every 30 s the engine polls spawned groups. Dead vehicles lower a platoon's health or a convoy's cargo; positions become progress along the road. |
-| **Warehouse** | Each airbase's DCS warehouse holds the owner's player aircraft (dynamic spawn). Players take aircraft out and bring them back; lost ones are replaced one an hour, paid for in supply — only at a supplied base. |
+| **Warehouse** | Each airbase's DCS warehouse holds the owner's player aircraft (dynamic spawn, 20 of each type) and 100 of every weapon. Players take aircraft out and bring them back; lost ones are replaced one an hour, paid for in supply — only at a supplied base. |
 | **Mission board** | Player missions generated from the live war for each side. Each points at something real in the save; its effect happens in the model itself. |
 | **SAM site** | Airbases and depots have an air-defence site (BLUE Hawk, RED SA-11), spawned when a player is within 80 km. Up → suppressed (radar dead) → destroyed. Captured sites are destroyed; the new owner builds its own. |
 | **Structures** | Fuel, ammo and warehouse buildings at depots (6) and airbases (4) — strike targets that cut output and supply when destroyed. |
@@ -739,7 +739,7 @@ Use the generated **`dist/DCC_<map>.miz`** (Caucasus, Syria, PersianGulf, German
 | --- | --- |
 | Coalitions | CJTF Blue vs CJTF Red (either side can use any unit type) |
 | Airbase ownership | As in the theater pack (BLUE Georgia, RED north / Abkhazia / South Ossetia) |
-| **Dynamic spawn** on all 23 campaign airbases | In multiplayer, players pick any aircraft their side's base holds. The engine removes the enemy's types and stocks the owner's at mission start and after every capture. |
+| **Dynamic spawn** on all 23 campaign airbases | In multiplayer, players pick any aircraft their side's base holds (20 of each type). The engine removes the enemy's types and stocks the owner's at mission start and after every capture. |
 | **Fixed client slots** | One per aircraft type at every depot while its parking lasts; a type that fits nowhere there gets one at the side's next airbase with room. Plus the carrier slots. These also work in single player. |
 | **Kneeboard** | 3–4 pages for every aircraft (`tools/kneeboard.py`): airbase tower frequencies, ship TACAN / ICLS, tankers; the campaign map at the start; a quick reference (menus, mission types, how bases fall, armoury, night and weather) |
 | **DTC cartridges** | F-16C and F/A-18C (from the templates in `dtc/`, made in the Mission Editor): radio presets, displays, threat tables; the Hornet gets every airbase and town as a named steerpoint. Default in every fixed slot of the type; dynamic-spawn pilots pick it in the DTC screen |
