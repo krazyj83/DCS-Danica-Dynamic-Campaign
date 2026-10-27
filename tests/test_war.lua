@@ -143,6 +143,22 @@ do
   check("every node starts with supply", (function()
     for _, ns in pairs(w.state.nodes) do if not ns.supply or ns.supply <= 0 then return false end end
     return true end)())
+  check("v0.38: every base starts with at least 50 SU (depots more)", (function()
+    for id, ns in pairs(w.state.nodes) do
+      if ns.supply < 50 or (w.T.nodes[id].depot and ns.supply < 150) then return false end
+    end
+    return true end)())
+  w.state.nodes.senaki.air["F-16C_50"] = 0
+  w.state.nodes.senaki.air["MiG-29A"] = nil               -- a save from before the type was added
+  w:restockAircraft()
+  check("v0.38: never fewer than 2 of a type at an airbase", w.state.nodes.senaki.air["F-16C_50"] >= 2)
+  check("...and a type added since the save is stocked", w.state.nodes.senaki.air["MiG-29A"] == C.aircraftStock.airbase)
+  w:onCaptureSupply("senaki")
+  w.state.nodes.senaki.side = w.state.nodes.senaki.side
+  w:restockAircraft()
+  check("...a captured base too (it starts empty)", w.state.nodes.senaki.air["F-16C_50"] >= 2)
+  w.state.nodes.senaki.air["F-16C_50"] = C.aircraftStock.airbase
+  for _, t in ipairs(w:aircraftTypes("blue")) do w.state.nodes.senaki.air[t] = C.aircraftStock.airbase end
   check("airbases start with their owner's aircraft", w.state.nodes.senaki.air["FA-18C_hornet"] == C.aircraftStock.airbase
     and w.state.nodes.senaki.air["Su-33"] == nil)
   local convoys, airlifts = 0, 0

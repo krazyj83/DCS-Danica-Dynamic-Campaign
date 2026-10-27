@@ -217,6 +217,9 @@ def build(name, plot=True):
     out.append('  country = { blue = "CJTF_BLUE", red = "CJTF_RED" },')
     bal = sc.get("balance", {"blue": 1.0, "red": 1.0})
     out.append(f"  balance = {{ blue = {bal['blue']}, red = {bal['red']} }},")
+    if sc.get("main"):
+        out.append(f"  main    = {{ blue = {lua_str(sc['main']['blue'])}, red = {lua_str(sc['main']['red'])} }},"
+                   "   -- each side's HQ (a depot): the star on the map")
     out.append("")
     out.append("  nodes = {")
     for side in ("blue", "red"):

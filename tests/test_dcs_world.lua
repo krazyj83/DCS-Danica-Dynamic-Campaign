@@ -22,6 +22,8 @@ for _, n in ipairs(TH.nodes) do
     local p = coord.LLtoLO(n.lat, n.lon, 0)
     MOCK.addFarp("DCC_FARP_" .. n.id .. "_blue", p.x + 1500, p.z, 2)
     MOCK.addFarp("DCC_FARP_" .. n.id .. "_red", p.x - 1500, p.z, 1)
+    MOCK.addFarp("DCC_FARP_" .. n.id .. "_blue_2", p.x + 1500, p.z + 60, 2)   -- v0.38: 2 pads per side
+    MOCK.addFarp("DCC_FARP_" .. n.id .. "_red_2", p.x - 1500, p.z + 60, 1)
   end
 end
 -- and, for this test, a BLUE carrier in the Black Sea
@@ -111,6 +113,8 @@ check("unbuilt FARP has no helicopters", wh:getItemCount("UH-1H") == 0)
 for _ = 1, 3 do war:deliverCrate("blue", town, 10) end
 B.reconcileFarps()
 check("built FARP stocks BLUE helicopters", wh:getItemCount("UH-1H") == DCC.config.world.farpHelos)
+check("v0.38: ...on both helipads, so 2 helicopters can spawn at once", DCC.config.world.farpPads == 2
+  and Airbase.getByName("DCC_FARP_gori_blue_2"):getWarehouse():getItemCount("UH-1H") == DCC.config.world.farpHelos)
 check("RED FARP at the same town stays empty", Airbase.getByName("DCC_FARP_gori_red"):getWarehouse():getItemCount("Mi-8MTV2") == 0)
 check("fuel and ammo trucks at the FARP", MOCK.groups["DCC_FARPCREW_gori"] ~= nil and #MOCK.groups["DCC_FARPCREW_gori"].units == 3)
 B.draw()

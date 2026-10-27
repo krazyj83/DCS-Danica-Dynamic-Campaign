@@ -369,3 +369,23 @@ function War:missionOutcome(m, events)
   if self.state.nodes[m.target].side ~= m.side or not self:isMined(m.target) then return "expired" end
   return "open"
 end
+
+-- ============================================================================
+-- Main base / HQ (v0.38)
+-- ----------------------------------------------------------------------------
+-- Each side's HQ is `main` in the theater pack (a depot). Lost, the side's
+-- next depot (theater order) takes over, else its first airbase. The bridge
+-- draws it as a star on everyone's map; Campaign status names it.
+-- ============================================================================
+function War:mainBase(side)
+  local want = self.theater.main and self.theater.main[side]
+  if want and self.state.nodes[want] and self.state.nodes[want].side == side then return want end
+  local airbase
+  for _, id in ipairs(self.T.order) do
+    if self.state.nodes[id].side == side then
+      if self.T.nodes[id].depot then return id end
+      if not airbase and self.T.nodes[id].kind == "airbase" then airbase = id end
+    end
+  end
+  return airbase
+end

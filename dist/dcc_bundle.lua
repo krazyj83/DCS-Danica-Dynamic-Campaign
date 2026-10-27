@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.37.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.38.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.37.0",
+  version         = "0.38.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -56,7 +56,8 @@ DCC.config = {
   supply = {
     cap              = { town = 60, airbase = 80, depot = 300 }, -- normal stock limit per node
     overfillFactor   = 2.5,   -- deliveries may fill a node up to cap x this (staging areas)
-    startFraction    = 0.5,   -- every node starts half full
+    startFraction    = 0.5,   -- every node starts half full ...
+    startSU          = 50,    -- ... but with at least this much (v0.38: 50 SU at every base; depots 150)
     depotPerTick     = 6,     -- SU a depot produces per tick (x the same factor as platoons)
     upkeepPerPlatoon = 0.05,  -- SU each platoon uses per tick (an 18-platoon town: ~11 SU/h)
     outOfSupplyAttrition = 0.005, -- health lost per tick at 0 supply (~12 h to collapse)
@@ -84,6 +85,7 @@ DCC.config = {
     captureShare     = 0.5,   -- share of a captured node's stores the attacker keeps
     airRestockTicks  = 12,    -- every hour each airbase may replace one lost aircraft...
     airRestockCost   = 5,     -- ...for this much supply
+    airMinStock      = 2,     -- v0.38: never fewer than this of any own type at an own airbase (free)
   },
 
   -- Operations (phase 3): what players can hit or help.
@@ -189,6 +191,8 @@ DCC.config = {
     farpUsePerTick = 0.25,    -- ...used per tick (5 min): full to dry in ~13 h
     farpLowShare   = 0.5,     -- below this a FARPSUP mission is posted
     farpHelos      = 20,      -- helicopters of each own type a FARP can spawn (v0.36: was 2)
+    farpPads       = 2,       -- helipads per FARP (v0.38: one invisible pad let only one helicopter spawn);
+                              --   make_mission.py builds DCC_FARP_<town>_<side>, ..._2, ...
     antishipChance = 0.4,     -- chance per hour of an AI strike on a known enemy ship
   },
   jtac = { laserCode = 1688, searchKm = 6, standoffKm = 4 },
@@ -1715,7 +1719,9 @@ end
 -- Fresh stock for a node: full at war start, empty after a capture.
 function War:initNodeSupply(id, fresh)
   local ns, tn = self.state.nodes[id], self.T.nodes[id]
-  if ns.supply == nil then ns.supply = self:supplyCap(id) * S(self).startFraction end
+  if ns.supply == nil then
+    ns.supply = math.max(S(self).startSU or 0, self:supplyCap(id) * S(self).startFraction)
+  end
   if tn.kind == "airbase" and (ns.air == nil or fresh ~= nil) then
     ns.air = {}
     local n = (fresh == "empty") and 0 or self:airTarget(id)
@@ -1772,6 +1778,19 @@ end
 -- Lost player aircraft come back one at a time, paid for in supply.
 function War:restockAircraft()
   local cfg = S(self)
+  -- v0.38: every own type at least airMinStock at every airbase, free and every tick (a captured
+  -- base starts empty, players use them up, an old save lacks newer types): never a type with
+  -- nothing to spawn
+  local min = cfg.airMinStock or 0
+  for _, id in ipairs(self.T.order) do
+    local ns = self.state.nodes[id]
+    if ns.air and (ns.side == "blue" or ns.side == "red") then
+      for _, t in ipairs(self:aircraftTypes(ns.side)) do
+        if ns.air[t] == nil then ns.air[t] = self:airTarget(id) end          -- a type added since the save
+        if ns.air[t] < min then ns.air[t] = min end
+      end
+    end
+  end
   if self.state.tick % cfg.airRestockTicks ~= 0 then return end
   for _, id in ipairs(self.T.order) do
     local ns = self.state.nodes[id]
@@ -6508,6 +6527,26 @@ function War:missionOutcome(m, events)
   return "open"
 end
 
+-- ============================================================================
+-- Main base / HQ (v0.38)
+-- ----------------------------------------------------------------------------
+-- Each side's HQ is `main` in the theater pack (a depot). Lost, the side's
+-- next depot (theater order) takes over, else its first airbase. The bridge
+-- draws it as a star on everyone's map; Campaign status names it.
+-- ============================================================================
+function War:mainBase(side)
+  local want = self.theater.main and self.theater.main[side]
+  if want and self.state.nodes[want] and self.state.nodes[want].side == side then return want end
+  local airbase
+  for _, id in ipairs(self.T.order) do
+    if self.state.nodes[id].side == side then
+      if self.T.nodes[id].depot then return id end
+      if not airbase and self.T.nodes[id].kind == "airbase" then airbase = id end
+    end
+  end
+  return airbase
+end
+
 end
 
 -- >>> src/dcc_front.lua
@@ -10126,6 +10165,13 @@ end
 -- ===========================================================================
 -- 3. FARPs
 -- ===========================================================================
+-- A FARP's helipads (v0.38: farpPads of them, so more than one helicopter can spawn).
+function B.farpPadNames(id, side)
+  local out = { "DCC_FARP_" .. id .. "_" .. side }
+  for k = 2, WC().farpPads or 1 do out[#out + 1] = "DCC_FARP_" .. id .. "_" .. side .. "_" .. k end
+  return out
+end
+
 local function farpWarehouse(id, side)
   local ab = ok(Airbase.getByName, "DCC_FARP_" .. id .. "_" .. side)
   return ab and ok(ab.getWarehouse, ab), ab
@@ -10140,9 +10186,13 @@ function B.reconcileFarps()
       for _, side in ipairs(SIDES) do
         local wh, ab = farpWarehouse(id, side)
         local want = war:farpAt(id) and ns.side == side
-        if wh then
-          local n = (want and not war:farpDry(id)) and WC().farpHelos or 0   -- a dry FARP spawns nothing
-          for _, t in ipairs(B.catalog.aircraft[side].helicopters or {}) do pcall(wh.setItem, wh, t, n) end
+        local n = (want and not war:farpDry(id)) and WC().farpHelos or 0   -- a dry FARP spawns nothing
+        for _, pad in ipairs(B.farpPadNames(id, side)) do
+          local pab = ok(Airbase.getByName, pad)
+          local pwh = pab and ok(pab.getWarehouse, pab)
+          if pwh then
+            for _, t in ipairs(B.catalog.aircraft[side].helicopters or {}) do pcall(pwh.setItem, pwh, t, n) end
+          end
         end
         local rec = B.farps[id]
         if want and (not rec or rec.side ~= side) then
@@ -15616,6 +15666,39 @@ function B.opsTick()
 end
 
 -- ===========================================================================
+-- Main base / HQ on the map (v0.38)
+-- ===========================================================================
+-- A star and a double ring round each side's HQ, on everyone's map, redrawn
+-- with the rest of the map (it moves if the HQ falls).
+local baseDrawOps7 = B.drawOps
+function B.drawOps(newMark, toVec3)
+  baseDrawOps7(newMark, toVec3)
+  local war, cfg = B.war, DCC.config
+  for _, side in ipairs({ "blue", "red" }) do
+    local id = war:mainBase(side)
+    local pos = id and B.nodePos[id]
+    if pos then
+      local col = cfg.colours[side]
+      ok(trigger.action.circleToAll, -1, newMark(), pos, 5200, col, { col[1], col[2], col[3], 0 }, 1, true)
+      ok(trigger.action.circleToAll, -1, newMark(), pos, 5800, col, { col[1], col[2], col[3], 0 }, 1, true)
+      ok(trigger.action.textToAll, -1, newMark(), { x = pos.x + 7000, y = pos.y, z = pos.z - 3000 }, col,
+        { 0, 0, 0, 0.45 }, 22, true, string.format("\226\152\133 %s HQ - %s", side:upper(), war:nodeName(id)))
+    end
+  end
+end
+
+if B.opsStatusLines then
+  local baseStatus7 = B.opsStatusLines
+  function B.opsStatusLines(side)
+    local lines = baseStatus7(side) or {}
+    local own, enemy = B.war:mainBase(side), B.war:mainBase(side == "blue" and "red" or "blue")
+    table.insert(lines, 1, string.format("HQ: %s (enemy HQ: %s) - the star on the map",
+      own and B.war:nodeName(own) or "none", enemy and B.war:nodeName(enemy) or "none"))
+    return lines
+  end
+end
+
+-- ===========================================================================
 -- Loops
 -- ===========================================================================
 local basePoll = B.opsPoll
@@ -15810,9 +15893,11 @@ local function warehousesOf(id, side)
   local w = ab and ok(ab.getWarehouse, ab)
   if w then out[#out + 1] = w end
   if B.war:canHaveFarp(id) and B.war:farpAt(id) then
-    local fab = ok(Airbase.getByName, "DCC_FARP_" .. id .. "_" .. side)
-    local fw = fab and ok(fab.getWarehouse, fab)
-    if fw then out[#out + 1] = fw; out.farp[#out] = true end
+    for _, pad in ipairs(B.farpPadNames and B.farpPadNames(id, side) or { "DCC_FARP_" .. id .. "_" .. side }) do
+      local fab = ok(Airbase.getByName, pad)
+      local fw = fab and ok(fab.getWarehouse, fab)
+      if fw then out[#out + 1] = fw; out.farp[#out] = true end
+    end
   end
   return out
 end
@@ -16618,6 +16703,7 @@ DCC_THEATERS.Caucasus = {
   -- Country used for spawned units. CJTF countries accept any unit type.
   country = { blue = "CJTF_BLUE", red = "CJTF_RED" },
   balance = { blue = 1.0, red = 1.0 },
+  main    = { blue = "kutaisi", red = "krasnodar_c" },   -- each side's HQ (a depot): the star on the map
 
   nodes = {
     -- ---------------- BLUE (Georgia) ----------------
@@ -16748,6 +16834,7 @@ DCC_THEATERS.GermanyCW = {
   era     = "modern",
   country = { blue = "CJTF_BLUE", red = "CJTF_RED" },
   balance = { blue = 1.0, red = 1.10 },
+  main    = { blue = "frankfurt", red = "schonefeld" },   -- each side's HQ (a depot): the star on the map
 
   nodes = {
     -- ---------------- BLUE ----------------
@@ -16969,6 +17056,7 @@ DCC_THEATERS.PersianGulf = {
   era     = "modern",
   country = { blue = "CJTF_BLUE", red = "CJTF_RED" },
   balance = { blue = 1.05, red = 1.0 },
+  main    = { blue = "al_dhafra_afb", red = "bandar_abbas_intl" },   -- each side's HQ (a depot): the star on the map
 
   nodes = {
     -- ---------------- BLUE ----------------
@@ -17113,6 +17201,7 @@ DCC_THEATERS.Syria = {
   era     = "modern",
   country = { blue = "CJTF_BLUE", red = "CJTF_RED" },
   balance = { blue = 1.0, red = 1.10 },
+  main    = { blue = "ramat_david", red = "damascus" },   -- each side's HQ (a depot): the star on the map
 
   nodes = {
     -- ---------------- BLUE ----------------

@@ -184,7 +184,7 @@ def latlon_point(m, lat, lon):
 
 
 def build_farps(m, theater, catalog, cjtf, armoury="warehouse"):
-    """Two invisible FARPs per town (one per coalition) with dynamic spawn and
+    """Invisible FARPs per town (FARP_PADS pads per coalition) with dynamic spawn and
     an EMPTY helicopter stock. The engine stocks the owner's FARP once players
     have built it (crates), and empties it when the town is lost."""
     made = 0
@@ -193,18 +193,22 @@ def build_farps(m, theater, catalog, cjtf, armoury="warehouse"):
             continue
         base = latlon_point(m, node["lat"], node["lon"])
         for i, side in enumerate(("blue", "red")):
-            pos = base.point_from_heading(90 + i * 180, 1500)
-            g = m.farp(cjtf[side], f"DCC_FARP_{node['id']}_{side}", pos, hidden=True,
-                       farp_type=dunit.InvisibleFARP)
-            wh = Warehouse()
-            wh.coalition = side.upper()
-            wh.dynamic_spawn = True
-            wh.allow_hot_start = True
-            wh.unlimited_aircrafts = False
-            wh.unlimited_munitions = armoury != "warehouse"
-            wh.aircrafts = {"planes": {}, "helicopters": {t: {"initialAmount": 1}
-                                                         for t in catalog["aircraft"][side].get("helicopters", [])}}
-            m.warehouses.warehouses[int(g.units[0].id)] = wh.dict()
+            centre = base.point_from_heading(90 + i * 180, 1500)
+            # FARP_PADS helipads side by side (v0.38: one invisible pad = one helicopter at a time)
+            for k in range(1, FARP_PADS + 1):
+                pos = centre.point_from_heading(0, (k - 1) * 60)
+                suffix = "" if k == 1 else f"_{k}"
+                g = m.farp(cjtf[side], f"DCC_FARP_{node['id']}_{side}{suffix}", pos, hidden=True,
+                           farp_type=dunit.InvisibleFARP)
+                wh = Warehouse()
+                wh.coalition = side.upper()
+                wh.dynamic_spawn = True
+                wh.allow_hot_start = True
+                wh.unlimited_aircrafts = False
+                wh.unlimited_munitions = armoury != "warehouse"
+                wh.aircrafts = {"planes": {}, "helicopters": {t: {"initialAmount": 1}
+                                                             for t in catalog["aircraft"][side].get("helicopters", [])}}
+                m.warehouses.warehouses[int(g.units[0].id)] = wh.dict()
             made += 1
     return made
 
@@ -273,6 +277,7 @@ def build_naval(m, theater, cjtf, types):
     return report
 
 
+FARP_PADS = 2            # helipads per FARP and side (config world.farpPads must match, v0.38)
 CARRIER_STOCK = 20       # aircraft of each slot type a carrier holds for dynamic spawn (v0.37)
 
 CTLD_DIR = os.path.join(ROOT, "vendor", "ctld")
