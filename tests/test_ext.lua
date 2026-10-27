@@ -16,6 +16,8 @@ local X = cfg.ext
 -- ===========================================================================
 print("War model")
 -- ===========================================================================
+check("v0.37: by default every tier is on the shelf whatever the supply", cfg.ext.armoury.tiers == false)
+cfg.ext.armoury.tiers = true          -- this suite tests the supply tiers (and the take-off mode) themselves
 local w = DCC.War.new(T, C, cfg, 11)
 w:tick()
 

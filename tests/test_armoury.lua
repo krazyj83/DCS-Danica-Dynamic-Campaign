@@ -86,6 +86,18 @@ local stock = DCC.config.ext.armoury.stock
 local big = war.T.nodes.kutaisi.depot and (DCC.config.ext.armoury.depotStock or 1) or 1
 check("v0.36: 100 of every weapon type, depots too", stock.basic == 100 and stock.guided == 100
   and stock.advanced == 100 and big == 1)
+-- v0.37 (9-player test): A2A missiles missing - the advanced tier left the shelf as soon as the base dipped
+-- under 45 % supply. Default now: every tier at 100 at every owned base and FARP, whatever the supply.
+ns.supply = cap * 0.3
+B.restockArmoury()
+check("v0.37: 30 % supply - AMRAAM, AIM-9X, R-77 and GBU-12 all at 100", wh.items["weapons.missiles.AIM_120C"] == stock.advanced
+  and wh.items["weapons.missiles.AIM_9X"] == stock.guided and wh.items["weapons.missiles.R_77"] == stock.advanced
+  and wh.items["weapons.bombs.GBU_12"] == stock.guided, wh.items["weapons.missiles.AIM_120C"])
+ns.supply = 0
+B.restockArmoury()
+check("...even at 0 supply", wh.items["weapons.missiles.AIM_120C"] == stock.advanced)
+-- the old supply tiers are still there for servers that want them (ext.armoury.tiers = true)
+DCC.config.ext.armoury.tiers = true
 ns.supply = cap * 0.1
 B.restockArmoury()
 check("dry base: Mk-82 on the shelf", wh.items["weapons.bombs.Mk_82"] == stock.basic * big)
@@ -112,6 +124,7 @@ ns.supply = cap * 0.1
 B.restockArmoury()
 check("supply runs down: advanced and guided come off the shelf", wh.items["weapons.missiles.AIM_120C"] == 0
   and wh.items["weapons.bombs.GBU_12"] == 0)
+DCC.config.ext.armoury.tiers = false
 
 print("No recall in warehouse mode")
 local viper = MOCK.spawnPlayer(2, "F-16C_50", MOCK.airbases[B.airbases.kutaisi].p.x, MOCK.airbases[B.airbases.kutaisi].p.z, "Morten")

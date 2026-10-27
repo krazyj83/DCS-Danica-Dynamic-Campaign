@@ -59,6 +59,7 @@ end
 -- supply cap; "advanced" from advancedAt.
 function War:armouryTier(id)
   local ns, cfg = self.state.nodes[id], X(self).armoury
+  if not cfg.tiers then return "advanced" end            -- v0.37: every tier, whatever the supply
   local cap = math.max(1, self:supplyCap(id))
   local f = (ns.supply or 0) / cap
   if f >= cfg.advancedAt then return "advanced" end

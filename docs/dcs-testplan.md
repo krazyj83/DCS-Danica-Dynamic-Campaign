@@ -292,10 +292,14 @@ Feedback:
 
 1. Åbn dynamic spawn på en base, din side ejer, og på en, fjenden ejer.
 
-**Forvent:** Egen base: kun din sides typer, 20 af hver (v0.36: før 4 / 8). En erobret base skifter liste ved næste
-tick.
+2. Lad flere spillere spawne samme type på samme base (især Kutaisi, Batumi, Beslan).
 
-Feedback:
+**Forvent:** Egen base: kun din sides typer, 20 af hver (v0.36: før 4 / 8). Flere kan spawne samme type på samme
+base. En erobret base skifter liste ved næste tick.
+
+Feedback: v0.36, 9 spillere: på flere baser kunne der ikke spawnes mere end ét fly.
+Rettet i v0.37.0: faste klient-slots fyldte hele forpladsen på Kutaisi, Batumi og Beslan, så dynamic spawn ikke
+havde ledige pladser. Faste slots må nu højst bruge 25 % af en bases parkering.
 
 ### P-102
 **Faste slots spawner**
@@ -348,6 +352,18 @@ Feedback:
 **Forvent:** Typerne står på BLUE's liste (20 af hver) og spawner som BLUE. RED har dem stadig på sine baser.
 
 Feedback:
+
+### P-107
+**C-130J spawner**
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.37 · Offline: –
+
+1. Spawn en C-130J-30 på en BLUE-depot, både i det faste slot og via dynamic spawn.
+
+**Forvent:** Flyet spawner på en stor standplads. Hvis ikke: noter basen, slot-typen og linjer fra `dcs.log`.
+
+Feedback: v0.36, 9 spillere: Hercules C-130 loadede ikke (slottet spawnede ikke / hang ved join).
+Rettet i v0.37.0: faste slots tog de store standpladser først (pydcs vælger efter navn), så en C-130J ikke fandt
+plads. Faste slots står nu på den mindste plads, flyet passer på, og de store pladser er fri til transportfly.
 
 ## P-200 · F10-menuer og missioner
 
@@ -431,14 +447,15 @@ Feedback:
 
 ### P-301
 **Live-zonen spawner enheder**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.1 · Offline: test_dcs_bridge
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.1 · Offline: test_dcs_bridge
 
 1. Flyv mod en frontbase. Hold øje inden for 40 km.
 
-**Forvent:** Garnisoner står ved basen, kolonner og konvojer kører på vejene. Intet står i vand. Når du flyver
-væk, forsvinder de igen.
+**Forvent:** Garnisoner står ved basen, kolonner og konvojer kører på vejene. Intet står i vand eller på
+landingsbanen, forpladsen eller taxivejene. Når du flyver væk, forsvinder de igen.
 
-Feedback:
+Feedback: v0.36, 9 spillere: kampvogne på landingsbanen.
+Rettet i v0.37.0: alle jordenheder og deres waypoints flyttes mindst 60 m væk fra bane, taxivej og forplads.
 
 ### P-302
 **Kills tæller i krigen**
@@ -697,10 +714,12 @@ Feedback:
 
 1. *Support → Armoury at this base* og *Rearm and Refuel* på en base med høj og én med lav SU.
 
-**Forvent:** Høj SU: alt på hylden, 100 af hvert våben (v0.36), også på FARPs og fra krigens start. Under 20 %: kun
-ustyret. Det, der mangler, står som NOT AVAILABLE.
+**Forvent:** 100 af hvert våben, alle typer (også AMRAAM, R-77, AIM-54), på alle baser og FARPs uanset SU (v0.37).
+Kun en tør FARP har tomme hylder.
 
-Feedback:
+Feedback: v0.36, 9 spillere: flere våbentyper, mest luft-til-luft, manglede, selv om startlageret skulle være 100.
+Rettet i v0.37.0: avancerede missiler forsvandt fra hylden, så snart basen kom under 45 % SU. Nu er alle typer
+altid på hylden (`ext.armoury.tiers = false`); styrede og avancerede våben koster stadig SU, når de tages.
 
 ### P-604
 **Rang-støtte**
@@ -716,13 +735,16 @@ Feedback:
 
 ### P-701
 **CTLD-kasse ændrer SU**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.8 · Offline: test_ctld
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.8 · Offline: test_ctld
 
-1. Hent en forsyningskasse på egen base. Sæt den af inden for 3 km af en anden egen base.
+1. Land på egen base i en helikopter (eller C-130J). Vælg *F10 → Missions → Supply crate (10 SU)* (v0.37). Load
+   kassen med CTLD, og sæt den af inden for 3 km af en anden egen base.
 
 **Forvent:** Første base −10 SU, anden base +10 SU på dit kort. LOGISTICS fuldført, hvis du havde den.
 
-Feedback:
+Feedback: v0.36, 9 spillere: ingen mulighed for at lave forsyningskasser.
+Rettet i v0.37.0: CTLD's *Supply*-kategori lå dybt i *Request Equipment* og på side 2. Nu ligger *Supply crate*
+direkte i *F10 → Missions* for alle CTLD-transporttyper.
 
 ### P-702
 **FARP af 3 kasser**
@@ -779,14 +801,18 @@ Feedback:
 
 ### P-801
 **Hangarskibe på alle kort**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle fire · Siden v0.24 · Offline: test_dcs_world
+`Status: RETEST` · Spillere: 1 · Kort: alle fire · Siden v0.24 · Offline: test_dcs_world
 
 1. Spawn på Stennis og Tarawa. Tjek TACAN og ICLS.
 
-**Forvent:** Slots spawner på dækket. 74X / ICLS 4 og 75X / ICLS 5. Skibenes ben ligger på åbent vand. S-3B
-svarer på 76X.
+2. Åbn dynamic spawn på hangarskibet (v0.37).
 
-Feedback:
+**Forvent:** Slots spawner på dækket, og dynamic spawn tilbyder skibets typer (20 af hver). 74X / ICLS 4 og 75X /
+ICLS 5. Skibenes ben ligger på åbent vand. S-3B svarer på 76X.
+
+Feedback: v0.36, 9 spillere: ingen dynamic spawn på hangarskibene.
+Rettet i v0.37.0: hvert hangarskib har nu sit eget lager med dynamic spawn (20 af hver slot-type, ubegrænset
+ammunition og brændstof).
 
 ### P-802
 **Forsyningsskibe går ikke på grund**

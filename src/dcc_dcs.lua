@@ -74,13 +74,30 @@ function B.datalinkOn(gname)
   return okE
 end
 
-function B.landNear(x, z)
-  if not isWater(x, z) then return x, z end
-  for r = 100, 6000, 100 do
+-- On (or within runwayClearM of) a runway, taxiway or apron (v0.37: platoons
+-- garrisoning an airbase stood and drove on the runway).
+local function isRunway(x, z, m)
+  local R = land.SurfaceType.RUNWAY
+  if not R then return false end
+  if land.getSurfaceType({ x = x, y = z }) == R then return true end
+  for k = 0, 3 do
+    local a = k * math.pi / 2
+    if land.getSurfaceType({ x = x + m * math.cos(a), y = z + m * math.sin(a) }) == R then return true end
+  end
+  return false
+end
+B.isRunway = isRunway
+
+-- The nearest good spot: dry land, and (avoidRunway) clear of runways and aprons.
+function B.landNear(x, z, avoidRunway)
+  local m = DCC.config.runwayClearM or 60
+  local function bad(px, pz) return isWater(px, pz) or (avoidRunway and isRunway(px, pz, m)) end
+  if not bad(x, z) then return x, z end
+  for r = 50, 6000, 50 do
     for k = 0, 15 do
       local a = k * math.pi / 8
       local nx, nz = x + r * math.cos(a), z + r * math.sin(a)
-      if not isWater(nx, nz) then return nx, nz end
+      if not bad(nx, nz) then return nx, nz end
     end
   end
   return x, z
@@ -90,12 +107,12 @@ function B.dryGroundData(data)
   local moved = 0
   for _, u in ipairs(data.units or {}) do
     if u.x and u.y then
-      local nx, nz = B.landNear(u.x, u.y)
+      local nx, nz = B.landNear(u.x, u.y, true)
       if nx ~= u.x or nz ~= u.y then u.x, u.y, moved = nx, nz, moved + 1 end
     end
   end
   for _, p in ipairs((data.route and data.route.points) or {}) do
-    if p.x and p.y then p.x, p.y = B.landNear(p.x, p.y) end
+    if p.x and p.y then p.x, p.y = B.landNear(p.x, p.y, true) end
   end
   return moved
 end
@@ -105,7 +122,7 @@ if coalition and coalition.addGroup and not coalition.dccDry then
   coalition.addGroup = function(country, category, data)
     if Group and category == Group.Category.GROUND and type(data) == "table" then
       local okD, n = pcall(B.dryGroundData, data)
-      if okD and n > 0 and DCC.util then DCC.util.log("%s: %d units moved out of the water", tostring(data.name), n) end
+      if okD and n > 0 and DCC.util then DCC.util.log("%s: %d units moved out of the water / off a runway", tostring(data.name), n) end
     end
     local g = rawAddGroup(country, category, data)
     -- Aircraft spawned by script have no EPLRS (the Mission Editor switches it on for
@@ -303,7 +320,7 @@ function B.scatter(nodeId, pid)
     local ang = math.rad((n * 137.5 + i * 45) % 360)
     local r = spread * (0.3 + 0.7 * ((n * 0.618) % 1))
     local x, z = c.x + r * math.cos(ang), c.z + r * math.sin(ang)
-    if not isWater(x, z) then return { x = x, z = z } end
+    if not isWater(x, z) and not isRunway(x, z, DCC.config.runwayClearM or 60) then return { x = x, z = z } end
   end
   return { x = c.x, z = c.z }
 end

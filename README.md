@@ -4,7 +4,7 @@ A perpetual, persistent dynamic campaign for DCS World. One Lua engine runs insi
 mission, the war keeps going whether anyone is online or not, and when one side loses its last
 base the server moves on to the next map in the rotation.
 
-**Status: v0.36 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
+**Status: v0.37 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
 nodes, mass for assaults and capture bases. Every base runs on supply that trucks, transport aircraft,
 helicopters and **supply ships** carry forward. Each side has a **mission board** of 38 mission types —
 CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy escort, recon, CSAR, logistics, FARPs, anti-ship, SCUD
@@ -337,7 +337,7 @@ the VEAF team), started and configured by the engine. Every helicopter type CTLD
 | In CTLD | In the war |
 | --- | --- |
 | Every own base is a CTLD **pickup and logistic zone** (1.5 km round an airbase, 600 m round a town) | Captured base: its zones change sides |
-| **Request a crate** at a base | The base pays **10 SU per crate**; a dry base says no |
+| **Request a crate** at a base — supply crates also straight from **F10 → Missions → Supply crate (10 SU)** (v0.37) | The base pays **10 SU per crate**; a dry base says no |
 | **Supply crate** unloaded (or para-dropped) within 3 km of an own base | **+10 SU** there, completes LOGISTICS, builds towards a FARP |
 | **Load troops** at a base | **1 platoon per 10 soldiers** leaves the garrison (never the last one) |
 | Troops unloaded at an own base | They join that garrison |
@@ -372,9 +372,11 @@ helicopters too. Enemy fixed-wing airlifts get an INTERCEPT (air-to-air) the sam
 lost. On landing they set their crates down, wait a few minutes and fly home. At most 1 per side at once,
 one run to the same base every 2 h, none in a storm.
 
-## Armoury: weapons follow supply
+## Armoury: weapons cost supply
 
-What a base can arm you with depends on its supply (share of its supply cap):
+**Since v0.37 every weapon type is always on the shelf** — 100 of each at every airbase and FARP, whatever the
+base's supply (`ext.armoury.tiers = false`); only a dry FARP has empty shelves. Guided and advanced weapons still
+**cost supply when taken** (0.25 / 0.5 SU each). Servers that want the old supply tiers set `tiers = true`; then:
 
 | Base supply | Weapons | Supply per weapon taken |
 | --- | --- | --- |
@@ -590,6 +592,9 @@ harbour for **5 min** in total — several helicopters sweep faster. Unswept min
 
 Every map has carrier groups for both sides:
 
+**Dynamic spawn on carriers (v0.37):** every carrier has its own warehouse — 20 of each of its slot types, unlimited
+munitions and fuel — so players pick the deck in the dynamic spawn list like any airbase (the fixed deck slots stay).
+
 | Map | BLUE | RED |
 | --- | --- | --- |
 | Caucasus | Stennis off Poti, Tarawa off Batumi | Kuznetsov off Novorossiysk |
@@ -756,6 +761,10 @@ Use the generated **`dist/DCC_<map>.miz`** (Caucasus, Syria, PersianGulf, German
 | BLUE | F/A-18C, F-16C, F-15E, F-15C, F-14B, F-14B(U), F-14A (3 versions), F-4E, A-10C II, A-10C, A-10A, AV-8B, M-2000C, Mirage F1EE/CE/BE, F-5E (2), AJS37, F-100D, F-86F (2), C-101 (2), MB-339 (2), Hawk, C-130J, Christen Eagle, P-51D (2), TF-51D, P-47D (3), Spitfire IX (2), Mosquito, F4U Corsair, **A-4E-C (mod)**; *allied eastern types (v0.36):* MiG-29A/S/G, MiG-29 Fulcrum, JF-17, Su-27, MiG-21bis, Su-25, L-39ZA/C | AH-64D, UH-1H, OH-58D, CH-47F, Gazelle M/L/Mistral/Minigun, **UH-60L (mod)**; *allied:* Mi-24P, Mi-8MTV2 |
 | RED | Su-27, Su-33, MiG-29S/A/G, MiG-29 Fulcrum, J-11A, JF-17, Su-25T, Su-25, MiG-21bis, MiG-19P, MiG-15bis (2), L-39ZA/C, Yak-52, Bf-109K-4, Fw-190 A-8/D-9, I-16, La-7 | Ka-50 III, Ka-50, Mi-24P, Mi-8MTV2 |
 
+Fixed client slots take at most a quarter of any airbase's parking (`fixedSlotShare`), each on the smallest stand
+the type fits (the big stands stay free for the C-130J and other transports), so dynamic spawn always has
+free stands — before v0.37 they filled Kutaisi, Batumi and Beslan and only one aircraft could spawn there.
+
 Eastern types flown by allied air forces (MiG-29: Germany, Poland, Slovakia, Bulgaria; JF-17: Pakistan; MiG-21:
 Croatia, Romania; Su-27: Ukraine; Su-25: Georgia, Bulgaria; L-39, Mi-24, Mi-8: many) are on **both** sides' lists: a BLUE base
 stocks them for BLUE too.
@@ -871,6 +880,9 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `ext4.qra` | 5 min, 150 km | Scramble window and range for QRA |
 | `ext4.ground` | 60 km, 5 km, 5 min | Ground missions: board range, presence distance and time for credit |
 | `ext4.ground.artyKm` / `dangerCloseM` / `artyRank` | 6 km, 300 m, none | Fire support for ground players |
+| `ext.armoury.tiers` | false | false: every weapon always on the shelf (v0.37); true: tiers follow base supply |
+| `runwayClearM` | 60 | Ground units and their waypoints stay this far off runways, taxiways and aprons (v0.37) |
+| `fixedSlotShare` (catalog) | 0.25 | Fixed client slots use at most this share of an airbase's parking; the rest is for dynamic spawn (v0.37) |
 | `ext4.ground.smoke*` | 2 SU, 500 m, 5 rounds, 3 min, 5 min reload | Smoke screen ahead |
 | `ext4.aiSmoke` | on, 2 km, 10 min | AI attacks lay smoke near the base |
 | `ext4.aiSmoke.defend*`, `airKm`, `airMaxAltM` | on, 2 km, 6 km, 2500 m, 10 min, 300 m | Garrisons screen themselves |
@@ -907,7 +919,7 @@ Measured with the offline simulator, no players online:
 ## Testing offline
 
 Nothing here needs DCS to test. The engine is plain Lua 5.1 (the version DCS uses) and runs
-under Python via `lupa` — 17 suites, 974 checks in v0.36:
+under Python via `lupa` — 17 suites, 984 checks in v0.37:
 
 ```bash
 pip install lupa matplotlib

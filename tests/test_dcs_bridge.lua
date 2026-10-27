@@ -224,5 +224,31 @@ check("captured base: BLUE aircraft gone", kut:getItemCount("FA-18C_hornet") == 
 check("captured base: RED types listed (empty until resupplied)", kut:getItemCount("Su-27") == 0
   and w2.state.nodes.kutaisi.air["Su-27"] == 0)
 
+print("Off the runway (v0.37)")
+-- 9-player test: tanks stood and drove on the runway. A 3 km x 60 m runway through Kutaisi's centre:
+local kc = DCC.dcs.nodePos.kutaisi
+local realSurface = land.getSurfaceType
+land.getSurfaceType = function(p)
+  if math.abs(p.x - kc.x) <= 1500 and math.abs(p.y - kc.z) <= 30 then return land.SurfaceType.RUNWAY end
+  return realSurface(p)
+end
+local onRunway = function(x, z) return math.abs(x - kc.x) <= 1500 and math.abs(z - kc.z) <= 30 + DCC.config.runwayClearM end
+coalition.addGroup(80, Group.Category.GROUND, { name = "TEST_RWY", units = {
+  { name = "TEST_RWY_1", type = "M-1 Abrams", x = kc.x, y = kc.z }, { name = "TEST_RWY_2", type = "M-1 Abrams", x = kc.x + 200, y = kc.z + 10 } },
+  route = { points = { { x = kc.x, y = kc.z }, { x = kc.x - 600, y = kc.z } } } })
+local tg = MOCK.groups.TEST_RWY
+check("v0.37: a tank spawned on the runway is moved off it", not onRunway(tg.units[1].x, tg.units[1].z)
+  and not onRunway(tg.units[2].x, tg.units[2].z), tg.units[1].z - kc.z)
+check("...and no waypoint on the runway", not onRunway(tg.route[1].x, tg.route[1].y) and not onRunway(tg.route[2].x, tg.route[2].y))
+local allOff = true
+for i = 1, 40 do
+  local sp = DCC.dcs.scatter("kutaisi", "p" .. i)
+  if onRunway(sp.x, sp.z) then allOff = false end
+end
+check("...garrison spots at an airbase are never on the runway", allOff)
+local sx, sz = DCC.dcs.landNear(kc.x, kc.z)
+check("...statics (CTLD crates on an apron) are not moved", sx == kc.x and sz == kc.z)
+land.getSurfaceType = realSurface
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 DCC_EXIT_CODE = failed == 0 and 0 or 1

@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.36.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.37.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.36.0",
+  version         = "0.37.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -232,6 +232,7 @@ DCC.config = {
   liveStallTicks   = 6,     -- a live battle with no progress gets one dice round every 30 min
   captureRadiusKm  = 3,     -- attackers must be this close to take a node
   spawnSpreadM     = 1200,  -- garrison platoons are scattered within this radius
+  runwayClearM     = 60,    -- ground units and their waypoints stay this far off runways, taxiways, aprons (v0.37)
 
   -- Persistence ---------------------------------------------------------------
   saveFolder       = "DCC", -- under Saved Games\DCS\ (lfs.writedir())
@@ -267,6 +268,9 @@ DCC.config = {
                                        --   take-off (missions built with --armoury takeoff)
                 enforce = true,        -- takeoff mode: false = charge only, never recall
                 stock = { basic = 100, guided = 100, advanced = 100 },  -- per weapon type, every base and FARP
+                tiers = false,         -- v0.37: false = every tier always on the shelf (guided / advanced
+                                       --   still cost supply when taken); true = tiers follow supply
+                                       --   (guided from guidedAt, advanced from advancedAt)
                 depotStock = 1,        -- depots hold this many times the stock (v0.36: 1 = same as any base)
                 testMenu = false },    -- F10 > Armoury test (on in the test mission)
     runwayHits = 3, runwayTicks = 48, runwayRepairSU = 30,   -- 3 bomb hits close an airfield for 4 h
@@ -4743,6 +4747,7 @@ end
 -- supply cap; "advanced" from advancedAt.
 function War:armouryTier(id)
   local ns, cfg = self.state.nodes[id], X(self).armoury
+  if not cfg.tiers then return "advanced" end            -- v0.37: every tier, whatever the supply
   local cap = math.max(1, self:supplyCap(id))
   local f = (ns.supply or 0) / cap
   if f >= cfg.advancedAt then return "advanced" end
@@ -7048,13 +7053,30 @@ function B.datalinkOn(gname)
   return okE
 end
 
-function B.landNear(x, z)
-  if not isWater(x, z) then return x, z end
-  for r = 100, 6000, 100 do
+-- On (or within runwayClearM of) a runway, taxiway or apron (v0.37: platoons
+-- garrisoning an airbase stood and drove on the runway).
+local function isRunway(x, z, m)
+  local R = land.SurfaceType.RUNWAY
+  if not R then return false end
+  if land.getSurfaceType({ x = x, y = z }) == R then return true end
+  for k = 0, 3 do
+    local a = k * math.pi / 2
+    if land.getSurfaceType({ x = x + m * math.cos(a), y = z + m * math.sin(a) }) == R then return true end
+  end
+  return false
+end
+B.isRunway = isRunway
+
+-- The nearest good spot: dry land, and (avoidRunway) clear of runways and aprons.
+function B.landNear(x, z, avoidRunway)
+  local m = DCC.config.runwayClearM or 60
+  local function bad(px, pz) return isWater(px, pz) or (avoidRunway and isRunway(px, pz, m)) end
+  if not bad(x, z) then return x, z end
+  for r = 50, 6000, 50 do
     for k = 0, 15 do
       local a = k * math.pi / 8
       local nx, nz = x + r * math.cos(a), z + r * math.sin(a)
-      if not isWater(nx, nz) then return nx, nz end
+      if not bad(nx, nz) then return nx, nz end
     end
   end
   return x, z
@@ -7064,12 +7086,12 @@ function B.dryGroundData(data)
   local moved = 0
   for _, u in ipairs(data.units or {}) do
     if u.x and u.y then
-      local nx, nz = B.landNear(u.x, u.y)
+      local nx, nz = B.landNear(u.x, u.y, true)
       if nx ~= u.x or nz ~= u.y then u.x, u.y, moved = nx, nz, moved + 1 end
     end
   end
   for _, p in ipairs((data.route and data.route.points) or {}) do
-    if p.x and p.y then p.x, p.y = B.landNear(p.x, p.y) end
+    if p.x and p.y then p.x, p.y = B.landNear(p.x, p.y, true) end
   end
   return moved
 end
@@ -7079,7 +7101,7 @@ if coalition and coalition.addGroup and not coalition.dccDry then
   coalition.addGroup = function(country, category, data)
     if Group and category == Group.Category.GROUND and type(data) == "table" then
       local okD, n = pcall(B.dryGroundData, data)
-      if okD and n > 0 and DCC.util then DCC.util.log("%s: %d units moved out of the water", tostring(data.name), n) end
+      if okD and n > 0 and DCC.util then DCC.util.log("%s: %d units moved out of the water / off a runway", tostring(data.name), n) end
     end
     local g = rawAddGroup(country, category, data)
     -- Aircraft spawned by script have no EPLRS (the Mission Editor switches it on for
@@ -7277,7 +7299,7 @@ function B.scatter(nodeId, pid)
     local ang = math.rad((n * 137.5 + i * 45) % 360)
     local r = spread * (0.3 + 0.7 * ((n * 0.618) % 1))
     local x, z = c.x + r * math.cos(ang), c.z + r * math.sin(ang)
-    if not isWater(x, z) then return { x = x, z = z } end
+    if not isWater(x, z) and not isRunway(x, z, DCC.config.runwayClearM or 60) then return { x = x, z = z } end
   end
   return { x = c.x, z = c.z }
 end
@@ -12324,6 +12346,46 @@ function B.ctldSubscribe()
 end
 
 -- ===========================================================================
+-- 5b. Supply crates straight from the Missions menu (v0.37)
+-- ===========================================================================
+-- CTLD's own path (CTLD > Request Equipment > <base> > Supply > ...) is deep
+-- and its categories page, so players never found it. Every CTLD transport
+-- gets F10 > Missions > "Supply crate (n SU)": the same CTLD crate, spawned
+-- beside the aircraft, charged to the base like any CTLD crate.
+function B.ctldTransportOk(p)
+  local caps = (ctld and ctld.gs and ctld.gs("capabilitiesByType") or {})[p.type]
+  return type(caps) == "table" and caps.cratesEnabled == true
+end
+
+function B.ctldSupplyCrate(uname)
+  local p = B.players[uname]
+  local u = p and ok(Unit.getByName, uname)
+  if not (p and u and ok(u.isExist, u)) then return end
+  if ok(u.inAir, u) then return say(u, "Land at a friendly base to load a supply crate.") end
+  local coal = u:getCoalition()
+  local zones = ok(CTLDZoneManager.getInstance().getLogisticZonesAtPoint, CTLDZoneManager.getInstance(),
+    u:getPoint(), coal, "cratesPickup") or {}
+  if not next(zones) then return say(u, "No logistics here - land at a friendly airbase or town to load supply.") end
+  local cm = CTLDCrateManager.getInstance()
+  local desc = cm:findDescriptorByWeight(CC().supplyWeight)
+  if not desc then return say(u, "Supply crates are not available in this mission.") end
+  local n = ok(cm.spawnCratesAligned, cm, { desc }, u, coal, uname, "menu_ctld") or 0
+  if n > 0 then
+    say(u, string.format("Supply crate (%d SU) is beside you. Load it: F10 > CTLD > Check Cargo / load nearby crate "
+      .. "(or sling it). Unload it at a friendly base for the supply.", CC().supplyCrateSU))
+  end
+end
+
+local baseBuildMenu = B.buildMenu
+function B.buildMenu(p)
+  baseBuildMenu(p)
+  if p and p.gid and p.menu and B.ctldActive and not p.ground and B.ctldTransportOk(p) then
+    missionCommands.addCommandForGroup(p.gid, string.format("Supply crate (%d SU)", CC().supplyCrateSU), p.menu,
+      B.ctldSupplyCrate, p.unit)
+  end
+end
+
+-- ===========================================================================
 -- 6. Start-up and wiring
 -- ===========================================================================
 function B.ctldSetup()
@@ -12349,7 +12411,7 @@ function B.ctldSetup()
   B.ctldActive = true
   B.ctld.zones, B.ctld.zoneNode, B.ctld.field = {}, {}, {}
   B.ctldSyncZones()
-  B.EFFECT.LOGISTICS = "F10 > CTLD: request a Supply crate at a friendly base, fly it to the target and unload it there."
+  B.EFFECT.LOGISTICS = "F10 > Missions > Supply crate at a friendly base (or CTLD > Request Equipment > Supply), fly it to the target and unload it there."
   B.EFFECT.FARP = "Chinook / Mi-8: F10 > CTLD > Engineering > FARP kit, set it down within 3 km of the town. Or bring 3 supply crates (any lift helicopter), or build a CTLD FOB there."
   B.EFFECT.FARPSUP = "F10 > CTLD > load supply crates, set them down within 3 km of the FARP. A FARP kit refills it completely. A dry FARP has no rearm and no helicopter spawns."
   local n = 0
@@ -16283,7 +16345,13 @@ DCC_CATALOGS.modern = {
 
   -- Stock of each player type at an airbase. Depots hold more. The supply
   -- system (phase 2) restocks lost aircraft only while the base is supplied.
-  aircraftStock = { airbase = 20, depot = 20 },     -- v0.36: 20 of each type everywhere (was 4 / 8)
+  aircraftStock = { airbase = 20, depot = 20 },
+  -- Fixed client slots (make_mission.py) take at most this share of an airbase's parking: the rest stays
+  -- free for dynamic spawn (v0.37 - a full apron let only one aircraft spawn). These types go first
+  -- (DTC cartridges, Link 16 / SADL / IDM datalink are set on fixed slots only).
+  fixedSlotShare = 0.25,
+  fixedSlotFirst = { "FA-18C_hornet", "F-16C_50", "F-15ESE", "A-10C_2", "AH-64D_BLK_II", "F-14B", "AV8BNA",
+                     "Su-27", "MiG-29S", "Ka-50_3", "JF-17" },     -- v0.36: 20 of each type everywhere (was 4 / 8)
 
   -- ---------------------------------------------------------------------------
   -- Phase 3

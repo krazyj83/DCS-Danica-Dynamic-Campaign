@@ -96,7 +96,13 @@ DCC_CATALOGS.modern = {
 
   -- Stock of each player type at an airbase. Depots hold more. The supply
   -- system (phase 2) restocks lost aircraft only while the base is supplied.
-  aircraftStock = { airbase = 20, depot = 20 },     -- v0.36: 20 of each type everywhere (was 4 / 8)
+  aircraftStock = { airbase = 20, depot = 20 },
+  -- Fixed client slots (make_mission.py) take at most this share of an airbase's parking: the rest stays
+  -- free for dynamic spawn (v0.37 - a full apron let only one aircraft spawn). These types go first
+  -- (DTC cartridges, Link 16 / SADL / IDM datalink are set on fixed slots only).
+  fixedSlotShare = 0.25,
+  fixedSlotFirst = { "FA-18C_hornet", "F-16C_50", "F-15ESE", "A-10C_2", "AH-64D_BLK_II", "F-14B", "AV8BNA",
+                     "Su-27", "MiG-29S", "Ka-50_3", "JF-17" },     -- v0.36: 20 of each type everywhere (was 4 / 8)
 
   -- ---------------------------------------------------------------------------
   -- Phase 3

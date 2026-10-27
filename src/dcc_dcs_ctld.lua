@@ -577,6 +577,46 @@ function B.ctldSubscribe()
 end
 
 -- ===========================================================================
+-- 5b. Supply crates straight from the Missions menu (v0.37)
+-- ===========================================================================
+-- CTLD's own path (CTLD > Request Equipment > <base> > Supply > ...) is deep
+-- and its categories page, so players never found it. Every CTLD transport
+-- gets F10 > Missions > "Supply crate (n SU)": the same CTLD crate, spawned
+-- beside the aircraft, charged to the base like any CTLD crate.
+function B.ctldTransportOk(p)
+  local caps = (ctld and ctld.gs and ctld.gs("capabilitiesByType") or {})[p.type]
+  return type(caps) == "table" and caps.cratesEnabled == true
+end
+
+function B.ctldSupplyCrate(uname)
+  local p = B.players[uname]
+  local u = p and ok(Unit.getByName, uname)
+  if not (p and u and ok(u.isExist, u)) then return end
+  if ok(u.inAir, u) then return say(u, "Land at a friendly base to load a supply crate.") end
+  local coal = u:getCoalition()
+  local zones = ok(CTLDZoneManager.getInstance().getLogisticZonesAtPoint, CTLDZoneManager.getInstance(),
+    u:getPoint(), coal, "cratesPickup") or {}
+  if not next(zones) then return say(u, "No logistics here - land at a friendly airbase or town to load supply.") end
+  local cm = CTLDCrateManager.getInstance()
+  local desc = cm:findDescriptorByWeight(CC().supplyWeight)
+  if not desc then return say(u, "Supply crates are not available in this mission.") end
+  local n = ok(cm.spawnCratesAligned, cm, { desc }, u, coal, uname, "menu_ctld") or 0
+  if n > 0 then
+    say(u, string.format("Supply crate (%d SU) is beside you. Load it: F10 > CTLD > Check Cargo / load nearby crate "
+      .. "(or sling it). Unload it at a friendly base for the supply.", CC().supplyCrateSU))
+  end
+end
+
+local baseBuildMenu = B.buildMenu
+function B.buildMenu(p)
+  baseBuildMenu(p)
+  if p and p.gid and p.menu and B.ctldActive and not p.ground and B.ctldTransportOk(p) then
+    missionCommands.addCommandForGroup(p.gid, string.format("Supply crate (%d SU)", CC().supplyCrateSU), p.menu,
+      B.ctldSupplyCrate, p.unit)
+  end
+end
+
+-- ===========================================================================
 -- 6. Start-up and wiring
 -- ===========================================================================
 function B.ctldSetup()
@@ -602,7 +642,7 @@ function B.ctldSetup()
   B.ctldActive = true
   B.ctld.zones, B.ctld.zoneNode, B.ctld.field = {}, {}, {}
   B.ctldSyncZones()
-  B.EFFECT.LOGISTICS = "F10 > CTLD: request a Supply crate at a friendly base, fly it to the target and unload it there."
+  B.EFFECT.LOGISTICS = "F10 > Missions > Supply crate at a friendly base (or CTLD > Request Equipment > Supply), fly it to the target and unload it there."
   B.EFFECT.FARP = "Chinook / Mi-8: F10 > CTLD > Engineering > FARP kit, set it down within 3 km of the town. Or bring 3 supply crates (any lift helicopter), or build a CTLD FOB there."
   B.EFFECT.FARPSUP = "F10 > CTLD > load supply crates, set them down within 3 km of the FARP. A FARP kit refills it completely. A dry FARP has no rearm and no helicopter spawns."
   local n = 0

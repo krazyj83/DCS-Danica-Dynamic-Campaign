@@ -275,7 +275,7 @@ F10-kortet viser ikke fjenden af sig selv – kun de kontakter, din side faktisk
 
 ## Forsyning og våben: hvad du kan læsse afhænger af basen
 
-En base kan kun bevæbne dig med det, dens forsyning (SU) rækker til – og hvert styret våben du tager, betales af basens forsyning.
+**Fra v0.37 er alle våbentyper altid på hylden** – 100 af hver på alle baser og FARPs, uanset forsyning. Styrede og avancerede våben koster stadig basens forsyning, når du tager dem. Tabellen herunder gælder kun, hvis serveren slår forsyningsniveauerne til igen (`tiers = true`).
 
 | Basens SU (af hvad den kan rumme) | Tilgængelige våben | Trækker fra basens SU |
 | --- | --- | --- |
@@ -286,7 +286,6 @@ En base kan kun bevæbne dig med det, dens forsyning (SU) rækker til – og hve
 Baser starter krigen på 50 %, så alt er på hylden, indtil fjenden skærer forsyningen over.
 
 - *F10 → Other → Support → Armoury at this base* viser, hvad basen har. Det nemmeste overblik for dit eget fly får du i Ground Crew → Rearm and Refuel: det, der ikke er på hylden, står som "NOT AVAILABLE".
-- **Depoter har dobbelt lager.** Mangler du AMRAAM eller HARM, så flyt til en base længere tilbage.
 - **Fly er også begrænsede:** hver base har et lager af hver type (20). Mistede fly erstattes ét i timen og koster forsyning.
 - **Cooldown:** to dødsfald inden for en time giver 15 minutters flyveforbud i hurtige jetfly. Helikoptere er altid tilladt.
 
@@ -298,7 +297,7 @@ Helikopterpiloter flytter krigen lige så meget som jetpiloter: de holder baser 
 
 | Du gør (CTLD) | Det sker i krigen |
 | --- | --- |
-| Henter en **forsyningskasse** på en egen base | Basen betaler 10 SU; en tør base siger nej |
+| Henter en **forsyningskasse** på en egen base – nemmest via *F10 → Missions → Supply crate (10 SU)* (v0.37) | Basen betaler 10 SU; en tør base siger nej |
 | Leverer kassen inden for 3 km af en egen base | +10 SU dér og fuldfører LOGISTICS |
 | **3 kasser** til en venlig by (eller en FOB inden for 5 km) | Byen bliver **FARP**: helikopter-spawn, brændstof og ammo |
 | Laster **tropper** (10 soldater = 1 deling fra garnisonen) | Sæt af ved egen base: forstærkning. Ved fjendens base: **luftangreb** med det samme |
