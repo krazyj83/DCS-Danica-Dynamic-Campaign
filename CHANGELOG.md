@@ -6,6 +6,27 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.37.0 — 2026-10-27 (bugs from the 9-player test)
+
+**Fixed**
+- **Only one aircraft could spawn at several bases:** fixed client slots filled the whole apron at Kutaisi, Batumi
+  and Beslan, so dynamic spawn had no free stand. Fixed slots now take at most 25 % of an airbase's parking
+  (`fixedSlotShare` in the catalog); DTC / datalink jets get theirs first (`fixedSlotFirst`).
+- **Air-to-air missiles missing from the shelf:** advanced weapons (AMRAAM, R-77, AIM-54, ...) left the shelf as soon as
+  a base dipped under 45 % supply. Every weapon type is now always on the shelf at 100 (`ext.armoury.tiers = false`);
+  guided / advanced weapons still cost supply when taken. `tiers = true` brings the supply tiers back.
+- **No way to make supply crates:** CTLD's Supply category was buried pages deep in *Request Equipment*. Every CTLD
+  transport now has **F10 → Missions → Supply crate (10 SU)**: the same CTLD crate beside the aircraft.
+- **No dynamic spawn on carriers:** every carrier gets its own warehouse with dynamic spawn (20 of each slot type,
+  unlimited munitions and fuel).
+- **C-130J did not load:** fixed slots took the big stands first (pydcs picks by stand name), so a C-130J found none.
+  Fixed slots now go on the smallest stand the type fits; the big stands stay free for transports.
+- **Tanks on the runway:** every script-spawned ground unit and its waypoints are moved at least 60 m off runways,
+  taxiways and aprons (`runwayClearM`); garrison spots at airbases avoid them too.
+
+**Changed**
+- DCS test plan: P-101, P-301, P-603, P-701, P-801 set to RETEST with the feedback and the fix; new P-107 (C-130J).
+
 ## 0.36.0 — 2026-10-26 (feedback from the beta test)
 
 **Changed**

@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.36.0",
+  version         = "0.37.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -228,6 +228,7 @@ DCC.config = {
   liveStallTicks   = 6,     -- a live battle with no progress gets one dice round every 30 min
   captureRadiusKm  = 3,     -- attackers must be this close to take a node
   spawnSpreadM     = 1200,  -- garrison platoons are scattered within this radius
+  runwayClearM     = 60,    -- ground units and their waypoints stay this far off runways, taxiways, aprons (v0.37)
 
   -- Persistence ---------------------------------------------------------------
   saveFolder       = "DCC", -- under Saved Games\DCS\ (lfs.writedir())
@@ -263,6 +264,9 @@ DCC.config = {
                                        --   take-off (missions built with --armoury takeoff)
                 enforce = true,        -- takeoff mode: false = charge only, never recall
                 stock = { basic = 100, guided = 100, advanced = 100 },  -- per weapon type, every base and FARP
+                tiers = false,         -- v0.37: false = every tier always on the shelf (guided / advanced
+                                       --   still cost supply when taken); true = tiers follow supply
+                                       --   (guided from guidedAt, advanced from advancedAt)
                 depotStock = 1,        -- depots hold this many times the stock (v0.36: 1 = same as any base)
                 testMenu = false },    -- F10 > Armoury test (on in the test mission)
     runwayHits = 3, runwayTicks = 48, runwayRepairSU = 30,   -- 3 bomb hits close an airfield for 4 h

@@ -77,6 +77,19 @@ for _, item in ipairs(MOCK.groupMenus[p.gid] or {}) do
 end
 check("no DCC Cargo submenu, the Missions menu is still there", not cargoMenu and missions)
 check("CTLD built its own menu for the helicopter", ctldMenu)
+-- v0.37 (9-player test): "no option to create supply crates" - CTLD's Supply category was buried pages deep
+local function countCrates() local n = 0; for _ in pairs(cm.crates or {}) do n = n + 1 end; return n end
+local items = table.concat(MOCK.menuItems(p.gid), " | ")
+check("v0.37: Missions > Supply crate for every CTLD transport", items:find("Supply crate (", 1, true) ~= nil)
+local suK, c0 = war.state.nodes.kutaisi.supply, countCrates()
+MOCK.click(p.gid, "Supply crate (")
+check("...a supply crate beside the helicopter, charged to the base", countCrates() == c0 + 1
+  and war.state.nodes.kutaisi.supply < suK, countCrates() - c0)
+local fighter = MOCK.spawnPlayer(BLUE, "F-16C_50", kp.x + 400, kp.z, "Jet")
+MOCK.advance(1)
+local fp = B.players[fighter:getName()]
+check("...not for a fighter", not table.concat(MOCK.menuItems(fp.gid), " | "):find("Supply crate (", 1, true))
+for k, c in pairs(cm.crates or {}) do if c.descriptor and c.descriptor.dccSupply then cm:destroyCrate(k) end end
 
 print("Crates cost supply")
 local ns = war.state.nodes.kutaisi

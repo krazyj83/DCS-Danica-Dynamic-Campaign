@@ -14,8 +14,12 @@ What the mission contains:
     zeroes the enemy's types and stocks the owner's, and repeats that on every
     capture, so the choice always follows ownership.
   * FIXED CLIENT SLOTS, one per type (in `fixedSlots`, or every type if unset) at
-    each depot while its parking lasts; types that fit at no depot get one at the
-    side's next airbase with room. These work in single player too.
+    each depot; types that fit at no depot get one at the side's next airbase with
+    room, each on the smallest stand it fits (the big stands stay free for
+    transports). They may take at most `fixedSlotShare` of an airbase's parking (v0.37:
+    a full apron left dynamic spawn no free stand, so only one aircraft could
+    spawn); `fixedSlotFirst` types (DTC / datalink jets) are placed first. Fixed
+    slots work in single player too.
   * One trigger: MISSION START -> DO SCRIPT (ctld.dontInitialize = true),
     DO SCRIPT FILE vendor/ctld/CTLD.lua, DO SCRIPT FILE dist/dcc_bundle.lua.
     The engine configures and starts CTLD itself (src/dcc_dcs_ctld.lua).
@@ -238,6 +242,23 @@ def build_naval(m, theater, cjtf, types):
             icls = sh.get("icls", 4)
             if icls:
                 g.points[0].tasks.append(dtask.ActivateICLSCommand(channel=icls, unit_id=cv.id))
+            # Dynamic spawn on the ship (v0.37): every slot type, 20 of each, unlimited munitions
+            # and fuel (the fleet resupplies itself; the armoury follows land bases only).
+            wh = Warehouse()
+            wh.coalition = side.upper()
+            wh.dynamic_spawn = True
+            wh.allow_hot_start = True
+            wh.unlimited_aircrafts = False
+            wh.unlimited_munitions = True
+            wh.unlimited_fuel = True
+            stock_n = sh.get("dynamicStock", CARRIER_STOCK)
+            ac = {"planes": {}, "helicopters": {}}
+            for t in sh.get("slots", []) or []:
+                if t in types:
+                    kind = "helicopters" if t in helicopters.helicopter_map else "planes"
+                    ac[kind][t] = {"initialAmount": stock_n}
+            wh.aircrafts = ac
+            m.warehouses.warehouses[int(cv.id)] = wh.dict()
             for n, t in enumerate(sh.get("slots", []) or []):
                 cls_a = types.get(t)
                 if cls_a is None:
@@ -251,6 +272,8 @@ def build_naval(m, theater, cjtf, types):
                     print(f"  no carrier slot for {t}: {exc}")
     return report
 
+
+CARRIER_STOCK = 20       # aircraft of each slot type a carrier holds for dynamic spawn (v0.37)
 
 CTLD_DIR = os.path.join(ROOT, "vendor", "ctld")
 SCRIPTS_DIR = os.path.join(ROOT, "tools", "mission_scripts")
@@ -410,6 +433,9 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
     air = catalog["aircraft"]
     stock = catalog.get("aircraftStock", {"airbase": 4, "depot": 8})
     fixed = catalog.get("fixedSlots")
+    share = catalog.get("fixedSlotShare", 0.25)      # most of every apron stays free for dynamic spawn
+    first = catalog.get("fixedSlotFirst", [])
+    used = {}
 
     # Warehouse entry for one aircraft type (keyed by DCS type name).
     def all_types(side):
@@ -457,15 +483,25 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
     # Fixed client slots: one per type at every depot (as far as its parking goes);
     # a type that fits at no depot gets one at the side's first other airbase with room.
     for side in ("blue", "red"):
-        wanted = fixed[side] if fixed else all_types(side)
+        wanted = list(fixed[side] if fixed else all_types(side))
+        wanted.sort(key=lambda t: (first.index(t) if t in first else len(first)))   # stable: DTC jets first
         depots = sorted([b for b in bases[side] if b[0] == 0], key=lambda b: b[1])
         others = sorted([b for b in bases[side] if b[0] == 1], key=lambda b: b[1])
 
         def place(t, name, ap):
+            if used.get(ap.id, 0) >= int(len(ap.parking_slots) * share):
+                return False                              # keep the rest of the apron for dynamic spawn
+            # the smallest stand the type fits (pydcs takes the first by name, so fighters sat on the
+            # big stands and a C-130J found none left - v0.37: "the Hercules does not load")
+            fits = ap.free_parking_slots(types[t])
+            if not fits:
+                return False
+            stand = min(fits, key=lambda x: ((x.width or 0) * (x.length or 0), x.slot_name))
             try:
                 g = m.flight_group_from_airport(cjtf[side], f"{side.upper()} {name} {t}", types[t], ap,
-                                                start_type=StartType.Cold, group_size=1)
+                                                start_type=StartType.Cold, group_size=1, parking_slots=[stand])
                 g.set_client()
+                used[ap.id] = used.get(ap.id, 0) + 1
                 report[side].append(f"{t} @ {name}")
                 return True
             except Exception:  # usually: no free parking for this type here
