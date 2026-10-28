@@ -13,9 +13,9 @@ What the mission contains:
     every base (at least 1 each - a DCS dynamic-spawn quirk); the engine then
     zeroes the enemy's types and stocks the owner's, and repeats that on every
     capture, so the choice always follows ownership.
-  * FIXED CLIENT SLOTS, one per type (in `fixedSlots`, or every type if unset) at
-    each depot; types that fit at no depot get one at the side's next airbase with
-    room, each on the smallest stand it fits (the big stands stay free for
+  * FIXED CLIENT SLOTS: exactly one per type and side (in `fixedSlots`, or every
+    type if unset, C-130J included) - on the side's HQ first, then the other depots,
+    then the other airbases - each on the smallest stand it fits (the big stands stay free for
     transports). They may take at most `fixedSlotShare` of an airbase's parking (v0.37:
     a full apron left dynamic spawn no free stand, so only one aircraft could
     spawn); `fixedSlotFirst` types (DTC / datalink jets) are placed first. Fixed
@@ -483,18 +483,19 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
                     warehouse[kind][t] = {"initialAmount": max(n, warehouse[kind].get(t, {}).get("initialAmount", 0))}
         ap.aircrafts = warehouse
 
-        bases[side].append((0 if node.get("depot") else 1, node["name"], ap))
+        hq = (theater.get("main") or {}).get(side) == node["id"]
+        bases[side].append((0 if hq else (1 if node.get("depot") else 2), node["name"], ap))
 
-    # Fixed client slots: one per type at every depot (as far as its parking goes);
-    # a type that fits at no depot gets one at the side's first other airbase with room.
+    # Fixed client slots (v0.39): exactly ONE per type and side - C-130J included - on the HQ first,
+    # then the other depots, then the other airbases. Each base keeps most of its apron for dynamic
+    # spawn (fixedSlotShare); only a type that fits nowhere else may go past that.
     for side in ("blue", "red"):
         wanted = list(fixed[side] if fixed else all_types(side))
         wanted.sort(key=lambda t: (first.index(t) if t in first else len(first)))   # stable: DTC jets first
-        depots = sorted([b for b in bases[side] if b[0] == 0], key=lambda b: b[1])
-        others = sorted([b for b in bases[side] if b[0] == 1], key=lambda b: b[1])
+        ordered = sorted(bases[side], key=lambda b: (b[0], b[1]))
 
-        def place(t, name, ap):
-            if used.get(ap.id, 0) >= int(len(ap.parking_slots) * share):
+        def place(t, name, ap, capped=True):
+            if capped and used.get(ap.id, 0) >= int(len(ap.parking_slots) * share):
                 return False                              # keep the rest of the apron for dynamic spawn
             # the smallest stand the type fits (pydcs takes the first by name, so fighters sat on the
             # big stands and a C-130J found none left - v0.37: "the Hercules does not load")
@@ -512,17 +513,11 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
             except Exception:  # usually: no free parking for this type here
                 return False
 
-        homeless = []
         for t in wanted:
             if t not in types:
                 continue
-            placed = False
-            for _, name, ap in depots:
-                placed = place(t, name, ap) or placed
-            if not placed:
-                homeless.append(t)
-        for t in homeless:
-            if not any(place(t, name, ap) for _, name, ap in others):
+            if not any(place(t, name, ap) for _, name, ap in ordered) and \
+               not any(place(t, name, ap, capped=False) for _, name, ap in ordered):
                 print(f"  no fixed slot for {t} ({side}): no parking left - dynamic spawn only")
 
     # AI aircraft templates (phase 3): late-activated, never fly themselves.

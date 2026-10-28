@@ -6,6 +6,15 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.39.0 — 2026-10-28
+
+**Changed**
+- **Exactly one fixed client slot per aircraft type and side** (C-130J included): on the side's HQ first, then the other
+  depots, then the other airbases (each base keeps at least 75 % of its apron for dynamic spawn; only a type that fits
+  nowhere else may go past that). Before: one per type at *every* depot. Everything else is dynamic spawn, 20 of each
+  type. Caucasus: BLUE 63 / RED 26 fixed slots (was 65 / 43).
+- DCS test plan: P-102 to RETEST.
+
 ## 0.38.0 — 2026-10-27
 
 **Added**
