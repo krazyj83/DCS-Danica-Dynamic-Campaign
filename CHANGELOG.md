@@ -6,6 +6,14 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.41.0 — 2026-10-28
+
+**Changed**
+- **All AI at Ace** (DCS skill *Excellent*, was mostly *Average* = Rookie): every unit the engine or CTLD spawns —
+  platoons, convoys, SAMs, EWRs, artillery, AI aircraft, ships, pop-ups, minelayers — via `aiSkill` in the config, and
+  every AI unit in the mission file (ships, AI aircraft templates) via `make_mission.py`. Player slots are untouched.
+- DCS test plan: new P-410.
+
 ## 0.40.0 — 2026-10-28
 
 **Added**

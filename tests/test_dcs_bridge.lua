@@ -224,6 +224,21 @@ check("captured base: BLUE aircraft gone", kut:getItemCount("FA-18C_hornet") == 
 check("captured base: RED types listed (empty until resupplied)", kut:getItemCount("Su-27") == 0
   and w2.state.nodes.kutaisi.air["Su-27"] == 0)
 
+print("AI skill (v0.41)")
+local allAce, nAi = true, 0
+for name, g in pairs(MOCK.groups) do
+  if name:find("^DCC_") and g.data then
+    for _, u in ipairs(g.data.units) do
+      nAi = nAi + 1
+      if u.skill ~= "Excellent" then allAce = false end
+    end
+  end
+end
+check("v0.41: every AI unit the engine spawns is Ace (Excellent)", nAi > 0 and allAce and DCC.config.aiSkill == "Excellent", nAi)
+coalition.addGroup(80, Group.Category.AIRPLANE, { name = "TEST_CLIENT", units = { { name = "TEST_CLIENT_1", type = "F-16C_50",
+  x = 0, y = 0, alt = 1000, skill = "Client", payload = { fuel = 3000 } } } })
+check("...player slots are left alone", MOCK.groups.TEST_CLIENT.data.units[1].skill == "Client")
+
 print("Off the runway (v0.37)")
 -- 9-player test: tanks stood and drove on the runway. A 3 km x 60 m runway through Kutaisi's centre:
 local kc = DCC.dcs.nodePos.kutaisi

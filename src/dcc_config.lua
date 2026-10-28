@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.40.0",
+  version         = "0.41.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -232,6 +232,8 @@ DCC.config = {
   liveStallTicks   = 6,     -- a live battle with no progress gets one dice round every 30 min
   captureRadiusKm  = 3,     -- attackers must be this close to take a node
   spawnSpreadM     = 1200,  -- garrison platoons are scattered within this radius
+  aiSkill          = "Excellent", -- v0.41: every AI unit the engine (or CTLD) spawns: "Average" (Rookie), "Good"
+                                  --   (Trained), "High" (Veteran), "Excellent" (Ace), "Random"; nil = as spawned
   runwayClearM     = 60,    -- ground units and their waypoints stay this far off runways, taxiways, aprons (v0.37)
 
   -- Persistence ---------------------------------------------------------------

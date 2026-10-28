@@ -120,6 +120,13 @@ end
 if coalition and coalition.addGroup and not coalition.dccDry then
   local rawAddGroup, rawAddStatic = coalition.addGroup, coalition.addStaticObject
   coalition.addGroup = function(country, category, data)
+    -- v0.41: every AI unit at DCC.config.aiSkill (Ace by default); player slots stay as they are
+    local skill = DCC.config and DCC.config.aiSkill
+    if skill and type(data) == "table" then
+      for _, u in ipairs(data.units or {}) do
+        if type(u) == "table" and u.skill ~= "Client" and u.skill ~= "Player" then u.skill = skill end
+      end
+    end
     if Group and category == Group.Category.GROUND and type(data) == "table" then
       local okD, n = pcall(B.dryGroundData, data)
       if okD and n > 0 and DCC.util then DCC.util.log("%s: %d units moved out of the water / off a runway", tostring(data.name), n) end

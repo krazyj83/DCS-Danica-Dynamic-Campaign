@@ -4,7 +4,7 @@ A perpetual, persistent dynamic campaign for DCS World. One Lua engine runs insi
 mission, the war keeps going whether anyone is online or not, and when one side loses its last
 base the server moves on to the next map in the rotation.
 
-**Status: v0.40 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
+**Status: v0.41 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
 nodes, mass for assaults and capture bases. Every base runs on supply that trucks, transport aircraft,
 helicopters and **supply ships** carry forward. Each side has a **mission board** of 38 mission types —
 CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy escort, recon, CSAR, logistics, FARPs, anti-ship, SCUD
@@ -905,6 +905,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `supply.airMinStock` | 2 | Never fewer of any own type at an own airbase (v0.38) |
 | `world.farpPads` | 2 | Helipads per FARP (must match `FARP_PADS` in make_mission.py) (v0.38) |
 | `freshWar` | "2026-10-28a" | Token: a different one in the save starts a fresh war once (troubleshooting); false = off (v0.40) |
+| `aiSkill` | "Excellent" | Skill of every AI unit the engine (or CTLD) spawns — Ace; `make_mission.py` sets the mission's own AI (ships, templates) to Ace too (v0.41) |
 | `runwayClearM` | 60 | Ground units and their waypoints stay this far off runways, taxiways and aprons (v0.37) |
 | `fixedSlotShare` (catalog) | 0.25 | Fixed client slots use at most this share of an airbase's parking; the rest is for dynamic spawn (v0.37) |
 | `ext4.ground.smoke*` | 2 SU, 500 m, 5 rounds, 3 min, 5 min reload | Smoke screen ahead |
@@ -943,7 +944,7 @@ Measured with the offline simulator, no players online:
 ## Testing offline
 
 Nothing here needs DCS to test. The engine is plain Lua 5.1 (the version DCS uses) and runs
-under Python via `lupa` — 17 suites, 999 checks in v0.40:
+under Python via `lupa` — 17 suites, 1001 checks in v0.41:
 
 ```bash
 pip install lupa matplotlib
