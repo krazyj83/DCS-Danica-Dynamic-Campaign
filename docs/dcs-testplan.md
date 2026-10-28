@@ -153,6 +153,19 @@ sig eller garnisonerne ændret.
 
 Feedback:
 
+### S-106
+**Frisk krig (fresh-war switch)**
+`Status: IKKE TESTET` · Kort: Caucasus · Siden v0.40 · Offline: test_rotation
+
+1. Læg v0.40-missionen på serveren, hvor en gammel krig kører. Start den.
+2. Genstart missionen én gang til.
+
+**Forvent:** Første start: beskeden *FRESH WAR*, kortet er som ved krigens start (Senaki-Kolkhi BLUE), C-130J-slottet
+kan tages. Anden start: krigen fortsætter (ingen ny nulstilling). Pilotrekorderne er der stadig.
+
+Feedback: v0.39: C-130J-slottet på Senaki-Kolkhi tog ikke imod spilleren (navnet kom ikke frem). Serveren kørte stadig
+den gamle krig, hvor Senaki var tabt.
+
 ## S-200 · Kort og rotation
 
 ### S-201

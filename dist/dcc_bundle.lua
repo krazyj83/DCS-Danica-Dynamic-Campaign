@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.39.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.40.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.39.0",
+  version         = "0.40.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -240,6 +240,10 @@ DCC.config = {
 
   -- Persistence ---------------------------------------------------------------
   saveFolder       = "DCC", -- under Saved Games\DCS\ (lfs.writedir())
+  -- Fresh-war switch (v0.40, for troubleshooting): when this token differs from the one in the save,
+  -- the saved war is archived and a new war starts - once; restarts then continue the new war.
+  -- Change the token to force another fresh start; false = never (normal running).
+  freshWar         = "2026-10-28a",
   saveSlots        = 24,    -- rotating backups kept
   victoryMinSorties = 3,    -- victory bonus needs this many sorties for the winner (or one completed mission)
   warClockDays     = 7,
@@ -16254,6 +16258,17 @@ function DCC.start()
 
   -- Restore the running war, or start a new one (also after a finished war).
   local state = DCC.persist.load(DCC.theaterName)
+  -- Fresh-war switch (troubleshooting): a new token in config.freshWar throws the saved war away
+  -- once (it is archived as a finished war); the new war carries the token, so later restarts
+  -- continue it. freshWar = false switches this off.
+  local fresh = DCC.config.freshWar
+  local forced = false
+  if fresh and state and state.freshWar ~= fresh then
+    U.log("fresh-war switch %s: the saved war on %s (tick %d) is archived, a new war starts",
+      tostring(fresh), DCC.theaterName, state.tick or 0)
+    DCC.persist.archive(DCC.theaterName, state)
+    state, forced = nil, true
+  end
   local war
   if state and not state.winner then
     war = DCC.War.restore(theater, catalog, DCC.config, state)
@@ -16262,6 +16277,11 @@ function DCC.start()
     if state and state.winner then DCC.persist.archive(DCC.theaterName, state) end
     war = DCC.War.new(theater, catalog, DCC.config, newSeed())
     U.log("new war started on %s", DCC.theaterName)
+  end
+  if fresh then war.state.freshWar = fresh end
+  if forced then
+    trigger.action.outText("DCC: FRESH WAR - the saved war was archived and a new one has started (fresh-war switch "
+      .. tostring(fresh) .. ").", 60)
   end
   DCC.warObj = war
   DCC.started = true

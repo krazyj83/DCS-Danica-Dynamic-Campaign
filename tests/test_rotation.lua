@@ -150,6 +150,37 @@ for _, map in ipairs({ "PersianGulf", "GermanyCW" }) do
   local okT, err = pcall(function() for _ = 1, 12 do DCC.onTick() end end)
   check(map .. ": an hour of war in DCS", okT, err)
 end
+print("Fresh-war switch (v0.40)")
+do
+  DCC.persist.writeRotation({ current = "Caucasus", state = "running" })
+  MOCK.airbases = {}
+  MOCK.buildAirbases(DCC_THEATERS.Caucasus)
+  local token = DCC.config.freshWar
+  local function restart()
+    DCC.started, DCC.ended = false, false
+    env.mission.theatre = "Caucasus"
+    DCC.start()
+    return DCC.warObj
+  end
+  local w = restart()
+  w.state.nodes.senaki.side = "red"                  -- the old war: Senaki fell
+  DCC.save()
+  check("restart: the war carries on (Senaki still RED)", restart().state.nodes.senaki.side == "red")
+  DCC.config.freshWar = token .. "-next"             -- a new mission with a new token
+  local t0 = #MOCK.texts
+  local w2 = restart()
+  check("new token: a fresh war (Senaki BLUE again)", w2.state.nodes.senaki.side == "blue" and w2.state.tick <= 1)
+  local told = false
+  for i = t0 + 1, #MOCK.texts do if MOCK.texts[i]:find("FRESH WAR", 1, true) then told = true end end
+  check("...everyone is told", told)
+  w2.state.nodes.senaki.side = "red"
+  DCC.save()
+  check("same token again: no second reset", restart().state.nodes.senaki.side == "red")
+  DCC.config.freshWar = false
+  check("switch off: the war carries on", restart().state.nodes.senaki.side == "red")
+  DCC.config.freshWar = token
+end
+
 print("War clock ends a war and rotates too")
 do
   DCC.persist.writeRotation({ current = "Syria", state = "running" })

@@ -4,7 +4,7 @@ A perpetual, persistent dynamic campaign for DCS World. One Lua engine runs insi
 mission, the war keeps going whether anyone is online or not, and when one side loses its last
 base the server moves on to the next map in the rotation.
 
-**Status: v0.39 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
+**Status: v0.40 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
 nodes, mass for assaults and capture bases. Every base runs on supply that trucks, transport aircraft,
 helicopters and **supply ships** carry forward. Each side has a **mission board** of 38 mission types —
 CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy escort, recon, CSAR, logistics, FARPs, anti-ship, SCUD
@@ -827,6 +827,15 @@ Save files live in `Saved Games\DCS\DCC\`:
 
 To **reset a war**, stop the server and delete `Caucasus_war.json` and the backups.
 
+### Fresh-war switch (troubleshooting, v0.40)
+
+The war lives in `Saved Games\DCS…\DCC\<Map>_war.json` (plus `_war_bak*.json`), **not** in the .miz: replacing the
+mission keeps the old war — territory, supply, aircraft. To start over without touching the server's files, the
+engine has a switch: `freshWar` in `src/dcc_config.lua` is a token (v0.40: `"2026-10-28a"`). When a mission whose
+token differs from the one in the save starts, the saved war is archived (`<Map>_war_final_<tick>.json`) and a new war
+begins; everyone sees *FRESH WAR*. The new war carries the token, so later restarts continue it. Change the token
+to force another fresh start; set `freshWar = false` for normal running. Pilot records are kept.
+
 ### 5. When a war ends
 
 The engine announces the winner and the next map, sets **user flag 9900** to 1 and writes
@@ -895,6 +904,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `supply.startSU` | 50 | Every base starts the war with at least this much supply (depots 150) (v0.38) |
 | `supply.airMinStock` | 2 | Never fewer of any own type at an own airbase (v0.38) |
 | `world.farpPads` | 2 | Helipads per FARP (must match `FARP_PADS` in make_mission.py) (v0.38) |
+| `freshWar` | "2026-10-28a" | Token: a different one in the save starts a fresh war once (troubleshooting); false = off (v0.40) |
 | `runwayClearM` | 60 | Ground units and their waypoints stay this far off runways, taxiways and aprons (v0.37) |
 | `fixedSlotShare` (catalog) | 0.25 | Fixed client slots use at most this share of an airbase's parking; the rest is for dynamic spawn (v0.37) |
 | `ext4.ground.smoke*` | 2 SU, 500 m, 5 rounds, 3 min, 5 min reload | Smoke screen ahead |
@@ -933,7 +943,7 @@ Measured with the offline simulator, no players online:
 ## Testing offline
 
 Nothing here needs DCS to test. The engine is plain Lua 5.1 (the version DCS uses) and runs
-under Python via `lupa` — 17 suites, 994 checks in v0.39:
+under Python via `lupa` — 17 suites, 999 checks in v0.40:
 
 ```bash
 pip install lupa matplotlib
