@@ -305,11 +305,12 @@ Rettet i v0.38.0: mindst 2 af hver egen type på alle egne baser, altid (også e
 
 ### P-102
 **Faste slots spawner**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.21 · Offline: –
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.21 · Offline: –
 
-1. Tag et fast slot på et depot.
+1. Se slot-listen for din side. Tag et fast slot, fx C-130J.
 
-**Forvent:** Flyet spawner koldt på depotet.
+**Forvent:** Præcis ét fast slot pr. flytype pr. side (v0.39), først på HQ, så de andre depoter og baser. Flyet
+spawner koldt. Alt andet er dynamic spawn med 20 af hver type.
 
 Feedback:
 

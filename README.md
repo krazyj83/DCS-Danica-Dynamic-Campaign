@@ -4,7 +4,7 @@ A perpetual, persistent dynamic campaign for DCS World. One Lua engine runs insi
 mission, the war keeps going whether anyone is online or not, and when one side loses its last
 base the server moves on to the next map in the rotation.
 
-**Status: v0.38 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
+**Status: v0.39 — all four maps, unattended rotation, and a lot of war on top.** Ground forces hold
 nodes, mass for assaults and capture bases. Every base runs on supply that trucks, transport aircraft,
 helicopters and **supply ships** carry forward. Each side has a **mission board** of 38 mission types —
 CAS, BAI, strike, SEAD/DEAD, CAP, escort, convoy escort, recon, CSAR, logistics, FARPs, anti-ship, SCUD
@@ -752,7 +752,7 @@ Use the generated **`dist/DCC_<map>.miz`** (Caucasus, Syria, PersianGulf, German
 | Coalitions | CJTF Blue vs CJTF Red (either side can use any unit type) |
 | Airbase ownership | As in the theater pack (BLUE Georgia, RED north / Abkhazia / South Ossetia) |
 | **Dynamic spawn** on all 23 campaign airbases | In multiplayer, players pick any aircraft their side's base holds (20 of each type). The engine removes the enemy's types and stocks the owner's at mission start and after every capture. |
-| **Fixed client slots** | One per aircraft type at every depot while its parking lasts; a type that fits nowhere there gets one at the side's next airbase with room. Plus the carrier slots. These also work in single player. |
+| **Fixed client slots** | **Exactly one per aircraft type and side** (C-130J included, v0.39): on the side's HQ first, then the other depots, then the other airbases. Plus the carrier slots. These also work in single player. Everything else is dynamic spawn, 20 of each type. |
 | **Kneeboard** | 3–4 pages for every aircraft (`tools/kneeboard.py`): airbase tower frequencies, ship TACAN / ICLS, tankers; the campaign map at the start; a quick reference (menus, mission types, how bases fall, armoury, night and weather) |
 | **DTC cartridges** | F-16C and F/A-18C (from the templates in `dtc/`, made in the Mission Editor): radio presets, displays, threat tables; the Hornet gets every airbase and town as a named steerpoint. Default in every fixed slot of the type; dynamic-spawn pilots pick it in the DTC screen |
 | **Datalinks** | Fixed slots get the Mission Editor's datalink blocks (`tools/datalinks.json`: Link 16 F/A-18C, F-16C, F-15E; SADL A-10C II; IDM AH-64D) and unique Link 16 STNs |
@@ -771,7 +771,8 @@ Use the generated **`dist/DCC_<map>.miz`** (Caucasus, Syria, PersianGulf, German
 Every own airbase always has **at least 2 of every own type** (v0.38, `supply.airMinStock`, free) — also a freshly
 captured base and types added after a war started.
 
-Fixed client slots take at most a quarter of any airbase's parking (`fixedSlotShare`), each on the smallest stand
+**One fixed client slot per type and side** (v0.39) — HQ first, then the other depots, then the other airbases — and
+**20 of each type in dynamic spawn** at every own airbase. Fixed slots take at most a quarter of any airbase's parking (`fixedSlotShare`), each on the smallest stand
 the type fits (the big stands stay free for the C-130J and other transports), so dynamic spawn always has
 free stands — before v0.37 they filled Kutaisi, Batumi and Beslan and only one aircraft could spawn there.
 
@@ -932,7 +933,7 @@ Measured with the offline simulator, no players online:
 ## Testing offline
 
 Nothing here needs DCS to test. The engine is plain Lua 5.1 (the version DCS uses) and runs
-under Python via `lupa` — 17 suites, 994 checks in v0.38:
+under Python via `lupa` — 17 suites, 994 checks in v0.39:
 
 ```bash
 pip install lupa matplotlib
