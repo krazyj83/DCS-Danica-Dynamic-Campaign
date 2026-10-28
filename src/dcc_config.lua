@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.39.0",
+  version         = "0.40.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -236,6 +236,10 @@ DCC.config = {
 
   -- Persistence ---------------------------------------------------------------
   saveFolder       = "DCC", -- under Saved Games\DCS\ (lfs.writedir())
+  -- Fresh-war switch (v0.40, for troubleshooting): when this token differs from the one in the save,
+  -- the saved war is archived and a new war starts - once; restarts then continue the new war.
+  -- Change the token to force another fresh start; false = never (normal running).
+  freshWar         = "2026-10-28a",
   saveSlots        = 24,    -- rotating backups kept
   victoryMinSorties = 3,    -- victory bonus needs this many sorties for the winner (or one completed mission)
   warClockDays     = 7,

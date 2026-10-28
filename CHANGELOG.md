@@ -6,6 +6,16 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.40.0 — 2026-10-28
+
+**Added**
+- **Fresh-war switch** (troubleshooting): `freshWar` in the config is a token; a mission whose token differs from the
+  one in the save archives the saved war and starts a new one (once), and tells everyone. Restarts then continue the
+  new war. `freshWar = false` turns it off. Pilot records are kept. Why: the server kept the old war across mission
+  updates (the save is in `Saved Games\…\DCC`, not in the .miz) - in that war Senaki-Kolkhi was lost, so the C-130J
+  slot there refused BLUE players.
+- DCS test plan: S-106 (fresh war on the server).
+
 ## 0.39.0 — 2026-10-28
 
 **Changed**
