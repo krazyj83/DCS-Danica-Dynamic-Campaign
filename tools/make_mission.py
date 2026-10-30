@@ -284,6 +284,23 @@ CTLD_DIR = os.path.join(ROOT, "vendor", "ctld")
 SCRIPTS_DIR = os.path.join(ROOT, "tools", "mission_scripts")
 
 
+AI_SKILL = dunit.Skill.Excellent   # v0.41: every AI unit in the mission is Ace (the engine's own spawns: config aiSkill)
+
+
+def set_ai_skill(m):
+    """Every AI unit in the mission (ships, AI aircraft templates, ground) at AI_SKILL; client slots untouched."""
+    n = 0
+    for coal in m.coalition.values():
+        for country in coal.countries.values():
+            for g in (list(country.vehicle_group) + list(country.ship_group) + list(country.plane_group)
+                      + list(country.helicopter_group)):
+                for u in g.units:
+                    if getattr(u, "skill", None) not in (None, dunit.Skill.Client, dunit.Skill.Player):
+                        u.skill = AI_SKILL
+                        n += 1
+    print(f"  AI skill: {n} units set to {AI_SKILL.value}")
+
+
 def fix_radio_frequencies(m):
     """Every aircraft group on its type's own default radio frequency.
 
@@ -583,6 +600,7 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
         "Fly from any airbase your side owns (multiplayer: dynamic spawn) or from the fixed depot slots.\n"
         "F10 > Other > Campaign > Campaign status for the situation.")
 
+    set_ai_skill(m)
     fix_radio_frequencies(m)
     assign_datalinks(m)
     dtc_files = build_dtcs(m, theater, theater_name)

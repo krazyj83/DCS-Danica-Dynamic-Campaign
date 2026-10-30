@@ -670,6 +670,17 @@ Feedback:
 
 Feedback:
 
+### P-410
+**AI på Ace**
+`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.41 · Offline: test_dcs_bridge
+
+1. Flyv mod et SAM-anlæg, en AI-CAP og en kolonne. Sammenlign med tidligere.
+
+**Forvent:** AI'en reagerer hurtigere og rammer bedre (skill *Excellent* = Ace). I missionsfilen står skibe og
+AI-skabeloner som Ace.
+
+Feedback: v0.40: AI'en var sat til Rookie.
+
 ## P-500 · Fog of war og efterretning
 
 ### P-501
