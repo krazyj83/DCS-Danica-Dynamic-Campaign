@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.41.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.42.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.41.0",
+  version         = "0.42.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -238,6 +238,8 @@ DCC.config = {
   spawnSpreadM     = 1200,  -- garrison platoons are scattered within this radius
   aiSkill          = "Excellent", -- v0.41: every AI unit the engine (or CTLD) spawns: "Average" (Rookie), "Good"
                                   --   (Trained), "High" (Veteran), "Excellent" (Ace), "Random"; nil = as spawned
+  aiEcm            = "never", -- v0.42: AI aircraft jamming (ECM pods): "never", "lock" (only when locked),
+                              --   "detected", "always"; nil = DCS default. Jamming strobes swamped the F-16s.
   runwayClearM     = 60,    -- ground units and their waypoints stay this far off runways, taxiways, aprons (v0.37)
 
   -- Persistence ---------------------------------------------------------------
@@ -7094,6 +7096,16 @@ function B.datalinkOn(gname)
     if not g or not g:isExist() then return end
     local c = g:getController()
     c:setCommand({ id = "EPLRS", params = { value = true, groupId = g:getID() } })
+    -- v0.42: AI jamming (ECM pods) filled the F-16s' screens with jamming strobes; off unless config.aiEcm says so
+    local ecm = DCC.config.aiEcm
+    if ecm ~= nil then
+      local A = AI and AI.Option and AI.Option.Air
+      local id = A and A.id and A.id.ECM_USING or 13
+      local vals = A and A.val and A.val.ECM_USING or {}
+      local v = ({ never = vals.NEVER_USE or 0, lock = vals.USE_IF_ONLY_LOCK_BY_RADAR or 1,
+                   detected = vals.USE_IF_DETECTED_LOCK_BY_RADAR or 2, always = vals.ALWAYS_USE or 3 })[ecm]
+      if v then c:setOption(id, v) end
+    end
   end)
   return okE
 end

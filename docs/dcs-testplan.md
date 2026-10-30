@@ -681,6 +681,16 @@ AI-skabeloner som Ace.
 
 Feedback: v0.40: AI'en var sat til Rookie.
 
+### P-411
+**Ingen AI-jamming**
+`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.42 · Offline: test_dcs_bridge
+
+1. Flyv F-16 mod fjendtlige AI-fly (CAP, strike packages). Se på radar og datalink.
+
+**Forvent:** Ingen jamming-strobes fra AI-fly; datalink-sporene fra AWACS og wingmen bliver stående.
+
+Feedback: v0.41: radar-jammere forstyrrede F-16'ernes datalink.
+
 ## P-500 · Fog of war og efterretning
 
 ### P-501

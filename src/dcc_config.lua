@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.41.0",
+  version         = "0.42.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -234,6 +234,8 @@ DCC.config = {
   spawnSpreadM     = 1200,  -- garrison platoons are scattered within this radius
   aiSkill          = "Excellent", -- v0.41: every AI unit the engine (or CTLD) spawns: "Average" (Rookie), "Good"
                                   --   (Trained), "High" (Veteran), "Excellent" (Ace), "Random"; nil = as spawned
+  aiEcm            = "never", -- v0.42: AI aircraft jamming (ECM pods): "never", "lock" (only when locked),
+                              --   "detected", "always"; nil = DCS default. Jamming strobes swamped the F-16s.
   runwayClearM     = 60,    -- ground units and their waypoints stay this far off runways, taxiways, aprons (v0.37)
 
   -- Persistence ---------------------------------------------------------------
