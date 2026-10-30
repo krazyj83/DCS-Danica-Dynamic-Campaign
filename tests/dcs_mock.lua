@@ -43,7 +43,9 @@ land = {
 
 -- AI options and weapons (phase 4)
 AI = { Option = { Ground = { id = { ROE = 0, ALARM_STATE = 9 },
-  val = { ROE = { OPEN_FIRE = 2, RETURN_FIRE = 3, WEAPON_HOLD = 4 }, ALARM_STATE = { AUTO = 0, GREEN = 1, RED = 2 } } } } }
+  val = { ROE = { OPEN_FIRE = 2, RETURN_FIRE = 3, WEAPON_HOLD = 4 }, ALARM_STATE = { AUTO = 0, GREEN = 1, RED = 2 } } },
+  Air = { id = { ECM_USING = 13 }, val = { ECM_USING = { NEVER_USE = 0, USE_IF_ONLY_LOCK_BY_RADAR = 1,
+    USE_IF_DETECTED_LOCK_BY_RADAR = 2, ALWAYS_USE = 3 } } } } }
 Weapon = { GuidanceType = { INS = 1, IR = 2, RADAR_ACTIVE = 3, RADAR_SEMI_ACTIVE = 4, RADAR_PASSIVE = 5 } }
 function MOCK.weapon(guidance, target)
   return { getDesc = function() return { guidance = guidance } end, getTarget = function() return target end }

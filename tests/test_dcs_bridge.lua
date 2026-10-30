@@ -239,6 +239,13 @@ coalition.addGroup(80, Group.Category.AIRPLANE, { name = "TEST_CLIENT", units = 
   x = 0, y = 0, alt = 1000, skill = "Client", payload = { fuel = 3000 } } } })
 check("...player slots are left alone", MOCK.groups.TEST_CLIENT.data.units[1].skill == "Client")
 
+print("No AI jamming (v0.42)")
+coalition.addGroup(81, Group.Category.AIRPLANE, { name = "TEST_ECM", units = { { name = "TEST_ECM_1", type = "Su-34",
+  x = 0, y = 0, alt = 6000, payload = { fuel = 9000 } } } })
+check("v0.42: AI aircraft never use ECM (no jamming strobes on the F-16s)",
+  MOCK.groups.TEST_ECM.options and MOCK.groups.TEST_ECM.options[13] == 0 and DCC.config.aiEcm == "never")
+check("...and keep the datalink on", MOCK.groups.TEST_ECM.commands and MOCK.groups.TEST_ECM.commands.EPLRS == true)
+
 print("Off the runway (v0.37)")
 -- 9-player test: tanks stood and drove on the runway. A 3 km x 60 m runway through Kutaisi's centre:
 local kc = DCC.dcs.nodePos.kutaisi

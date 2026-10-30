@@ -6,6 +6,14 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.42.0 — 2026-10-30
+
+**Fixed**
+- **AI jamming swamped the F-16s:** AI aircraft with ECM pods jammed the players' radars (jamming strobes, lost
+  tracks). Every AI aircraft the engine spawns now gets *ECM: never use* (`aiEcm = "never"`; `"lock"`, `"detected"`,
+  `"always"` or nil for the DCS default bring it back). The campaign itself has no jammer units.
+- DCS test plan: new P-411.
+
 ## 0.41.0 — 2026-10-28
 
 **Changed**

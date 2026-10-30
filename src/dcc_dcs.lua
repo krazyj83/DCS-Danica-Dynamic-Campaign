@@ -70,6 +70,16 @@ function B.datalinkOn(gname)
     if not g or not g:isExist() then return end
     local c = g:getController()
     c:setCommand({ id = "EPLRS", params = { value = true, groupId = g:getID() } })
+    -- v0.42: AI jamming (ECM pods) filled the F-16s' screens with jamming strobes; off unless config.aiEcm says so
+    local ecm = DCC.config.aiEcm
+    if ecm ~= nil then
+      local A = AI and AI.Option and AI.Option.Air
+      local id = A and A.id and A.id.ECM_USING or 13
+      local vals = A and A.val and A.val.ECM_USING or {}
+      local v = ({ never = vals.NEVER_USE or 0, lock = vals.USE_IF_ONLY_LOCK_BY_RADAR or 1,
+                   detected = vals.USE_IF_DETECTED_LOCK_BY_RADAR or 2, always = vals.ALWAYS_USE or 3 })[ecm]
+      if v then c:setOption(id, v) end
+    end
   end)
   return okE
 end
