@@ -200,6 +200,11 @@ B.opsPoll()
 print("FOB and AA systems")
 local ed = EventDispatcher.getInstance()
 local town2
+for _, id in ipairs(war.T.order) do                 -- v0.44: towns start as FARPs; test one without
+  if war.state.nodes[id].side == "blue" and war.T.nodes[id].kind == "town" and id ~= town then
+    war.state.nodes[id].farp = nil; break
+  end
+end
 for _, id in ipairs(war.T.order) do
   if war.state.nodes[id].side == "blue" and war.T.nodes[id].kind == "town" and not war:farpAt(id) then town2 = id; break end
 end
