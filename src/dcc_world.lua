@@ -271,6 +271,36 @@ function War:buildFarp(id, side, how, extra)
   return true
 end
 
+-- v0.44: every town a side holds starts as a stocked FARP. Runs for a new war
+-- and once for an older save (state.farpsSeeded).
+function War:seedStartFarps()
+  if self.state.farpsSeeded or not W(self).farpAtStart then return 0 end
+  local n = 0
+  for _, id in ipairs(self.T.order) do
+    local ns = self.state.nodes[id]
+    if self:canHaveFarp(id) and (ns.side == "blue" or ns.side == "red") and not self:farpAt(id) then
+      ns.farp = { side = ns.side, built = self.state.tick, how = "start", stock = W(self).farpStock }
+      ns.farpSU = nil
+      n = n + 1
+    end
+  end
+  self.state.farpsSeeded = true
+  if n > 0 then U.log("FARPs open at %d towns from the start", n) end
+  return n
+end
+
+local baseNew, baseRestore = War.new, War.restore
+function War.new(...)
+  local w = baseNew(...)
+  w:seedStartFarps()
+  return w
+end
+function War.restore(...)
+  local w = baseRestore(...)
+  w:seedStartFarps()
+  return w
+end
+
 function War:farpAt(id)
   local f = self.state.nodes[id].farp
   return f ~= nil and f.side == self.state.nodes[id].side

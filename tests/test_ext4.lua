@@ -161,6 +161,33 @@ end
 check("every map: both HQs are own depots", allMain)
 
 -- ===========================================================================
+print("Pure model: FARPs from the start (v0.44)")
+-- ===========================================================================
+local fw = DCC.War.new(T, C, cfg, 46)
+local towns, open = 0, 0
+for _, id in ipairs(fw.T.order) do
+  local ns = fw.state.nodes[id]
+  if fw.T.nodes[id].kind == "town" and (ns.side == "blue" or ns.side == "red") then
+    towns = towns + 1
+    if fw:farpAt(id) and fw:farpStock(id) == cfg.world.farpStock and not fw:farpDry(id) then open = open + 1 end
+  end
+end
+check("new war: every held town is a full FARP", towns > 0 and open == towns, open .. "/" .. towns)
+check("airbases are not FARPs", not fw:farpAt("kutaisi"))
+local old = fw.state
+for _, ns in pairs(old.nodes) do ns.farp = nil end
+old.farpsSeeded = nil
+local rw = DCC.War.restore(T, C, cfg, old)
+local reopened = 0
+for _, id in ipairs(rw.T.order) do if rw:farpAt(id) then reopened = reopened + 1 end end
+check("an older save gets its FARPs once", reopened == towns and rw.state.farpsSeeded == true)
+local gone
+for _, id in ipairs(rw.T.order) do if rw:farpAt(id) then gone = id; break end end
+rw.state.nodes[gone].farp = nil
+DCC.War.restore(T, C, cfg, rw.state)
+check("...and only once (a FARP lost later stays lost)", rw.state.nodes[gone].farp == nil)
+
+-- ===========================================================================
 print("Bridge")
 -- ===========================================================================
 dofile(DCC_ROOT .. "/tests/dcs_mock.lua")

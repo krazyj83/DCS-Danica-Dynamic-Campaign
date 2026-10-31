@@ -6,6 +6,20 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.44.0 — 2026-10-31
+
+**Fixed**
+- **FARPs empty at mission start:** a FARP only opened once players had built it, so a fresh war had none — every
+  FARP pad showed no helicopters, no weapons and no fuel. Now **every town a side holds starts as a stocked FARP**
+  (`world.farpAtStart`); a running war gets its FARPs once on the next restart (`farpsSeeded` in the save).
+  Captured towns still need building (FARP mission), and a FARP still runs dry without resupply (FARPSUP).
+
+**Changed**
+- FARP stock: **2 helipads** (dynamic spawn), **10 of each own helicopter** per pad (`world.farpHelos`, was 20),
+  **50 of each weapon** on the shelf (`world.farpWeapons`; airbases stay at 100) and **1000 t fuel** per pad
+  (`world.farpFuel`, set in the mission; `make_mission.py` now reads `src/dcc_config.lua`).
+- DCS test plan: new P-707; P-702 to RETEST.
+
 ## 0.43.0 — 2026-10-31
 
 **Fixed**

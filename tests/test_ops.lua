@@ -498,6 +498,7 @@ do
   local wf = wire(DCC.War.new(T, C, cfg, 54))
   wf:tick(); wf:tick()
   local town = "gori"
+  wf.state.nodes[town].farp = nil                  -- v0.44: towns start as FARPs; test an unbuilt one
   for _ = 1, 2 do wf:deliverCrate("blue", town, 10) end
   check("two crates are not a FARP yet", not wf:farpAt(town) and wf.state.nodes[town].farpSU == 20)
   wf:deliverCrate("blue", town, 10)

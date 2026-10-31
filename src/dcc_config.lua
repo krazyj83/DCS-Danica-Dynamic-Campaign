@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.43.0",
+  version         = "0.44.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -186,7 +186,11 @@ DCC.config = {
     farpStock      = 40,      -- SU a FARP holds itself (a FARP kit or 4 crates fills it)
     farpUsePerTick = 0.25,    -- ...used per tick (5 min): full to dry in ~13 h
     farpLowShare   = 0.5,     -- below this a FARPSUP mission is posted
-    farpHelos      = 20,      -- helicopters of each own type a FARP can spawn (v0.36: was 2)
+    farpHelos      = 10,      -- helicopters of each own type a FARP can spawn (v0.44: was 20)
+    farpWeapons    = 50,      -- v0.44: of each weapon on a FARP's shelf (airbases: ext.armoury.stock)
+    farpFuel       = 1000,    -- v0.44: fuel (tons, Mission Editor warehouse) at every FARP pad from mission start
+    farpAtStart    = true,    -- v0.44: every town a side holds starts as a stocked FARP (also added once to an
+                              --   older save); captured towns still need building
     farpPads       = 2,       -- helipads per FARP (v0.38: one invisible pad let only one helicopter spawn);
                               --   make_mission.py builds DCC_FARP_<town>_<side>, ..._2, ...
     antishipChance = 0.4,     -- chance per hour of an AI strike on a known enemy ship
