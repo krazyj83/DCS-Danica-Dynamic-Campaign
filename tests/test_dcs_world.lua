@@ -108,6 +108,7 @@ check("escort leaves with the convoy", B.escorts[mv.id] == nil)
 print("FARPs")
 local town = "gori"
 local wh = Airbase.getByName("DCC_FARP_gori_blue"):getWarehouse()
+war.state.nodes[town].farp = nil                   -- v0.44: towns start as FARPs; test an unbuilt one
 B.reconcileFarps()
 check("unbuilt FARP has no helicopters", wh:getItemCount("UH-1H") == 0)
 for _ = 1, 3 do war:deliverCrate("blue", town, 10) end

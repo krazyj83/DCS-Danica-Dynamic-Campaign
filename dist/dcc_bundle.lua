@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.43.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.44.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.43.0",
+  version         = "0.44.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -190,7 +190,11 @@ DCC.config = {
     farpStock      = 40,      -- SU a FARP holds itself (a FARP kit or 4 crates fills it)
     farpUsePerTick = 0.25,    -- ...used per tick (5 min): full to dry in ~13 h
     farpLowShare   = 0.5,     -- below this a FARPSUP mission is posted
-    farpHelos      = 20,      -- helicopters of each own type a FARP can spawn (v0.36: was 2)
+    farpHelos      = 10,      -- helicopters of each own type a FARP can spawn (v0.44: was 20)
+    farpWeapons    = 50,      -- v0.44: of each weapon on a FARP's shelf (airbases: ext.armoury.stock)
+    farpFuel       = 1000,    -- v0.44: fuel (tons, Mission Editor warehouse) at every FARP pad from mission start
+    farpAtStart    = true,    -- v0.44: every town a side holds starts as a stocked FARP (also added once to an
+                              --   older save); captured towns still need building
     farpPads       = 2,       -- helipads per FARP (v0.38: one invisible pad let only one helicopter spawn);
                               --   make_mission.py builds DCC_FARP_<town>_<side>, ..._2, ...
     antishipChance = 0.4,     -- chance per hour of an AI strike on a known enemy ship
@@ -3781,6 +3785,36 @@ function War:buildFarp(id, side, how, extra)
   self:log("farp_built", side, string.format("%s helicopters %s at %s - rearm, refuel and spawn there",
     side:upper(), what, self:nodeName(id)), { node = id })
   return true
+end
+
+-- v0.44: every town a side holds starts as a stocked FARP. Runs for a new war
+-- and once for an older save (state.farpsSeeded).
+function War:seedStartFarps()
+  if self.state.farpsSeeded or not W(self).farpAtStart then return 0 end
+  local n = 0
+  for _, id in ipairs(self.T.order) do
+    local ns = self.state.nodes[id]
+    if self:canHaveFarp(id) and (ns.side == "blue" or ns.side == "red") and not self:farpAt(id) then
+      ns.farp = { side = ns.side, built = self.state.tick, how = "start", stock = W(self).farpStock }
+      ns.farpSU = nil
+      n = n + 1
+    end
+  end
+  self.state.farpsSeeded = true
+  if n > 0 then U.log("FARPs open at %d towns from the start", n) end
+  return n
+end
+
+local baseNew, baseRestore = War.new, War.restore
+function War.new(...)
+  local w = baseNew(...)
+  w:seedStartFarps()
+  return w
+end
+function War.restore(...)
+  local w = baseRestore(...)
+  w:seedStartFarps()
+  return w
 end
 
 function War:farpAt(id)
@@ -15946,7 +15980,9 @@ function B.restockArmoury()
           local taken = math.max(0, (B.arm.last[key] or cur) - cur)
           local each = (t == "advanced" and cfg.advancedSU) or (t == "guided" and cfg.guidedSU) or 0
           if taken > 0 and each > 0 then ns.supply = math.max(0, (ns.supply or 0) - taken * each) end
-          local target = (ORDER[t] <= ORDER[tier]) and (cfg.stock[t] or 0) * big or 0
+          local full = whs.farp[k] and (DCC.config.world.farpWeapons or cfg.stock[t] or 0)   -- v0.44: FARP shelf
+                       or (cfg.stock[t] or 0) * big
+          local target = (ORDER[t] <= ORDER[tier]) and full or 0
           if whs.farp[k] and war:farpDry(id) then target = 0 end      -- a dry FARP: empty shelves
           if cur ~= target then ok(w.setItem, w, name, target) end   -- top up, or off the shelf
           B.arm.last[key] = target

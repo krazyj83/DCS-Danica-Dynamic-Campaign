@@ -220,6 +220,7 @@ check("...and tells him", (MOCK.lastGroupText(vg.id) or ""):find("noticed you", 
 print(" Pick-ups")
 local zug = "zugdidi"
 war.state.nodes[zug].side = "blue"
+war.state.nodes[zug].farp = nil                    -- v0.44: no FARP there (a FARP spawn needs a rank)
 local q = war:addPickup("medevac", "blue", zug, 4)
 B.reconcilePickups()
 check("the wounded stand at the base", MOCK.groups["DCC_PICK_" .. q.id] ~= nil)

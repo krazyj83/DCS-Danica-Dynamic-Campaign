@@ -15,6 +15,16 @@ MOCK.writedir = (arg[1] or "/tmp") .. "/dcc_arm_" .. tostring(os.time()) .. "/"
 os.execute('mkdir -p "' .. MOCK.writedir .. '"')
 local T = DCC_THEATERS.Caucasus
 MOCK.buildAirbases(T)
+-- v0.44: the generated mission's FARP pads (2 per town and side)
+for _, n in ipairs(T.nodes) do
+  if n.kind == "town" then
+    local p = coord.LLtoLO(n.lat, n.lon, 0)
+    for _, sfx in ipairs({ "", "_2" }) do
+      MOCK.addFarp("DCC_FARP_" .. n.id .. "_blue" .. sfx, p.x + 1500, p.z + (sfx == "" and 0 or 60), 2)
+      MOCK.addFarp("DCC_FARP_" .. n.id .. "_red" .. sfx, p.x - 1500, p.z + (sfx == "" and 0 or 60), 1)
+    end
+  end
+end
 MOCK.addTemplates()
 
 -- What this fake DCS knows: a resource map, and warehouses that refuse unknown names.
@@ -125,6 +135,30 @@ B.restockArmoury()
 check("supply runs down: advanced and guided come off the shelf", wh.items["weapons.missiles.AIM_120C"] == 0
   and wh.items["weapons.bombs.GBU_12"] == 0)
 DCC.config.ext.armoury.tiers = false
+
+print("FARPs stocked from the start (v0.44)")
+-- beta test: FARPs had no helicopters, weapons or fuel at mission start (no FARP until players built one)
+local fid
+for _, id in ipairs(war.T.order) do
+  if war.T.nodes[id].kind == "town" and war.state.nodes[id].side == "blue" then fid = id; break end
+end
+check("an own town is a FARP from the start", fid and war:farpAt(fid), fid)
+B.reconcileFarps()
+B.restockArmoury()
+local pads, helosOk, shelfOk = B.farpPadNames(fid, "blue"), true, true
+for _, pad in ipairs(pads) do
+  local pw = Airbase.getByName(pad):getWarehouse()
+  for _, t in ipairs(B.catalog.aircraft.blue.helicopters) do
+    if pw:getItemCount(t) ~= DCC.config.world.farpHelos then helosOk = false end
+  end
+  for _, n in ipairs(B.arm.names) do
+    if pw:getItemCount(n) ~= DCC.config.world.farpWeapons then shelfOk = false end
+  end
+end
+check("2 pads per FARP", #pads == 2 and DCC.config.world.farpPads == 2)
+check("10 of each own helicopter on both pads", helosOk and DCC.config.world.farpHelos == 10)
+check("50 of each weapon on both pads (Hellfire, Hydra, Stinger...)", shelfOk and DCC.config.world.farpWeapons == 50)
+check("airbases keep 100", wh.items["weapons.missiles.AIM_120C"] == stock.advanced)
 
 print("No recall in warehouse mode")
 local viper = MOCK.spawnPlayer(2, "F-16C_50", MOCK.airbases[B.airbases.kutaisi].p.x, MOCK.airbases[B.airbases.kutaisi].p.z, "Morten")

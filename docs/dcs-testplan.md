@@ -17,7 +17,7 @@ Testene er delt i to:
 
 ### 1. Vælg hvad du tester
 
-- **Efter hver ny version:** kør [røgtesten](#røgtest) (14 test, ca. en aften).
+- **Efter hver ny version:** kør [røgtesten](#røgtest) (15 test, ca. en aften).
 - **Når noget er rettet:** kør alle test med `Status: RETEST`.
 - **Når der er tid:** tag test med `Status: IKKE TESTET`, fx ét område ad gangen.
 
@@ -86,6 +86,7 @@ Kør disse efter hver ny version. De rører de vigtigste dele af motoren.
 | [P-701](#p-701) | CTLD-kasse ændrer SU |
 | [P-1101](#p-1101) | Bogey dope og debrief (v0.34) |
 | [P-904](#p-904) | F-16 Link 16 synker med GPS (v0.43) |
+| [P-707](#p-707) | FARPer fra start (v0.44) |
 
 ---
 
@@ -811,7 +812,7 @@ direkte i *F10 → Missions* for alle CTLD-transporttyper.
 
 1. Lever 3 kasser til en venlig by.
 
-**Forvent:** Lastbilerne kommer, og byens FARP tilbyder din sides helikoptere i slot-listen, 20 af hver (v0.36). (Dynamic spawn på
+**Forvent:** Lastbilerne kommer, og byens FARP tilbyder din sides helikoptere i slot-listen, 10 af hver på hver af de 2 pads (v0.44). (Dynamic spawn på
 script-oprettede FARPs er den mindst testede DCS-feature.)
 
 Feedback:
@@ -855,6 +856,20 @@ Feedback:
 **Forvent:** Byen er FARP med det samme. Generator: +25 % lager. Runway kit åbner en kraterramt bane.
 
 Feedback:
+
+### P-707
+**FARPer fra start**
+`Status: IKKE TESTET` · Spillere: 1 i helikopter · Kort: alle · Siden v0.44 · Offline: test_ext4, test_armoury
+
+1. Start missionen (ny krig, eller genstart af en kørende krig). Åbn slot-listen ved en egen by.
+2. Spawn en helikopter på byens FARP (dynamic spawn). Åbn re-arm- og refuel-menuen.
+
+**Forvent:** Hver egen by er FARP på kortet. 2 pads med 10 af hver egen helikoptertype. 50 af hvert våben (Hellfire,
+Hydra, Stinger ...) og 1000 t brændstof.
+
+Feedback: v0.43: FARPerne havde ingen dynamic spawn, våben eller brændstof ved missionsstart.
+Rettet i v0.44.0: en FARP åbnede først, når spillere havde bygget den, så en ny krig havde ingen. Nu starter hver
+egen by som FARP med 10 helikoptere, 50 våben og 1000 t brændstof per pad.
 
 ## P-800 · Søkrig og hangarskibe
 

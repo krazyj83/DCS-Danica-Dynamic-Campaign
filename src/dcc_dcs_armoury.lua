@@ -195,7 +195,9 @@ function B.restockArmoury()
           local taken = math.max(0, (B.arm.last[key] or cur) - cur)
           local each = (t == "advanced" and cfg.advancedSU) or (t == "guided" and cfg.guidedSU) or 0
           if taken > 0 and each > 0 then ns.supply = math.max(0, (ns.supply or 0) - taken * each) end
-          local target = (ORDER[t] <= ORDER[tier]) and (cfg.stock[t] or 0) * big or 0
+          local full = whs.farp[k] and (DCC.config.world.farpWeapons or cfg.stock[t] or 0)   -- v0.44: FARP shelf
+                       or (cfg.stock[t] or 0) * big
+          local target = (ORDER[t] <= ORDER[tier]) and full or 0
           if whs.farp[k] and war:farpDry(id) then target = 0 end      -- a dry FARP: empty shelves
           if cur ~= target then ok(w.setItem, w, name, target) end   -- top up, or off the shelf
           B.arm.last[key] = target

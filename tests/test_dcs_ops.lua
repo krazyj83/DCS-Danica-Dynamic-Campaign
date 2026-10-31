@@ -203,6 +203,7 @@ check("rescue credited", DCC.pilots.data.pilots["Heli"].rescues == 1 and DCC.pil
 print("Logistics")
 war.state.nodes.zugdidi.supply = 0
 war.state.nodes.zugdidi.outOfSupply = true
+war.state.nodes.zugdidi.farp = nil                -- v0.44: no FARP there (crates would top up the FARP first)
 DCC.onTick()
 local logOk = MOCK.click(hug.id, "LOGISTICS: supply to Zugdidi")
 check("LOGISTICS offered for Zugdidi", logOk)

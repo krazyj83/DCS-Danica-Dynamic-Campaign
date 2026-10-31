@@ -98,6 +98,13 @@ def load_data(theater, era):
     return lua_to_py(g.DCC_THEATERS[theater]), lua_to_py(g.DCC_CATALOGS[era])
 
 
+def load_config():
+    """DCC.config from src/dcc_config.lua (the same numbers the engine reads)."""
+    lua = lua51.LuaRuntime(unpack_returned_tuples=True)
+    lua.execute(open(os.path.join(ROOT, "src", "dcc_config.lua"), encoding="utf-8").read())
+    return lua_to_py(lua.globals().DCC.config)
+
+
 def type_index():
     """DCS type name -> pydcs class, for planes and helicopters."""
     idx = {}
@@ -185,8 +192,10 @@ def latlon_point(m, lat, lon):
 
 def build_farps(m, theater, catalog, cjtf, armoury="warehouse"):
     """Invisible FARPs per town (FARP_PADS pads per coalition) with dynamic spawn and
-    an EMPTY helicopter stock. The engine stocks the owner's FARP once players
-    have built it (crates), and empties it when the town is lost."""
+    an EMPTY helicopter stock. The engine stocks the owner's FARP (helicopters and
+    weapons) while it is open, and empties it when the town is lost. Fuel is set
+    here: config world.farpFuel tons at every pad (v0.44)."""
+    fuel = load_config()["world"]["farpFuel"]
     made = 0
     for node in theater["nodes"]:
         if node.get("kind") != "town":
@@ -206,6 +215,8 @@ def build_farps(m, theater, catalog, cjtf, armoury="warehouse"):
                 wh.allow_hot_start = True
                 wh.unlimited_aircrafts = False
                 wh.unlimited_munitions = armoury != "warehouse"
+                wh.unlimited_fuel = False
+                wh.jet_init = wh.gasoline_init = wh.diesel_init = wh.methanol_mixture_init = fuel
                 wh.aircrafts = {"planes": {}, "helicopters": {t: {"initialAmount": 1}
                                                              for t in catalog["aircraft"][side].get("helicopters", [])}}
                 m.warehouses.warehouses[int(g.units[0].id)] = wh.dict()

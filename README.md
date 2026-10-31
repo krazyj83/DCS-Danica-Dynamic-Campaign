@@ -381,7 +381,7 @@ one run to the same base every 2 h, none in a storm.
 
 ## Armoury: weapons cost supply
 
-**Since v0.37 every weapon type is always on the shelf** — 100 of each at every airbase and FARP, whatever the
+**Since v0.37 every weapon type is always on the shelf** — 100 of each at every airbase (50 at a FARP, v0.44), whatever the
 base's supply (`ext.armoury.tiers = false`); only a dry FARP has empty shelves. Guided and advanced weapons still
 **cost supply when taken** (0.25 / 0.5 SU each). Servers that want the old supply tiers set `tiers = true`; then:
 
@@ -461,13 +461,16 @@ and ignores the map rotation, so the real war is not touched):
 
 ## FARPs
 
-Every town can become a FARP — the **FARP** mission points you at towns right behind the front:
+**Since v0.44 every town a side holds is a FARP from the start of the war** (`world.farpAtStart`; an older
+save gets them once). A town you capture has to be built up again — the **FARP** mission points you at towns
+right behind the front:
 
 * a **FARP kit** (Chinook or Mi-8: CTLD → Engineering, 3 t) set down within 3 km of the town, or
 * **3 supply crates** from any lift helicopter, or a CTLD **FOB** next to it.
 
 Fuel and ammo trucks arrive, it shows on everyone's map, and your side's helicopters can **spawn there**
-(20 of each type, dynamic spawn; **2 helipads per FARP** since v0.38, so two helicopters can spawn at once). **A FARP holds its own stock** (40 SU) and uses it up in about 13 hours;
+(**10 of each type** per pad, dynamic spawn; **2 helipads per FARP**, so two helicopters can spawn at once;
+**50 of each weapon** and **1000 t fuel**, v0.44). **A FARP holds its own stock** (40 SU) and uses it up in about 13 hours;
 below half a **FARPSUP** mission asks for crates (a FARP kit refills it completely). A **dry** FARP stays
 yours but has no spawns and empty shelves until someone brings supply. A captured town loses its FARP —
 FARP towns are captured like any other base. Behind the scenes each town has two invisible FARPs in the
@@ -693,7 +696,7 @@ Spectators see only the front line and who owns each base.
 | **Sea crossing** | A link between landmasses (ferries, landing craft). Moves on it run on dice only. |
 | **Rotation file** | `DCC\rotation.json`: which map the campaign is on, and the next one after a win. Read by the server hook. |
 | **Threat** | Per side, per road: how much that side has lost there recently. Drives AI escorts, re-routing and CAP. |
-| **FARP** | A town where players delivered 3 crates: helicopter spawn, rearm, refuel. |
+| **FARP** | A town with helicopter spawn, rearm and refuel: every held town at the start, later built by players (3 crates, FARP kit, FOB). |
 | **public.json / feed.jsonl** | Public status and the event feed for the web map and Discord (written by the mission, read by `server/dcc_companion.py`). |
 | **Territory** | The ground each base holds: its Voronoi cell (closer to it than to any other base). Cells fill the whole area spanned by the bases (no gaps between far-apart bases) and stop 75 km beyond the outermost ones. A side's territory is the union of its cells; the front is where BLUE and RED cells meet. |
 | **Theater pack** | A data file per map (`theaters/*.lua`): nodes with lat/lon, roads, start owners. No map is named in engine code. |
@@ -904,6 +907,8 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `supply.startSU` | 50 | Every base starts the war with at least this much supply (depots 150) (v0.38) |
 | `supply.airMinStock` | 2 | Never fewer of any own type at an own airbase (v0.38) |
 | `world.farpPads` | 2 | Helipads per FARP (must match `FARP_PADS` in make_mission.py) (v0.38) |
+| `world.farpHelos` / `farpWeapons` / `farpFuel` | 10, 50, 1000 | Per FARP pad: helicopters of each own type, each weapon on the shelf, fuel in tons (fuel is baked into the mission) (v0.44) |
+| `world.farpAtStart` | true | Every held town starts as a stocked FARP (v0.44) |
 | `freshWar` | "2026-10-28a" | Token: a different one in the save starts a fresh war once (troubleshooting); false = off (v0.40) |
 | `aiSkill` | "Excellent" | Skill of every AI unit the engine (or CTLD) spawns — Ace; `make_mission.py` sets the mission's own AI (ships, templates) to Ace too (v0.41) |
 | `aiEcm` | "never" | AI aircraft jamming (ECM pods): never / lock / detected / always; nil = DCS default (v0.42) |
