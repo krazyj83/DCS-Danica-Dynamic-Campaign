@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.42.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.43.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.42.0",
+  version         = "0.43.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
