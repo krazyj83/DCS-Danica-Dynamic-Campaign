@@ -444,10 +444,13 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
         sys.exit(f"no pydcs terrain mapping for {theater_name}")
     m = dcs.Mission(TERRAINS[theater_name]())
 
-    # Coalitions: only the two CJTF countries.
+    # Coalitions: the two CJTF countries carry every unit. BLUE also lists the USA (empty): DCS only gives a
+    # coalition GPS when the USA is in it, and without GPS the F-16's Link 16 never syncs (NET STATUS, GPS TIME ON:
+    # SYNC stays blank, no datalink tracks) and GPS weapons fly on INS only (v0.43).
     blue, red = Coalition("blue"), Coalition("red")
     cjtf = {"blue": blue.add_country(countries.CombinedJointTaskForcesBlue()),
             "red": red.add_country(countries.CombinedJointTaskForcesRed())}
+    blue.add_country(countries.USA())
     blue.bullseye, red.bullseye = m.terrain.bullseye_blue, m.terrain.bullseye_red
     m.coalition = {"blue": blue, "red": red}
 

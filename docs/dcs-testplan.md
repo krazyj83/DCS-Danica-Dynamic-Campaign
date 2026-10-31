@@ -17,7 +17,7 @@ Testene er delt i to:
 
 ### 1. Vælg hvad du tester
 
-- **Efter hver ny version:** kør [røgtesten](#røgtest) (13 test, ca. en aften).
+- **Efter hver ny version:** kør [røgtesten](#røgtest) (14 test, ca. en aften).
 - **Når noget er rettet:** kør alle test med `Status: RETEST`.
 - **Når der er tid:** tag test med `Status: IKKE TESTET`, fx ét område ad gangen.
 
@@ -85,6 +85,7 @@ Kør disse efter hver ny version. De rører de vigtigste dele af motoren.
 | [P-501](#p-501) | Fog of war: kun det, din side har set |
 | [P-701](#p-701) | CTLD-kasse ændrer SU |
 | [P-1101](#p-1101) | Bogey dope og debrief (v0.34) |
+| [P-904](#p-904) | F-16 Link 16 synker med GPS (v0.43) |
 
 ---
 
@@ -683,7 +684,7 @@ Feedback: v0.40: AI'en var sat til Rookie.
 
 ### P-411
 **Ingen AI-jamming**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.42 · Offline: test_dcs_bridge
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.42 · Offline: test_dcs_bridge
 
 1. Flyv F-16 mod fjendtlige AI-fly (CAP, strike packages). Se på radar og datalink.
 
@@ -932,13 +933,26 @@ Feedback:
 
 ### P-903
 **Datalink fra AWACS**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.21 · Offline: test_dcs_radar
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.21 · Offline: test_dcs_radar
 
 1. Med AWACS oppe: se SA-siden (Hornet) eller HSD (Viper) i et fast slot.
 
 **Forvent:** AWACS-spor vises.
 
 Feedback:
+
+### P-904
+**F-16 Link 16 synker med GPS**
+`Status: IKKE TESTET` · Spillere: 2 · Kort: alle (BLUE) · Siden v0.43 · Offline: –
+
+1. To spillere i F-16C (dynamic spawn og fast slot), flyv sammen med AWACS oppe.
+2. DED: LIST → ENTR (NET STATUS). GPS TIME ON.
+
+**Forvent:** SYNC går til FINE inden for et par minutter. Wingman og AWACS-spor bliver på HSD'en. GPS-status på
+DED TIME-siden. JDAM rammer med GPS.
+
+Feedback: v0.42: med GPS TIME ON stod SYNC tom, og datalink-symbolerne forsvandt; med GPS slukket virkede det.
+Rettet i v0.43.0: BLUE-koalitionen havde ikke USA, så DCS gav ingen GPS. USA er nu med i BLUE (uden enheder).
 
 ## P-1000 · Vejr, nat og Combined Arms
 

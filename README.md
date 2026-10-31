@@ -170,7 +170,7 @@ Points in the report are those scored in that war only.
 | **Cooldown** | Two deaths within an hour ground a pilot from fast jets for 15 min. Helicopters are always allowed. | — |
 | **HVA hunts** | About every 90 min (players on) enemy fighters go after your tanker or AWACS — your side is warned. A lost tanker or AWACS is not replaced for 2 h. | **HVAESCORT** |
 | **Aces get hunted** | 3 air kills in one sortie and the enemy vectors a fighter pair onto you (at most every 30 min). | Survive it |
-| **Datalink** | Every script-spawned aircraft (AWACS, tankers, AI fighters, CTLD helicopters) has EPLRS on, so Link 16 / SADL users see AWACS tracks; fixed slots carry the Mission Editor's datalink settings and unique Link 16 STNs. | — |
+| **Datalink** | Every script-spawned aircraft (AWACS, tankers, AI fighters, CTLD helicopters) has EPLRS on, so Link 16 / SADL users see AWACS tracks; fixed slots carry the Mission Editor's datalink settings and unique Link 16 STNs. BLUE includes the USA (no units) so it has GPS — without it the F-16's Link 16 never syncs with *GPS TIME ON*. | — |
 
 The AI air forces are bigger to carry all of this: 16 fighters and 16 attack aircraft per side to start,
 one more bought every hour (max 24).

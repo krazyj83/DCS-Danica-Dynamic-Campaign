@@ -6,6 +6,15 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.43.0 — 2026-10-31
+
+**Fixed**
+- **F-16 datalink lost with GPS on:** BLUE was only *CJTF Blue*, and DCS gives a coalition GPS only when the USA is
+  in it. With *GPS TIME ON* (DED NET STATUS) the F-16's Link 16 never synced (SYNC blank instead of FINE) and the
+  datalink symbols vanished; with GPS off it worked. BLUE now also lists the USA (no units), so BLUE has GPS:
+  Link 16 syncs, and GPS-guided weapons (JDAM, JSOW...) and EGI navigation use real GPS fixes. RED is unchanged.
+- DCS test plan: new P-904; P-903 and P-411 to RETEST.
+
 ## 0.42.0 — 2026-10-30
 
 **Fixed**
