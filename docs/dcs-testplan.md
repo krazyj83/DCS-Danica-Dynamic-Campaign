@@ -952,7 +952,7 @@ Feedback:
 DED TIME-siden. JDAM rammer med GPS.
 
 Feedback: v0.42: med GPS TIME ON stod SYNC tom, og datalink-symbolerne forsvandt; med GPS slukket virkede det.
-Rettet i v0.43.0: BLUE-koalitionen havde ikke USA, så DCS gav ingen GPS. USA er nu med i BLUE (uden enheder).
+Rettet i v0.43.0: BLUE-koalitionen havde ikke USA, så DCS gav ingen GPS. USA er nu med i BLUE (uden enheder), og *Unrestricted SATNAV* er slået til, så begge sider har GPS.
 
 ## P-1000 · Vejr, nat og Combined Arms
 

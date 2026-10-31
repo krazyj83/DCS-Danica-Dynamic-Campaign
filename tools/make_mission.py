@@ -588,6 +588,7 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
     # the last-known enemy positions on top. ("Allies only" = optview_onlyallies.)
     m.forced_options.options_view = ForcedOptions.Views.Allies
     m.forced_options.civil_traffic = ForcedOptions.CivilTraffic.Off
+    m.forced_options.unrestricted_satnav = True    # v0.43: GPS for both sides (RED too: JF-17 GPS bombs, EGI)
 
     # Combined Arms slots (v0.27): per side 2 tactical commanders, 2 JTACs and
     # 2 observers. The campaign's own platoons, convoys, artillery and skirmish
