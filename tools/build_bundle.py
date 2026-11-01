@@ -52,6 +52,7 @@ ENGINE = [
     "src/dcc_dcs_ext3.lua",
     "src/dcc_dcs_ext4.lua",
     "src/dcc_dcs_armoury.lua",
+    "src/dcc_dcs_admin.lua",
     "src/dcc_main.lua",
 ]
 

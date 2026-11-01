@@ -202,7 +202,7 @@ end
 for _, f in ipairs({ "dcc_persist", "dcc_dcs", "dcc_dcs_supply", "dcc_dcs_ops", "dcc_dcs_intel", "dcc_dcs_radar",
                      "dcc_dcs_world", "dcc_dcs_jtac", "dcc_dcs_public", "dcc_dcs_air", "dcc_dcs_ground",
                      "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_dcs_ext2", "dcc_dcs_ext3", "dcc_dcs_ext4",
-                     "dcc_dcs_armoury", "dcc_main" }) do
+                     "dcc_dcs_armoury", "dcc_dcs_admin", "dcc_main" }) do
   dofile(DCC_ROOT .. "/src/" .. f .. ".lua")
 end
 local errors = 0
@@ -582,6 +582,39 @@ end
 check("both HQs starred on everyone's map", hqBlue and hqRed)
 local st = table.concat(B.opsStatusLines("blue"), "\n")
 check("Campaign status names the HQs", st:find("HQ: ", 1, true) ~= nil, st:sub(1, 80))
+
+print(" Self-check and Where can I spawn? (v0.47)")
+env.mission.forcedOptions = { unrestrictedSATNAV = true }
+local scl, scw = B.selfCheck()
+local sct = table.concat(scl, "\n")
+check("self-check: airbases, HQ stock, GPS and templates OK", sct:find("OK   all %d+ airbases found") ~= nil
+  and sct:find("OK   BLUE HQ Kutaisi", 1, true) ~= nil and sct:find("OK   GPS on", 1, true) ~= nil
+  and sct:find("OK   AI templates found", 1, true) ~= nil, sct)
+check("...this test has no FARP pads and no hook: both warned", sct:find("WARN %d+ of %d+ FARP pads missing") ~= nil
+  and sct:find("WARN server hook not seen", 1, true) ~= nil and scw >= 2, scw)
+env.mission.forcedOptions = { unrestrictedSATNAV = false }
+env.mission.coalitions = { blue = { 80 } }
+check("...no GPS: warned (F-16 datalink)", table.concat((B.selfCheck()), "\n"):find("WARN no GPS", 1, true) ~= nil)
+env.mission.forcedOptions, env.mission.coalitions = nil, nil
+DCC_HOOK_VERSION = "0.47"
+local nt = #MOCK.texts
+B.runSelfCheck()
+check("runSelfCheck: warnings on screen, hook now OK", #MOCK.texts > nt and MOCK.texts[#MOCK.texts]:find("self-check", 1, true)
+  and not MOCK.texts[#MOCK.texts]:find("server hook", 1, true))
+DCC_HOOK_VERSION = nil
+local sl = B.spawnLines("blue")
+war.state.nodes.kutaisi.air["F-16C_50"] = 2
+war.state.nodes.kutaisi.air["FA-18C_hornet"] = 0
+sl = B.spawnLines("blue")
+check("Where can I spawn?: HQ first; type count, low and out of stock", sl[1] and sl[1]:find("(HQ)", 1, true) ~= nil
+  and sl[1]:find("%d+ types, %d+ aircraft") ~= nil and sl[1]:find("low: F-16C_50 2", 1, true) ~= nil
+  and sl[1]:find("OUT: FA-18C_hornet", 1, true) ~= nil, sl[1])
+local hl = B.spawnLines("blue", true)
+check("...helicopters: open FARPs with their pads and types", hl[1] and hl[1]:find("^FARP ") ~= nil
+  and hl[1]:find("2 pads, 10 of each", 1, true) ~= nil and hl[1]:find("UH-1H", 1, true) ~= nil, hl[1])
+local spawnMenu = false
+for _, it in ipairs(MOCK.menus) do if it.name == "Where can I spawn?" then spawnMenu = true end end
+check("...in F10 > Campaign", spawnMenu)
 
 print(" A day")
 viper.air = false

@@ -609,6 +609,7 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
         setattr(gc, f"{side}_tactical_commander", CA_SLOTS["commander"])
         setattr(gc, f"{side}_jtac", CA_SLOTS["jtac"])
         setattr(gc, f"{side}_observer", CA_SLOTS["observer"])
+        setattr(gc, f"{side}_game_masters", 1)   # v0.47: admin chat commands (-dcc ...) need a Game Master slot
     gc.pilot_can_control_vehicles = False
     m.set_description_text(
         "Danica Dynamic Campaign - persistent war on " + theater_name + ".\n"

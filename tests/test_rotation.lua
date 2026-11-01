@@ -35,6 +35,7 @@ dofile(DCC_ROOT .. "/src/dcc_dcs_ext2.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ext3.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ext4.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_armoury.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_admin.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
 local errors = 0
@@ -56,7 +57,12 @@ net = {
   lua2json = function(t) return DCC.json.encode(t) end,
   load_mission = function(p) SRV.loaded[#SRV.loaded + 1] = p; return true end,
   send_chat = function(t) SRV.chat[#SRV.chat + 1] = t end,
+  -- v0.47: admin commands
+  dostring_in = function(state, code) return assert(loadstring(code))() end,   -- "server" = the mission here
+  get_player_info = function(id, key) return (SRV.players[id] or {})[key] end,
+  send_chat_to = function(t, id) SRV.told[#SRV.told + 1] = { id = id, text = t } end,
 }
+SRV.players, SRV.told = {}, {}
 local function frames(seconds)
   for _ = 1, seconds do SRV.rt = SRV.rt + 1; SRV.cb.onSimulationFrame() end
 end
@@ -150,35 +156,74 @@ for _, map in ipairs({ "PersianGulf", "GermanyCW" }) do
   local okT, err = pcall(function() for _ = 1, 12 do DCC.onTick() end end)
   check(map .. ": an hour of war in DCS", okT, err)
 end
-print("Fresh-war switch (v0.40)")
+print("Admin commands from a Game Master (v0.47, replaces the fresh-war switch)")
 do
   DCC.persist.writeRotation({ current = "Caucasus", state = "running" })
   MOCK.airbases = {}
   MOCK.buildAirbases(DCC_THEATERS.Caucasus)
-  local token = DCC.config.freshWar
+  SRV.theatre, SRV.file = "Caucasus", "C:\\Missions\\DCC\\DCC_Caucasus.miz"
   local function restart()
     DCC.started, DCC.ended = false, false
     env.mission.theatre = "Caucasus"
     DCC.start()
     return DCC.warObj
   end
+  SRV.cb.onMissionLoadEnd()
   local w = restart()
-  w.state.nodes.senaki.side = "red"                  -- the old war: Senaki fell
-  DCC.save()
+  frames(6)
+  check("the hook tells the mission it is installed", DCC_HOOK_VERSION ~= nil)
+  SRV.players[2] = { name = "Pilot", slot = "12", ucid = "aa11" }
+  SRV.players[3] = { name = "GM", slot = "instructor_blue_1", ucid = "bb22" }
+  local function say(id, msg)
+    local n = #SRV.told
+    local r = SRV.cb.onPlayerTrySendChat(id, msg, true)
+    local out = {}
+    for i = n + 1, #SRV.told do out[#out + 1] = SRV.told[i].text end
+    return r, table.concat(out, "\n")
+  end
+  local r1, t1 = say(2, "-dcc status")
+  check("a pilot cannot use admin commands", r1 == "" and t1:find("Game Master", 1, true) ~= nil, t1)
+  local rn = SRV.cb.onPlayerTrySendChat(2, "hello all", true)
+  check("normal chat is untouched", rn == "hello all")
+  local r2, t2 = say(3, "-dcc status")
+  check("Game Master: status, only to him, chat line hidden", r2 == "" and t2:find("Caucasus", 1, true) ~= nil
+    and SRV.told[#SRV.told].id == 3, t2)
+  local _, th = say(1, "-dcc help")
+  check("the server host may too; help lists the commands", th:find("freshwar", 1, true) ~= nil, th)
+  local _, tc = say(3, "-dcc check")
+  check("check: the self-check report", tc:find("Self-check", 1, true) ~= nil and tc:find("FARP", 1, true) ~= nil, tc)
+  w.state.nodes.senaki.side = "red"
+  local _, ts = say(3, "-dcc save")
+  check("save", ts:find("saved", 1, true) ~= nil)
   check("restart: the war carries on (Senaki still RED)", restart().state.nodes.senaki.side == "red")
-  DCC.config.freshWar = token .. "-next"             -- a new mission with a new token
-  local t0 = #MOCK.texts
+  local nLoad = #SRV.loaded
+  local _, tr = say(3, "-dcc restart")
+  check("restart: the hook reloads the same mission after the delay", #SRV.loaded == nLoad)
+  frames(20)
+  check("...reloaded", #SRV.loaded == nLoad + 1 and SRV.loaded[#SRV.loaded] == SRV.file, SRV.loaded[#SRV.loaded])
+  SRV.cb.onMissionLoadEnd()
   local w2 = restart()
-  check("new token: a fresh war (Senaki BLUE again)", w2.state.nodes.senaki.side == "blue" and w2.state.tick <= 1)
+  local _, tf = say(3, "-dcc freshwar")
+  check("freshwar asks for 'yes' first", tf:find("freshwar yes", 1, true) ~= nil and w2.state.winner == nil, tf)
+  local t0 = #MOCK.texts
+  say(3, "-dcc freshwar yes")
+  check("freshwar yes: no more war ticks, no map rotation", DCC.resetPending and (pcall(DCC.onTick))
+    and DCC.persist.readRotation().state == "running")
+  frames(20)
+  SRV.cb.onMissionLoadEnd()
+  local w3 = restart()
+  check("after the reload: a fresh war (Senaki BLUE again)", w3.state.nodes.senaki.side == "blue" and w3.state.tick <= 1)
   local told = false
   for i = t0 + 1, #MOCK.texts do if MOCK.texts[i]:find("FRESH WAR", 1, true) then told = true end end
   check("...everyone is told", told)
-  w2.state.nodes.senaki.side = "red"
-  DCC.save()
-  check("same token again: no second reset", restart().state.nodes.senaki.side == "red")
-  DCC.config.freshWar = false
-  check("switch off: the war carries on", restart().state.nodes.senaki.side == "red")
-  DCC.config.freshWar = token
+  local f = io.open(MOCK.writedir .. "DCC\\admins.txt", "w")
+  if f then f:write("cc33\n"); f:close() end
+  local r4, t4 = say(3, "-dcc status")
+  check("admins.txt: a Game Master not on the list is refused", r4 == "" and t4:find("Game Master", 1, true) ~= nil, t4)
+  SRV.players[3].ucid = "CC33"
+  local _, t5 = say(3, "-dcc status")
+  check("...one on the list may", t5:find("Caucasus", 1, true) ~= nil, t5)
+  os.remove(MOCK.writedir .. "DCC\\admins.txt")
 end
 
 print("War clock ends a war and rotates too")
