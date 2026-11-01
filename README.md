@@ -107,6 +107,7 @@ building, MEDEVAC, prisoners — the moment they spawn, so a rear base always ha
 | **FARP** | Transport helicopters | A friendly town behind the front | FARP kit or 3 crates delivered | Helicopter spawns, rearm and refuel there |
 | **FARPSUP** | Transport helicopters | Your FARP below half stock | Crates delivered there | Keeps it running — a dry FARP has no spawns and empty shelves |
 | **MEDEVAC** | Transport helicopters | Wounded after a battle | Picked up and flown to an own airbase or depot | The garrison recovers (+10 % health); +15 points |
+| **AIRASSAULT** | Transport helicopters | A weak enemy base near the front (not a depot), and the own base to load troops at | Your troops land within 3 km of it (CTLD) | They attack it at once. When you are airborne an **AI gunship pair** (AH-64D / Mi-24P) flies ahead to clear the landing zone (v0.49) |
 | **POW** | Transport helicopters | Prisoners after a capture or surrender | Flown to an own airbase or depot | Interrogation: intel on the 2 nearest enemy bases; +10 points |
 | **AMPHIB** | Anyone | Your marines' landing helicopters from the Tarawa / Kuznetsov | Within 20 km before they land | Marines attack a coastal town |
 | **RUNWAY** | A2G | Enemy airbase near the front, or a depot | 3 bombs within 60 m of the runway centre line | Airfield closed 4 h: no airlifts, no fixed-wing spawns; repair costs 30 SU |
@@ -937,6 +938,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `world.farpHelos` / `farpWeapons` / `farpFuel` | 10, 50, 1000 | Per FARP pad: helicopters of each own type, each weapon on the shelf, fuel in tons (fuel is baked into the mission) (v0.44) |
 | `world.farpWeaponMatch` | Hellfire, APKWS, Hydra, Stinger, door guns, Russian / French helicopter weapons | Parts of DCS weapon names a FARP stocks; everything else only at airbases (v0.45) |
 | `world.farpAtStart` | true | Every held town starts as a stocked FARP (v0.44) |
+| `ext5.airAssault` | 3 defenders, 60 km, 60 m, 45 min | AIRASSAULT targets (weakest enemy bases within reach) and the gunship escort's height, stand-off and time (v0.49) |
 | `admin.*` | 30 s, 60 s, 15 s | Self-check delay and time on screen; delay before an admin reload; "Where can I spawn?" list sizes (v0.47) |
 | `aiSkill` | "Excellent" | Skill of every AI unit the engine (or CTLD) spawns — Ace; `make_mission.py` sets the mission's own AI (ships, templates) to Ace too (v0.41) |
 | `aiEcm` | "never" | AI aircraft jamming (ECM pods): never / lock / detected / always; nil = DCS default (v0.42) |
@@ -1035,6 +1037,7 @@ src/
   dcc_ext2.lua        HVA, strike packages, artillery duels, prisoners and wounded, heavy lift, CSAR capture
   dcc_ext3.lua        amphibious assaults, shipping lanes, SCUDs, pop-up threats
   dcc_ext4.lua        engineer repairs, ground missions (ASSAULT, HOLD, GCONVOY)
+  dcc_ext5.lua        air assault missions (AIRASSAULT) (v0.49)
   dcc_front.lua       front crossings on contested roads (kept for the AI and tests)
   dcc_territory.lua   territory and front line from Voronoi cells (drawn on F10 and the web map)
   dcc_persist.lua     save / load / backups (the only file access)
@@ -1056,6 +1059,7 @@ src/
   dcc_dcs_ext2.lua    DCS bridge: HVA hunts and escort, packages, aces, shell impacts, ambushes, pick-ups, heavy crates, search parties
   dcc_dcs_ext3.lua    DCS bridge: landings, cargo ships, carrier air wing, SCUD launchers, pop-ups, night illumination
   dcc_dcs_ext4.lua    DCS bridge: Combined Arms and ground players (missions, fire support), QRA scramble, repair kit, performance guard
+  dcc_dcs_ext5.lua    DCS bridge: AI gunship escort for air assault missions (v0.49)
   dcc_main.lua        start-up and the 30 s / 5 min loops
   dcc_loader.lua      development loader
 theaters/*.lua          Caucasus (hand-made), Syria, Persian Gulf, Cold War Germany (generated);

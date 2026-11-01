@@ -6,6 +6,18 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.49.0 — 2026-11-01
+
+**Added**
+- **AIRASSAULT mission** (transport helicopters): a weak enemy base near the front (3 platoons or fewer, not a
+  depot) and the own base to load troops at. Land the troops (CTLD) within 3 km of it and they attack at once —
+  done, with credit for everyone on the mission. When a player on it is airborne, an **AI gunship pair** (BLUE
+  AH-64D, RED Mi-24P; new templates `DCC_TPL_<side>_gunship`) takes off from the nearest own base, flies low to the
+  landing zone and attacks ground units around it for 45 min. One pair per mission, from the AI attack pool.
+  Settings `ext5.airAssault`. New modules `dcc_ext5.lua` and `dcc_dcs_ext5.lua`.
+- The self-check also looks for the gunship templates.
+- DCS test plan: new P-708.
+
 ## 0.48.0 — 2026-11-01
 
 **Added**

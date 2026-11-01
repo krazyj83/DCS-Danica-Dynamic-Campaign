@@ -215,6 +215,8 @@ DCC_CATALOGS.modern = {
       antiship = { type = "FA-18C_hornet", loadout = { { "AGM-84D", 4 }, { "AIM-9X", 2 }, { "AIM-120C", 2 } } },  -- only used against ships
       carriertanker = { type = "S-3B Tanker", loadout = {}, size = 1 },     -- recovery tanker over the carrier
       carriercap = { type = "FA-18C_hornet", loadout = { { "AIM-120C", 4 }, { "AIM-9X", 2 } } },
+      gunship = { type = "AH-64D_BLK_II", loadout = { { "4 x AGM-114K", 2 }, { "Hydra 70 M151 HE", 2 } },
+                  size = 2, helicopter = true },        -- v0.49: air assault escort
     },
     red = {
       fighter = { type = "MiG-29S",  loadout = { { "R-77", 4 }, { "R-73", 2 } } },
@@ -226,6 +228,7 @@ DCC_CATALOGS.modern = {
       airmobile = { type = "Mi-8MT", loadout = {}, size = 2, helicopter = true },
       antiship = { type = "Su-34",   loadout = { { "Kh-31A", 4 }, { "R-73", 2 } } },  -- only used against ships
       carriercap = { type = "Su-33",  loadout = { { "R-27ER", 4 }, { "R-73", 2 } } },
+      gunship = { type = "Mi-24P", loadout = { { "9M114 Shturm", 2 }, { "S-8KOM", 2 } }, size = 2, helicopter = true },
     },
   },
 

@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.48.0",
+  version         = "0.49.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -110,7 +110,7 @@ DCC.config = {
                 FARPSUP = 2, INTERCEPT = 3, HVAESCORT = 2, PKGESCORT = 2, MEDEVAC = 2, POW = 2,
                 AMPHIB = 1, SHIPSTRIKE = 2, SHIPESCORT = 2, SCUD = 2, POPUP = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
                 RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2,
-                ASSAULT = 4, HOLD = 4, GCONVOY = 3, MINESWEEP = 2, MINELAYER = 2 },   -- ground missions (CA players), mine sweeping
+                ASSAULT = 4, HOLD = 4, GCONVOY = 3, MINESWEEP = 2, MINELAYER = 2, AIRASSAULT = 2 },   -- ground missions (CA players), mine sweeping
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
     slowTypes       = { "A-10A", "A-10C", "A-10C_2", "Su-25", "Su-25T", "L-39ZA", "C-101CC", "MB-339A",
@@ -323,7 +323,7 @@ DCC.config = {
   admin = {
     selfCheckDelay       = 30,    -- s after mission start: the self-check runs (dcs.log, DCC\selfcheck.txt)
     selfCheckShowSeconds = 60,    -- warnings stay this long on screen
-    templates   = { "fighter", "tanker", "awacs", "attack", "sead", "airmobile", "drone" },  -- AI templates checked
+    templates   = { "fighter", "tanker", "awacs", "attack", "sead", "airmobile", "drone", "gunship" },  -- AI templates checked
     spawnListTypes = 8,           -- "Where can I spawn?": types named per list (then "+n more")
     spawnLowStock  = 3,           -- ...a type with this many or fewer is listed as low
     spawnListRows  = 15,          -- ...and bases / FARPs listed
@@ -454,6 +454,20 @@ DCC.config = {
     -- 16. Performance guard: fewer live units when DCS carries many ground units
     perf = { everySec = 60, restore = 0.85, minRadiusKm = 20,
              levels = { { units = 700, scale = 0.7 }, { units = 1000, scale = 0.45 } } },
+  },
+
+  -- v0.49: air assault missions (dcc_ext5.lua) and their AI gunship escort (dcc_dcs_ext5.lua)
+  ext5 = {
+    airAssault = {
+      maxDefenders = 3,      -- enemy bases with this many platoons or fewer are targets (not depots)
+      minTroops    = 2,      -- the own base the troops come from needs this many platoons
+      rangeKm      = 60,     -- target within this distance of that base
+      altM         = 60,     -- gunships fly this low (m above ground)...
+      speedMs      = 55,     -- ...at this speed (about 105 kt)
+      standoffKm   = 4,      -- they hold this far short of the target first...
+      zoneKm       = 3,      -- ...then attack ground units within this radius of it
+      lifeSeconds  = 2700,   -- and go home after 45 min (survivors return to the attack pool)
+    },
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------
