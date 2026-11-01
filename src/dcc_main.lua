@@ -47,6 +47,7 @@ end
 -- One war step.
 function DCC.onTick()
   local war = DCC.warObj
+  if DCC.resetPending then return end   -- v0.47: "-dcc freshwar yes" - the war waits for the reload
   DCC.dcs.readWarehouses()          -- aircraft players took off with or landed
   local events = war:tick()
   DCC.dcs.announce(events)
@@ -156,6 +157,7 @@ end
 
 function DCC.start()
   if DCC.started then return end
+  DCC.resetPending = false
   local theater, name = pickTheater()
   if not theater then return end
 
@@ -176,17 +178,7 @@ function DCC.start()
 
   -- Restore the running war, or start a new one (also after a finished war).
   local state = DCC.persist.load(DCC.theaterName)
-  -- Fresh-war switch (troubleshooting): a new token in config.freshWar throws the saved war away
-  -- once (it is archived as a finished war); the new war carries the token, so later restarts
-  -- continue it. freshWar = false switches this off.
-  local fresh = DCC.config.freshWar
-  local forced = false
-  if fresh and state and state.freshWar ~= fresh then
-    U.log("fresh-war switch %s: the saved war on %s (tick %d) is archived, a new war starts",
-      tostring(fresh), DCC.theaterName, state.tick or 0)
-    DCC.persist.archive(DCC.theaterName, state)
-    state, forced = nil, true
-  end
+  -- (an admin's "-dcc freshwar yes" saved the war with winner = "reset": it is archived below)
   local war
   if state and not state.winner then
     war = DCC.War.restore(theater, catalog, DCC.config, state)
@@ -196,10 +188,8 @@ function DCC.start()
     war = DCC.War.new(theater, catalog, DCC.config, newSeed())
     U.log("new war started on %s", DCC.theaterName)
   end
-  if fresh then war.state.freshWar = fresh end
-  if forced then
-    trigger.action.outText("DCC: FRESH WAR - the saved war was archived and a new one has started (fresh-war switch "
-      .. tostring(fresh) .. ").", 60)
+  if state and state.winner == "reset" then
+    trigger.action.outText("DCC: FRESH WAR - the admin archived the old war and a new one has started.", 60)
   end
   DCC.warObj = war
   DCC.started = true
@@ -250,6 +240,13 @@ function DCC.start()
       safe("drawIntel", DCC.dcs.drawIntel)()
       return t + cfg.intel.drawEverySeconds
     end, nil, timer.getTime() + 6)
+  end
+
+  if DCC.dcs.runSelfCheck then        -- v0.47: what beta tests kept tripping over, in dcs.log
+    timer.scheduleFunction(function()
+      safe("selfCheck", DCC.dcs.runSelfCheck)()
+      return nil
+    end, nil, timer.getTime() + cfg.admin.selfCheckDelay)
   end
 
   timer.scheduleFunction(function(_, t)

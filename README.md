@@ -818,7 +818,9 @@ To edit scripts without regenerating the mission each time:
 Start the server. The first start creates a new war; every later start continues it (a phase 1
 save is upgraded automatically: supply and aircraft stock are added). Players get an F10 radio
 menu **Campaign → Campaign status** with node counts, the main effort, their side's supply,
-convoys and airlifts, any bases out of supply, and the latest captures and kills.
+convoys and airlifts, any bases out of supply, and the latest captures and kills. **Campaign → Where can I spawn?**
+(v0.47) lists your bases, HQ first, with how many types and aircraft are in stock, which types are low and which are
+out; **Where can I spawn a helicopter?** lists the open FARPs.
 
 Save files live in `Saved Games\DCS\DCC\`:
 
@@ -829,17 +831,34 @@ Save files live in `Saved Games\DCS\DCC\`:
 | `Caucasus_war_final_<tick>.json` | A finished war, archived before a new one starts |
 | `pilots.json` | Pilot records for every theater — never reset by a new war |
 | `rotation.json` | Which map the campaign is on (written by the mission, read by the rotation hook) |
+| `selfcheck.txt` | The last start-up self-check (v0.47) |
+| `admins.txt` | Optional: UCIDs allowed to use the admin commands, one per line (you create it, v0.47) |
 
-To **reset a war**, stop the server and delete `Caucasus_war.json` and the backups.
+To **reset a war**, type `-dcc freshwar yes` from a Game Master slot (see below), or stop the server and delete
+`Caucasus_war.json` and the backups.
 
-### Fresh-war switch (troubleshooting, v0.40)
+### Self-check and admin commands (v0.47)
 
-The war lives in `Saved Games\DCS…\DCC\<Map>_war.json` (plus `_war_bak*.json`), **not** in the .miz: replacing the
-mission keeps the old war — territory, supply, aircraft. To start over without touching the server's files, the
-engine has a switch: `freshWar` in `src/dcc_config.lua` is a token (v0.40: `"2026-10-28a"`). When a mission whose
-token differs from the one in the save starts, the saved war is archived (`<Map>_war_final_<tick>.json`) and a new war
-begins; everyone sees *FRESH WAR*. The new war carries the token, so later restarts continue it. Change the token
-to force another fresh start; set `freshWar = false` for normal running. Pilot records are kept.
+**Self-check.** 30 s after the mission starts the engine checks what beta tests kept tripping over and writes one
+OK/WARN line each to `dcs.log` (search for `self-check`) and to `DCC\selfcheck.txt`: saving, airbases found, the
+HQs' aircraft stock, FARP pads and their stock, the weapon shelves, GPS, the AI templates, CTLD and the server hook.
+Warnings are also shown on screen for a minute. A correctly set-up server shows 0 warnings.
+
+**Admin commands.** Take a **Game Master** slot (every mission has one per side) and type in chat:
+
+| Command | Does |
+| --- | --- |
+| `-dcc help` | Lists the commands |
+| `-dcc status` | Map, war day, nodes per side, players in aircraft |
+| `-dcc check` | Runs the self-check again and shows it |
+| `-dcc save` | Saves the war now |
+| `-dcc restock` | Refills aircraft, FARPs and weapon shelves now |
+| `-dcc restart` | Saves, then reloads the mission after 15 s (the war carries on) |
+| `-dcc freshwar yes` | Archives the war (`<Map>_war_final_<tick>.json`) and reloads the mission with a new war; pilot records are kept |
+
+The server hook (`hooks/DCC_rotation_hook.lua`, copy it to `Scripts\Hooks`) runs the command in the mission and
+answers only you; nobody else sees the line. The server host may use them too. To limit them to named players, put
+their DCS UCIDs in `Saved Games\DCS\DCC\admins.txt`, one per line. (The v0.40 fresh-war switch is gone.)
 
 ### 5. When a war ends
 
@@ -912,7 +931,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `world.farpHelos` / `farpWeapons` / `farpFuel` | 10, 50, 1000 | Per FARP pad: helicopters of each own type, each weapon on the shelf, fuel in tons (fuel is baked into the mission) (v0.44) |
 | `world.farpWeaponMatch` | Hellfire, APKWS, Hydra, Stinger, door guns, Russian / French helicopter weapons | Parts of DCS weapon names a FARP stocks; everything else only at airbases (v0.45) |
 | `world.farpAtStart` | true | Every held town starts as a stocked FARP (v0.44) |
-| `freshWar` | "2026-10-28a" | Token: a different one in the save starts a fresh war once (troubleshooting); false = off (v0.40) |
+| `admin.*` | 30 s, 60 s, 15 s | Self-check delay and time on screen; delay before an admin reload; "Where can I spawn?" list sizes (v0.47) |
 | `aiSkill` | "Excellent" | Skill of every AI unit the engine (or CTLD) spawns — Ace; `make_mission.py` sets the mission's own AI (ships, templates) to Ace too (v0.41) |
 | `aiEcm` | "never" | AI aircraft jamming (ECM pods): never / lock / detected / always; nil = DCS default (v0.42) |
 | `runwayClearM` | 60 | Ground units and their waypoints stay this far off runways, taxiways and aprons (v0.37) |
@@ -1027,6 +1046,7 @@ src/
   dcc_dcs_ext_air.lua DCS bridge: armoury, runway bombs, shoot and scoot, AI crews, prisoners, Support menu, ranks, wrecks
   dcc_dcs_ext_ground.lua DCS bridge: bridge kits, minefields, industry sites, partisan cells
   dcc_dcs_armoury.lua DCS bridge: warehouse armoury (weapon names, tiers, shelves) and F10 > Armoury test
+  dcc_dcs_admin.lua   DCS bridge: start-up self-check, Where can I spawn?, admin chat commands (v0.47)
   dcc_dcs_ext2.lua    DCS bridge: HVA hunts and escort, packages, aces, shell impacts, ambushes, pick-ups, heavy crates, search parties
   dcc_dcs_ext3.lua    DCS bridge: landings, cargo ships, carrier air wing, SCUD launchers, pop-ups, night illumination
   dcc_dcs_ext4.lua    DCS bridge: Combined Arms and ground players (missions, fire support), QRA scramble, repair kit, performance guard

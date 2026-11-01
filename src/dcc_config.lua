@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.46.0",
+  version         = "0.47.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -256,10 +256,7 @@ DCC.config = {
 
   -- Persistence ---------------------------------------------------------------
   saveFolder       = "DCC", -- under Saved Games\DCS\ (lfs.writedir())
-  -- Fresh-war switch (v0.40, for troubleshooting): when this token differs from the one in the save,
-  -- the saved war is archived and a new war starts - once; restarts then continue the new war.
-  -- Change the token to force another fresh start; false = never (normal running).
-  freshWar         = "2026-10-28a",
+  -- (v0.40's fresh-war switch is gone since v0.47: a Game Master types "-dcc freshwar yes" instead)
   saveSlots        = 24,    -- rotating backups kept
   victoryMinSorties = 3,    -- victory bonus needs this many sorties for the winner (or one completed mission)
   warClockDays     = 7,
@@ -322,6 +319,17 @@ DCC.config = {
   },
 
   -- CTLD (VEAF CTLD v2, built into the missions): helicopter logistics
+  -- Self-check, "Where can I spawn?" and admin chat commands (v0.47, dcc_dcs_admin.lua)
+  admin = {
+    selfCheckDelay       = 30,    -- s after mission start: the self-check runs (dcs.log, DCC\selfcheck.txt)
+    selfCheckShowSeconds = 60,    -- warnings stay this long on screen
+    templates   = { "fighter", "tanker", "awacs", "attack", "sead", "airmobile", "drone" },  -- AI templates checked
+    spawnListTypes = 8,           -- "Where can I spawn?": types named per list (then "+n more")
+    spawnLowStock  = 3,           -- ...a type with this many or fewer is listed as low
+    spawnListRows  = 15,          -- ...and bases / FARPs listed
+    reloadDelay    = 15,          -- s between "-dcc restart" / "-dcc freshwar yes" and the reload (server hook)
+  },
+
   ctld = {
     enabled          = true,   -- use CTLD when the mission loads it (else our own Cargo menu)
     crateSU          = 10,     -- every crate requested at a base costs that base this much supply

@@ -6,6 +6,24 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.47.0 — 2026-11-01
+
+**Added**
+- **Start-up self-check:** 30 s after the mission starts the engine checks saving, airbases, HQ aircraft stock,
+  FARP pads and their stock, the weapon shelves, GPS, AI templates, CTLD and the server hook, and writes one OK/WARN
+  line each to `dcs.log` and `Saved Games\DCS\DCC\selfcheck.txt`. Warnings are also shown on screen (`admin.*`).
+- **F10 → Campaign → Where can I spawn?** — your bases (HQ first) with the number of types and aircraft, the types
+  running low and the ones out of stock; **Where can I spawn a helicopter?** lists the open FARPs.
+- **Admin chat commands** for a **Game Master** slot (or the server host): `-dcc help`, `status`, `check`, `save`,
+  `restock`, `restart`, `freshwar yes`. The server hook runs them and answers only that player; the chat line is
+  hidden. Optional `Saved Games\DCS\DCC\admins.txt` (one UCID per line) limits them to listed players. Every mission
+  now has one Game Master slot per side.
+
+**Changed**
+- The **fresh-war switch** (`freshWar` token, v0.40) is gone: `-dcc freshwar yes` archives the war and reloads the
+  mission with a new one. **Install the new `hooks/DCC_rotation_hook.lua`** on the server.
+- DCS test plan: new S-107, S-308, P-208; S-106 to RETEST.
+
 ## 0.46.0 — 2026-11-01
 
 **Changed**

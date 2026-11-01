@@ -17,7 +17,7 @@ Testene er delt i to:
 
 ### 1. Vælg hvad du tester
 
-- **Efter hver ny version:** kør [røgtesten](#røgtest) (15 test, ca. en aften).
+- **Efter hver ny version:** kør [røgtesten](#røgtest) (16 test, ca. en aften).
 - **Når noget er rettet:** kør alle test med `Status: RETEST`.
 - **Når der er tid:** tag test med `Status: IKKE TESTET`, fx ét område ad gangen.
 
@@ -87,6 +87,7 @@ Kør disse efter hver ny version. De rører de vigtigste dele af motoren.
 | [P-1101](#p-1101) | Bogey dope og debrief (v0.34) |
 | [P-904](#p-904) | F-16 Link 16 synker med GPS (v0.43) |
 | [P-707](#p-707) | FARPer fra start (v0.44) |
+| [S-308](#s-308) | Selvtjek ved missionsstart (v0.47) |
 
 ---
 
@@ -156,17 +157,33 @@ sig eller garnisonerne ændret.
 Feedback:
 
 ### S-106
-**Frisk krig (fresh-war switch)**
-`Status: IKKE TESTET` · Kort: Caucasus · Siden v0.40 · Offline: test_rotation
+**Frisk krig (admin: `-dcc freshwar yes`)**
+`Status: RETEST` · Kort: Caucasus · Siden v0.40, ændret v0.47 · Offline: test_rotation
 
-1. Læg v0.40-missionen på serveren, hvor en gammel krig kører. Start den.
-2. Genstart missionen én gang til.
+1. Tag et Game Master-slot. Skriv `-dcc freshwar` i chatten, derefter `-dcc freshwar yes`.
+2. Vent 15 s på genindlæsningen. Genstart missionen én gang til bagefter.
 
-**Forvent:** Første start: beskeden *FRESH WAR*, kortet er som ved krigens start (Senaki-Kolkhi BLUE), C-130J-slottet
-kan tages. Anden start: krigen fortsætter (ingen ny nulstilling). Pilotrekorderne er der stadig.
+**Forvent:** Først et svar, der beder om *yes*. Efter *yes*: alle får besked, missionen genindlæses, og beskeden *FRESH
+WAR* kommer; kortet er som ved krigens start (Senaki-Kolkhi BLUE). Ingen kortrotation. Anden genstart: krigen
+fortsætter. Pilotrekorderne er der stadig.
 
 Feedback: v0.39: C-130J-slottet på Senaki-Kolkhi tog ikke imod spilleren (navnet kom ikke frem). Serveren kørte stadig
 den gamle krig, hvor Senaki var tabt.
+v0.47.0: fresh-war-switchen (`freshWar`-token) er fjernet; en admin nulstiller krigen med `-dcc freshwar yes`.
+
+### S-107
+**Admin-kommandoer fra Game Master**
+`Status: IKKE TESTET` · Kort: alle · Siden v0.47 · Offline: test_rotation
+
+1. Installer den nye `DCC_rotation_hook.lua` i serverens `Scripts\Hooks`. Genstart serveren.
+2. Som pilot: skriv `-dcc status`. Tag så et Game Master-slot og skriv `-dcc help`, `-dcc status`, `-dcc check`,
+   `-dcc save`, `-dcc restock` og `-dcc restart`.
+
+**Forvent:** Piloten får "need a Game Master slot". Game Master får svarene kun til sig selv; ingen andre ser
+kommandoerne i chatten. `restart` genindlæser missionen efter 15 s, og krigen fortsætter. Med en
+`DCC\admins.txt` (én UCID pr. linje) virker det kun for de UCID'er, der står i den.
+
+Feedback:
 
 ## S-200 · Kort og rotation
 
@@ -292,6 +309,18 @@ Feedback:
 1. Start en mission på en server uden Currenthill-asset-mod'en. Vent på en RED-minelægger.
 
 **Forvent:** RED's minelægger er en Molniya-korvet i stedet for Vasily Bykov. Ingen `DCC: ERROR` om ukendt type.
+
+Feedback:
+
+### S-308
+**Selvtjek ved missionsstart**
+`Status: IKKE TESTET` · Kort: alle · Siden v0.47 · Offline: test_ext4
+
+1. Start missionen. Vent 30 s. Åbn `dcs.log` (søg efter `self-check`) og `Saved Games\DCS\DCC\selfcheck.txt`.
+
+**Forvent:** Én linje pr. punkt (OK/WARN): gemning, flyvepladser, HQ-lager, FARP-pads og -lager, våbenlager, GPS,
+AI-skabeloner, CTLD og server-hook. Med advarsler kommer de også på skærmen i 60 s. En korrekt opsat server har 0
+advarsler.
 
 Feedback:
 
@@ -479,6 +508,17 @@ Feedback:
 1. Flyv med et tag i navnet, fx `[VKG] Mark`. Land efter en sortie. Se *Pilot records*.
 
 **Forvent:** Din journal, leaderboard, og eskadrillen på *Squadron leaderboard*.
+
+Feedback:
+
+### P-208
+**Where can I spawn?**
+`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.47 · Offline: test_ext4
+
+1. *F10 → Other → Campaign → Where can I spawn?* og *Where can I spawn a helicopter?*
+
+**Forvent:** HQ først, så baserne med flest fly: antal typer og fly, typer med lavt lager (*low*) og typer, der er
+udsolgt (*OUT*). Helikoptervalget viser de åbne FARPer med 2 pads og 10 af hver type.
 
 Feedback:
 

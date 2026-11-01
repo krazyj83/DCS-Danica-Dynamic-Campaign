@@ -20,11 +20,24 @@
 --
 -- The server must keep running with nobody online (Server settings: untick
 -- "Pause without clients") - the war needs that anyway.
+--
+-- ADMIN COMMANDS (v0.47): a player in a Game Master slot (or the server host)
+-- types "-dcc help" in chat. The hook runs the command in the mission
+-- (DCC.admin) and sends the reply to that player only; the chat line itself is
+-- not shown to anyone else. Optional: Saved Games\DCS\DCC\admins.txt with one
+-- DCS UCID per line - then only those Game Masters may use the commands.
+-- The hook also tells the mission it is installed (the self-check reports it).
 -- ============================================================================
 
 local DCCR = {
+  version      = "0.47",
   missionsDir  = lfs.writedir() .. "Missions\\DCC\\",
   stateFile    = lfs.writedir() .. "DCC\\rotation.json",
+  adminFile    = lfs.writedir() .. "DCC\\admins.txt",   -- optional UCID list
+  adminSlot    = "instructor",  -- DCS slot id of a Game Master starts with this
+  reloadDelay  = 15,            -- s between "-dcc restart" / "freshwar" and the reload
+  reloadAt     = nil,
+  announced    = false,
   delaySeconds = 120,   -- time between "war over" and the map change (players read the result)
   fixDelay     = 10,    -- wrong map after a restart: switch after this many seconds
   checkEvery   = 5,     -- seconds between checks
@@ -91,11 +104,69 @@ local function load(map, why)
   return net.load_mission(path)
 end
 
+-- ---------------------------------------------------------------------------
+-- Admin commands
+-- ---------------------------------------------------------------------------
+local function adminList()
+  local f = io.open(DCCR.adminFile, "r")
+  if not f then return nil end
+  local list = {}
+  for line in f:lines() do
+    local u = line:match("^%s*(%x+)%s*$")
+    if u then list[u:lower()] = true end
+  end
+  f:close()
+  return list
+end
+
+local function isAdmin(id)
+  if id == 1 then return true end                         -- the server host
+  local okS, slot = pcall(net.get_player_info, id, "slot")
+  if not okS or type(slot) ~= "string" or slot:sub(1, #DCCR.adminSlot) ~= DCCR.adminSlot then return false end
+  local list = adminList()
+  if not list then return true end
+  local okU, ucid = pcall(net.get_player_info, id, "ucid")
+  return okU and type(ucid) == "string" and list[ucid:lower()] == true
+end
+
+local function tell(id, text)
+  for line in tostring(text):gmatch("[^\n]+") do pcall(net.send_chat_to, line, id) end
+end
+
+-- runs "-dcc <rest>" in the mission and returns the reply
+function DCCR.runAdmin(rest, who)
+  local code = string.format("return (DCC and DCC.admin) and DCC.admin(%q, %q) or 'DCC is not running on this mission.'",
+    rest, who or "?")
+  local okR, res = pcall(net.dostring_in, "server", code)
+  if not okR then return "Error: " .. tostring(res) end
+  return tostring(res or "")
+end
+
 local cb = {}
+
+function cb.onPlayerTrySendChat(id, msg, all)
+  local rest = type(msg) == "string" and msg:match("^%s*%-dcc%s*(.*)$")
+  if not rest then return msg end
+  if not isDccMission() then return msg end
+  if not isAdmin(id) then
+    tell(id, "[DCC] Admin commands need a Game Master slot.")
+    return ""
+  end
+  local okN, name = pcall(net.get_player_info, id, "name")
+  local reply = DCCR.runAdmin(rest, okN and name or tostring(id))
+  if reply:find("\nRELOAD$") then
+    reply = reply:gsub("\nRELOAD$", "")
+    DCCR.reloadAt = DCS.getRealTime() + DCCR.reloadDelay
+    pcall(net.send_chat, "[DCC] The mission reloads in " .. DCCR.reloadDelay .. " seconds (admin).", true)
+    say("admin reload requested by " .. tostring(okN and name or id))
+  end
+  tell(id, "[DCC] " .. reply)
+  return ""
+end
 
 -- A mission finished loading: is it the map the campaign is on?
 function cb.onMissionLoadEnd()
-  DCCR.switchAt, DCCR.target = nil, nil
+  DCCR.switchAt, DCCR.target, DCCR.reloadAt, DCCR.announced = nil, nil, nil, false
   if not isDccMission() then return end
   local st, here = readState(), currentTheatre()
   if st and st.current and here and st.current ~= here then
@@ -110,6 +181,20 @@ function cb.onSimulationFrame()
   if now < DCCR.nextCheck then return end
   DCCR.nextCheck = now + DCCR.checkEvery
   if not isDccMission() then return end
+
+  -- tell the mission the hook is here (its self-check reports it)
+  if not DCCR.announced then
+    local okA = pcall(net.dostring_in, "server", "DCC_HOOK_VERSION = " .. string.format("%q", DCCR.version))
+    DCCR.announced = okA
+  end
+
+  -- an admin's restart / fresh war
+  if DCCR.reloadAt and now >= DCCR.reloadAt then
+    DCCR.reloadAt = nil
+    local okF, file = pcall(DCS.getMissionFilename)
+    if okF and file then say("admin reload of " .. file); net.load_mission(file) end
+    return
+  end
 
   if not DCCR.switchAt then
     local st = readState()

@@ -595,6 +595,8 @@ end
 function B.addMenus()
   for side, c in pairs(COAL) do
     local root = missionCommands.addSubMenuForCoalition(c, "Campaign")
+    B.campaignRoot = B.campaignRoot or {}
+    B.campaignRoot[side] = root
     missionCommands.addCommandForCoalition(c, "Campaign status", root, B.showStatus, side)
   end
 end
