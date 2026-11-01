@@ -73,6 +73,8 @@ for _, m in ipairs({ "Caucasus", "Syria", "GermanyCW" }) do   -- PersianGulf lef
 end
 dofile(DCC_ROOT .. "/hooks/DCC_rotation_hook.lua")
 check("hook registered its callbacks", SRV.cb and SRV.cb.onSimulationFrame and SRV.cb.onMissionLoadEnd)
+local HK = DCC_ROTATION_HOOK.state
+HK.restart.enabled = false          -- the daily restart is tested on its own (it reads the real clock)
 
 -- ------------------------------------------------------------------ the war
 print("Caucasus war running")
@@ -224,6 +226,62 @@ do
   local _, t5 = say(3, "-dcc status")
   check("...one on the list may", t5:find("Caucasus", 1, true) ~= nil, t5)
   os.remove(MOCK.writedir .. "DCC\\admins.txt")
+end
+
+print("Daily restart at 04:00 Danish time (v0.48)")
+do
+  local function utc(y, mo, d, h, mi)                -- seconds since 1970 for a UTC time (any host time zone)
+    local e = os.time({ year = y, month = mo, day = d, hour = h, min = mi })
+    local g = os.date("!*t", e)
+    g.isdst = nil
+    return e - (os.time(g) - e)
+  end
+  local function hm(t) return string.format("%02d:%02d", t.hour, t.min) end
+  check("winter: 03:00 UTC is 04:00 in Denmark", hm(HK.clock(utc(2026, 1, 15, 3, 0))) == "04:00",
+    hm(HK.clock(utc(2026, 1, 15, 3, 0))))
+  check("summer: 02:00 UTC is 04:00 in Denmark", hm(HK.clock(utc(2026, 7, 1, 2, 0))) == "04:00")
+  check("summer time ends the last Sunday of October at 01:00 UTC", hm(HK.clock(utc(2026, 10, 25, 0, 59))) == "02:59"
+    and hm(HK.clock(utc(2026, 10, 25, 1, 0))) == "02:00")
+  check("...and starts the last Sunday of March", hm(HK.clock(utc(2026, 3, 29, 0, 59))) == "01:59"
+    and hm(HK.clock(utc(2026, 3, 29, 1, 0))) == "03:00")
+  check("minutes to the restart", HK.restartIn(utc(2026, 1, 15, 2, 30)) == 30 and HK.restartIn(utc(2026, 1, 15, 3, 0)) == 0)
+
+  DCC.persist.writeRotation({ current = "Caucasus", state = "running" })
+  SRV.theatre, SRV.file = "Caucasus", "C:\\Missions\\DCC\\DCC_Caucasus.miz"
+  SRV.cb.onMissionLoadEnd()
+  DCC.started, DCC.ended = false, false
+  env.mission.theatre = "Caucasus"
+  DCC.start()
+  local realClock, fake = HK.clock, { year = 2026, month = 1, day = 15, hour = 3, min = 29 }
+  HK.clock = function() return fake end
+  HK.restart.enabled = true
+  local nChat, nLoad, nText = #SRV.chat, #SRV.loaded, #MOCK.texts
+  frames(10)
+  check("03:29: no warning yet", #SRV.chat == nChat)
+  fake.min = 30; frames(10)
+  check("03:30: 30-minute warning in chat and on screen", #SRV.chat == nChat + 1 and SRV.chat[#SRV.chat]:find("30 minutes", 1, true)
+    and #MOCK.texts > nText and MOCK.texts[#MOCK.texts]:find("restart", 1, true), SRV.chat[#SRV.chat])
+  frames(30)
+  check("...only once", #SRV.chat == nChat + 1)
+  fake.min = 50; frames(10)
+  fake.min = 59; frames(10)
+  check("10 and 1 minute warnings", #SRV.chat == nChat + 3 and SRV.chat[#SRV.chat]:find("1 minute ", 1, true), SRV.chat[#SRV.chat])
+  DCC.warObj.state.nodes.senaki.side = "red"
+  fake.hour, fake.min = 4, 0
+  SRV.rt = SRV.rt + 700                               -- the mission has run long enough
+  frames(10)
+  check("04:00: the war is saved and the mission reloads", #SRV.loaded == nLoad + 1 and SRV.loaded[#SRV.loaded] == SRV.file)
+  check("...the save has the latest state", DCC.persist.load("Caucasus").nodes.senaki.side == "red")
+  SRV.cb.onMissionLoadEnd()
+  frames(30)
+  check("...not again the same morning", #SRV.loaded == nLoad + 1)
+  fake.day = 16
+  frames(10)
+  check("...nor right after a reload (mission must run 10 min)", #SRV.loaded == nLoad + 1)
+  SRV.rt = SRV.rt + 700
+  frames(10)
+  check("next day: again", #SRV.loaded == nLoad + 2)
+  HK.clock, HK.restart.enabled = realClock, false
 end
 
 print("War clock ends a war and rotates too")

@@ -6,6 +6,15 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.48.0 — 2026-11-01
+
+**Added**
+- **Daily restart at 04:00 Danish time:** the server hook saves the war and reloads the mission once a day (a 24/7
+  DCS server builds up memory). Warnings 30, 10 and 1 minute before, in chat and on screen. Danish summer time is
+  worked out from UTC, so the server's own time zone does not matter. Settings at the top of
+  `hooks/DCC_rotation_hook.lua` (`restart.*`). **Install the new hook** on the server.
+- DCS test plan: new S-108.
+
 ## 0.47.0 — 2026-11-01
 
 **Added**

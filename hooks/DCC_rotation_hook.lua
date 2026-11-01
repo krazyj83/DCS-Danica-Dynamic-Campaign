@@ -27,10 +27,15 @@
 -- not shown to anyone else. Optional: Saved Games\DCS\DCC\admins.txt with one
 -- DCS UCID per line - then only those Game Masters may use the commands.
 -- The hook also tells the mission it is installed (the self-check reports it).
+--
+-- DAILY RESTART (v0.48): at DCCR.restart.time (Danish time, 04:00) the hook
+-- saves the war and reloads the mission - a 24/7 DCS server builds up memory
+-- over the days. Players are warned 30, 10 and 1 minute before (chat and on
+-- screen). The war carries on from the save. restart.enabled = false: off.
 -- ============================================================================
 
 local DCCR = {
-  version      = "0.47",
+  version      = "0.48",
   missionsDir  = lfs.writedir() .. "Missions\\DCC\\",
   stateFile    = lfs.writedir() .. "DCC\\rotation.json",
   adminFile    = lfs.writedir() .. "DCC\\admins.txt",   -- optional UCID list
@@ -38,6 +43,16 @@ local DCCR = {
   reloadDelay  = 15,            -- s between "-dcc restart" / "freshwar" and the reload
   reloadAt     = nil,
   announced    = false,
+  restart      = {
+    enabled  = true,
+    time     = "04:00",              -- HH:MM
+    zone     = "Europe/Copenhagen",  -- Danish time (summer time handled); "local" = the server's clock
+    warn     = { 30, 10, 1 },        -- minutes before: warnings
+    minUp    = 600,                  -- s a mission must have run before a daily restart (no restart loops)
+  },
+  restartDone  = nil,                -- "YYYY-MM-DD" of the last daily restart
+  warned       = {},
+  loadedAt     = 0,
   delaySeconds = 120,   -- time between "war over" and the map change (players read the result)
   fixDelay     = 10,    -- wrong map after a restart: switch after this many seconds
   checkEvery   = 5,     -- seconds between checks
@@ -142,6 +157,69 @@ function DCCR.runAdmin(rest, who)
   return tostring(res or "")
 end
 
+-- ---------------------------------------------------------------------------
+-- Daily restart (v0.48)
+-- ---------------------------------------------------------------------------
+-- Danish time (CET, CEST from the last Sunday of March 01:00 UTC to the last
+-- Sunday of October 01:00 UTC), worked out from UTC so the server's own time
+-- zone does not matter. zone = "local" uses the server's clock instead.
+local function lastSunday(year, month)
+  local days = os.date("!*t", os.time({ year = year, month = month + 1, day = 0, hour = 12 })).day
+  for d = days, days - 6, -1 do
+    if os.date("!*t", os.time({ year = year, month = month, day = d, hour = 12 })).wday == 1 then return d end
+  end
+end
+
+function DCCR.clock(utc)
+  utc = utc or os.time()
+  if DCCR.restart.zone == "local" then return os.date("*t", utc) end
+  local u = os.date("!*t", utc)
+  local offset = 1
+  local startD, endD = lastSunday(u.year, 3), lastSunday(u.year, 10)
+  local function after(month, day) return u.month > month or (u.month == month and (u.day > day or (u.day == day and u.hour >= 1))) end
+  if after(3, startD) and not after(10, endD) then offset = 2 end
+  return os.date("!*t", utc + offset * 3600)
+end
+
+local function toScreen(text, seconds)
+  pcall(net.dostring_in, "server", string.format("trigger.action.outText(%q, %d)", text, seconds))
+end
+
+-- minutes until the next restart time (0..1439), and today's date key
+function DCCR.restartIn(utc)
+  local t = DCCR.clock(utc)
+  local h, m = DCCR.restart.time:match("^(%d+):(%d+)$")
+  local target = tonumber(h) * 60 + tonumber(m)
+  return (target - (t.hour * 60 + t.min)) % 1440, string.format("%04d-%02d-%02d", t.year, t.month, t.day)
+end
+
+function DCCR.dailyRestart(now)
+  local R = DCCR.restart
+  if not R.enabled then return false end
+  local left, day = DCCR.restartIn()
+  for _, w in ipairs(R.warn) do
+    if left == w and not DCCR.warned[day .. "/" .. w] then
+      DCCR.warned[day .. "/" .. w] = true
+      local text = string.format("[DCC] Daily server restart in %d minute%s (%s). The war is saved and carries on.",
+        w, w == 1 and "" or "s", R.time)
+      pcall(net.send_chat, text, true)
+      toScreen(text, 30)
+    end
+  end
+  if left == 0 and DCCR.restartDone ~= day and now - DCCR.loadedAt >= R.minUp then
+    DCCR.restartDone = day
+    pcall(net.dostring_in, "server", "if DCC and DCC.save then DCC.save() end")
+    local okF, file = pcall(DCS.getMissionFilename)
+    if okF and file then
+      say("daily restart: reloading " .. file)
+      pcall(net.send_chat, "[DCC] Daily restart now.", true)
+      net.load_mission(file)
+      return true
+    end
+  end
+  return false
+end
+
 local cb = {}
 
 function cb.onPlayerTrySendChat(id, msg, all)
@@ -167,6 +245,7 @@ end
 -- A mission finished loading: is it the map the campaign is on?
 function cb.onMissionLoadEnd()
   DCCR.switchAt, DCCR.target, DCCR.reloadAt, DCCR.announced = nil, nil, nil, false
+  DCCR.loadedAt = DCS.getRealTime()
   if not isDccMission() then return end
   local st, here = readState(), currentTheatre()
   if st and st.current and here and st.current ~= here then
@@ -195,6 +274,9 @@ function cb.onSimulationFrame()
     if okF and file then say("admin reload of " .. file); net.load_mission(file) end
     return
   end
+
+  -- the daily restart (not while the map is about to change)
+  if not DCCR.switchAt and DCCR.dailyRestart(now) then return end
 
   if not DCCR.switchAt then
     local st = readState()
