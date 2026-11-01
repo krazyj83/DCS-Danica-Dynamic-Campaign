@@ -152,12 +152,29 @@ for _, pad in ipairs(pads) do
     if pw:getItemCount(t) ~= DCC.config.world.farpHelos then helosOk = false end
   end
   for _, n in ipairs(B.arm.names) do
-    if pw:getItemCount(n) ~= DCC.config.world.farpWeapons then shelfOk = false end
+    local want = B.farpWeapon(n) and DCC.config.world.farpWeapons or 0
+    if pw:getItemCount(n) ~= want then shelfOk = false end
   end
 end
 check("2 pads per FARP", #pads == 2 and DCC.config.world.farpPads == 2)
 check("10 of each own helicopter on both pads", helosOk and DCC.config.world.farpHelos == 10)
-check("50 of each weapon on both pads (Hellfire, Hydra, Stinger...)", shelfOk and DCC.config.world.farpWeapons == 50)
+check("v0.45: helicopter weapons 50 on both pads, the rest none", shelfOk and DCC.config.world.farpWeapons == 50)
+local pw1 = Airbase.getByName(pads[1]):getWarehouse()
+check("...Hellfire, Hydra, Vikhr and S-8 on the shelf", pw1:getItemCount("weapons.missiles.AGM_114K") == 50
+  and pw1:getItemCount("weapons.nurs.HYDRA_70_M151") == 50 and pw1:getItemCount("weapons.missiles.Vikhr_M") == 50
+  and pw1:getItemCount("weapons.nurs.S-8KOM") == 50)
+check("...no AMRAAM, GBU-12 or jet tanks", pw1:getItemCount("weapons.missiles.AIM_120C") == 0
+  and pw1:getItemCount("weapons.bombs.GBU_12") == 0 and pw1:getItemCount("weapons.droptanks.FuelTank_350L") == 0)
+local fwOk = true
+for _, n in ipairs({ "weapons.missiles.AGM_114L", "weapons.missiles.AGR_20A", "weapons.missiles.AGR_20_M282",
+                     "weapons.nurs.HYDRA_70_M156", "weapons.missiles.FIM_92", "weapons.gunmounts.M240H",
+                     "weapons.gunmounts.M134D", "weapons.gunmounts.M60D", "weapons.adapters.M299",
+                     "weapons.containers.B-8M1" }) do
+  if not B.farpWeapon(n) then fwOk = false; print("    not a FARP weapon: " .. n) end
+end
+check("FARP list: both Hellfires, APKWS, Hydra, Stinger, CH-47 door guns, launchers", fwOk)
+check("...not the C-802, Mk-82 or the MiG-21's PTB-800", not B.farpWeapon("weapons.missiles.C_802AK")
+  and not B.farpWeapon("weapons.bombs.Mk_82") and not B.farpWeapon("weapons.droptanks.PTB_800_MIG21"))
 check("airbases keep 100", wh.items["weapons.missiles.AIM_120C"] == stock.advanced)
 
 print("No recall in warehouse mode")

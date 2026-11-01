@@ -64,6 +64,15 @@ end
 -- By DCS's own category first (weapons.<category>.<name>), then by name.
 -- Adapters, launchers, pods, tanks, guns and everything else are "basic":
 -- always on the shelf, so a loadout never fails for want of a pylon.
+-- v0.45: does a FARP stock this weapon? (config world.farpWeaponMatch)
+function B.farpWeapon(name)
+  local n = string.lower(name)
+  for _, p in ipairs(DCC.config.world.farpWeaponMatch or {}) do
+    if n:find(p, 1, true) then return true end
+  end
+  return false
+end
+
 function B.weaponTier(name)
   local n = string.lower(name)
   local cat = n:match("^weapons%.([^%.]+)%.") or ""
@@ -195,8 +204,10 @@ function B.restockArmoury()
           local taken = math.max(0, (B.arm.last[key] or cur) - cur)
           local each = (t == "advanced" and cfg.advancedSU) or (t == "guided" and cfg.guidedSU) or 0
           if taken > 0 and each > 0 then ns.supply = math.max(0, (ns.supply or 0) - taken * each) end
-          local full = whs.farp[k] and (DCC.config.world.farpWeapons or cfg.stock[t] or 0)   -- v0.44: FARP shelf
-                       or (cfg.stock[t] or 0) * big
+          local full = (cfg.stock[t] or 0) * big
+          if whs.farp[k] then                        -- v0.44/45: a FARP stocks helicopter weapons only
+            full = B.farpWeapon(name) and (DCC.config.world.farpWeapons or 0) or 0
+          end
           local target = (ORDER[t] <= ORDER[tier]) and full or 0
           if whs.farp[k] and war:farpDry(id) then target = 0 end      -- a dry FARP: empty shelves
           if cur ~= target then ok(w.setItem, w, name, target) end   -- top up, or off the shelf
