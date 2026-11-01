@@ -6,6 +6,19 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.51.0 — 2026-11-01
+
+**Added**
+- **Pilot pages on the web map:** the leaderboard shows the top 50; click a name for that pilot's rank, sorties,
+  hours, kills, missions and rescues and his **last 5 sorties** (map, war day, aircraft, time, kills, points). A
+  **Recent sorties** list shows the latest of everyone. Every debriefed sortie is kept in `pilots.json`
+  (`public.sortiesPerPilot`); `public.json` now lists up to 100 pilots (`public.pilots`, was 20). New module
+  `dcc_dcs_stats.lua`.
+- **Weekly Discord summary** from the companion: *Week in the war* — bases gained per side, sorties flown, the
+  week's top 5 pilots and top 3 squadrons by points gained. Default Monday 18:00 (the companion PC's clock);
+  `"weekly": {"day": "...", "hour": ...}` or `false` in `dcc_companion.json`. The first run only takes the snapshot.
+- DCS test plan: S-305 to RETEST.
+
 ## 0.50.0 — 2026-11-01
 
 **Added**

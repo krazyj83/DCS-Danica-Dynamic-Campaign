@@ -306,15 +306,19 @@ Feedback:
 
 ### S-305
 **Webkort og Discord**
-`Status: IKKE TESTET` · Kort: alle · Siden v0.6 · Offline: test_companion.py
+`Status: RETEST` · Kort: alle · Siden v0.6, ændret v0.51 · Offline: test_companion.py
 
 1. Start `server/start_companion.bat` med en udfyldt `dcc_companion.json`.
-2. Åbn webkortet. Vent på en erobring.
+2. Åbn webkortet. Vent på en erobring. Flyv en sortie og land hjemme igen. Klik på dit navn i *Leaderboard*.
+3. Lad companion køre over mandag kl. 18 (eller sæt `"weekly"` i `dcc_companion.json` til i dag, en time frem).
 
 **Forvent:** Kortet viser fronten og baseejere og virker på telefonen. Erobringen kommer i Discord inden for et
-minut. Ingen garnisoner eller SU på webkortet.
+minut. Ingen garnisoner eller SU på webkortet. Din pilotside viser rang, sorties, timer, kills og din sidste
+sortie; den står også under *Recent sorties*. Mandag kl. 18: *Week in the war* i Discord med baser, sorties og
+ugens bedste piloter (første kørsel tager kun et øjebliksbillede, så opslaget kommer først ugen efter).
 
 Feedback:
+v0.51.0: pilotsider, seneste sorties og ugentligt Discord-resumé.
 
 ### S-306
 **Performance guard**

@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.50.0",
+  version         = "0.51.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -239,7 +239,10 @@ DCC.config = {
     skirmishPerSide = 2,     -- vehicles per side per skirmish
     skirmishMax    = 8,      -- most skirmishes at once
   },
-  public = { events = 40, everySeconds = 60 },   -- DCC\public.json for the web map / Discord
+  public = { events = 40, everySeconds = 60,      -- DCC\public.json for the web map / Discord
+             pilots = 100,                        -- v0.51: pilots listed (leaderboard, pilot pages)...
+             sorties = 20,                        -- ...latest sorties of everyone...
+             sortiesPerPilot = 5 },               -- ...and per pilot (kept in pilots.json)
 
   -- Live bubble (what gets spawned as real DCS units) -----------------------
   liveRadiusKm     = 40,    -- nodes within this distance of a player are live

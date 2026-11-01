@@ -6,10 +6,13 @@ the files the campaign writes to Saved Games\\DCS\\DCC\\:
 
   public.json  -> served as a live web map at http://<server>:8088/
                   (front line, base owners, war clock, weather, recent events,
-                  top pilots and squadrons; refreshes every 30 s)
+                  leaderboard, squadrons, recent sorties and a page per
+                  pilot with his last sorties; refreshes every 30 s)
   feed.jsonl   -> each new public event is posted to a Discord channel
                   through a webhook (captures, radar/AWACS/ship kills, convoys,
                   missions, weather, war-clock warnings, victory, war report)
+                  and once a week a summary: top pilots and squadrons of the
+                  week, bases gained (v0.51; "weekly" in the config)
 
 Only public information is shown: who owns which base and where the front is.
 No garrison sizes, no supply, no enemy positions.
@@ -60,7 +63,8 @@ def default_dcc_folder():
 def load_config(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default=os.path.join(HERE, "dcc_companion.json"),
-                    help="JSON file with any of: dcc, webhook, port, interval, kinds, username")
+                    help="JSON file with any of: dcc, webhook, port, interval, kinds, username, "
+                         "weekly ({\"day\": \"mon\", \"hour\": 18} or false)")
     ap.add_argument("--dcc", help="the campaign folder (Saved Games\\DCS\\DCC)")
     ap.add_argument("--webhook", help="Discord webhook URL")
     ap.add_argument("--port", type=int)
@@ -71,7 +75,8 @@ def load_config(argv=None):
     ap.add_argument("--no-discord", action="store_true")
     a = ap.parse_args(argv)
     cfg = {"dcc": None, "webhook": "", "port": 8088, "interval": 30, "kinds": DEFAULT_KINDS,
-           "username": "Danica Dynamic Campaign"}
+           "username": "Danica Dynamic Campaign",
+           "weekly": {"day": "mon", "hour": 18}}   # weekly Discord summary (local time); false = off
     if a.config and os.path.exists(a.config):
         with open(a.config, encoding="utf-8") as f:
             cfg.update(json.load(f))
@@ -177,7 +182,87 @@ class Feed:
             print(f"discord: {e}")
             return False
 
+    # -- weekly summary (v0.51) ----------------------------------------------
+    DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+
+    def read_public(self):
+        try:
+            with open(os.path.join(self.cfg["dcc"], "public.json"), encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            return None
+
+    @staticmethod
+    def snapshot(pub):
+        return {"map": pub.get("map"), "day": pub.get("day", 0), "bases": pub.get("bases", {}),
+                "pilots": {p["name"]: p.get("score", 0) for p in pub.get("pilots", []) or []},
+                "squadrons": {s["tag"]: s.get("score", 0) for s in pub.get("squadrons", []) or []},
+                "sorties": max([s.get("n", 0) for s in (pub.get("sorties") or []) if isinstance(s, dict)] or [0])}
+
+    def weekly_text(self, old, pub):
+        new = self.snapshot(pub)
+        gain = sorted(((s - old["pilots"].get(n, 0), n) for n, s in new["pilots"].items()), reverse=True)
+        gain = [(g, n) for g, n in gain if g > 0][:5]
+        sq = sorted(((s - old["squadrons"].get(t, 0), t) for t, s in new["squadrons"].items()), reverse=True)
+        sq = [(g, t) for g, t in sq if g > 0][:3]
+        lines = ["\U0001F4F0 **Week in the war**"]
+        if old.get("map") == new["map"]:
+            ob, nb = old.get("bases", {}), new["bases"]
+            lines.append(f"{new['map']}, war day {new['day']:.1f}. Bases: BLUE {nb.get('blue', 0)} "
+                         f"({nb.get('blue', 0) - ob.get('blue', 0):+d}), RED {nb.get('red', 0)} "
+                         f"({nb.get('red', 0) - ob.get('red', 0):+d}).")
+        else:
+            lines.append(f"The campaign moved on to {new['map']} (war day {new['day']:.1f}).")
+        sorties = new["sorties"] - old.get("sorties", 0)
+        if sorties > 0:
+            lines.append(f"{sorties} sorties flown.")
+        if gain:
+            lines.append("**Top pilots of the week**")
+            lines += [f"{i}. {n} +{g} points" for i, (g, n) in enumerate(gain, 1)]
+        else:
+            lines.append("No points scored this week.")
+        if sq:
+            lines.append("**Squadrons**")
+            lines += [f"{i}. {t} +{g}" for i, (g, t) in enumerate(sq, 1)]
+        return "\n".join(lines)[:1990]
+
+    def weekly_key(self, now):
+        """Date of the most recent summary moment (weekday + hour, local time) as a key; None if off."""
+        w = self.cfg.get("weekly")
+        if not w:
+            return None
+        lt = time.localtime(now)
+        target = self.DAYS.index(str(w.get("day", "mon"))[:3].lower())
+        days_back = (lt.tm_wday - target) % 7
+        if days_back == 0 and lt.tm_hour < int(w.get("hour", 18)):
+            days_back = 7
+        t = time.localtime(now - days_back * 86400)
+        return f"{t.tm_year:04d}-{t.tm_mon:02d}-{t.tm_mday:02d}"
+
+    def weekly(self, now=None):
+        """Posts the summary once per week. The first run only takes a snapshot."""
+        key = self.weekly_key(now or time.time())
+        pub = self.read_public()
+        if key is None or pub is None:
+            return False
+        wk = self.state.get("week")
+        if wk is None:
+            self.state["week"] = {"key": key, "snap": self.snapshot(pub)}
+            self.save()
+            return False
+        if wk.get("key") == key:
+            return False
+        if not self.post(self.weekly_text(wk["snap"], pub)):
+            return False
+        self.state["week"] = {"key": key, "snap": self.snapshot(pub)}
+        self.save()
+        return True
+
     def run_once(self):
+        try:
+            self.weekly()
+        except (OSError, ValueError, KeyError) as e:
+            print(f"weekly summary: {e}")
         events, end = self.new_events()
         for msg in self.messages(events):
             if not self.post(msg):
@@ -216,6 +301,12 @@ border-top:1px solid var(--line);padding-top:14px}
 .bar .b{background:var(--blue)}.bar .r{background:var(--red)}
 .row{display:flex;justify-content:space-between;gap:8px}.muted{color:var(--muted)}
 ol{margin:0;padding-left:20px}li{margin:3px 0}
+#pilots{max-height:340px;overflow:auto}#pilots a{color:inherit;text-decoration:none;cursor:pointer}
+#pilots a:hover b,#pilots a:focus b{text-decoration:underline}
+#pilot{margin:10px 0;padding:10px 12px;border:1px solid var(--line);border-radius:6px}
+#pilot table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+#pilot td,#pilot th{text-align:left;padding:2px 4px;border-bottom:1px solid var(--line)}
+.sortie{margin:5px 0;font-size:13px}
 .ev{margin:6px 0;padding-left:10px;border-left:3px solid var(--line)}
 .ev.blue{border-color:var(--blue)}.ev.red{border-color:var(--red)}
 .tag{display:inline-block;padding:0 6px;border-radius:4px;font-size:11px;font-weight:700;color:#fff}
@@ -230,8 +321,10 @@ ol{margin:0;padding-left:20px}li{margin:3px 0}
 <div class="bar"><div class="b" id="bb"></div><div class="r" id="br"></div></div>
 <h2>War clock</h2><div class="clock" id="clock">–</div><div class="muted" id="leader"></div>
 <h2>Latest</h2><div id="events"></div>
-<h2>Top pilots</h2><ol id="pilots"></ol>
+<h2>Leaderboard</h2><ol id="pilots"></ol>
+<div id="pilot" hidden></div>
 <h2>Squadrons</h2><ol id="squadrons"></ol>
+<h2>Recent sorties</h2><div id="sorties"></div>
 <p class="muted" style="margin-top:24px" id="updated"></p>
 </aside></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -266,13 +359,35 @@ function draw(d){
     document.getElementById('leader').textContent=d.clock.gained?`${d.clock.leader.toUpperCase()} is ahead: +${d.clock.gained} bases since the start`:'Even: no ground gained yet'}
   document.getElementById('events').innerHTML=(d.events||[]).slice(0,15).map(e=>
     `<div class="ev ${e.side||''}">${esc(e.text)}</div>`).join('')||'<p class="muted">Quiet so far.</p>';
-  document.getElementById('pilots').innerHTML=(d.pilots||[]).slice(0,10).map(p=>
-    `<li><b>${esc(p.name)}</b> <span class="muted">${esc(p.rank)} · ${p.score}</span></li>`).join('')||'<p class="muted">No pilots yet.</p>';
+  pilots=d.pilots||[];
+  document.getElementById('pilots').innerHTML=pilots.slice(0,50).map((p,i)=>
+    `<li><a href="#" data-i="${i}"><b>${esc(p.name)}</b></a> <span class="muted">${esc(p.rank)} · ${p.score}</span></li>`).join('')||
+    '<p class="muted">No pilots yet.</p>';
+  if(shown!==null)showPilot(shown);
+  const arr=x=>Array.isArray(x)?x:[];
+  document.getElementById('sorties').innerHTML=arr(d.sorties).slice(0,10).map(s=>
+    `<div class="sortie ev ${s.side||''}"><b>${esc(s.name)}</b> · ${esc(s.type)} · ${s.minutes} min · `+
+    `${s.kills} kills · ${s.missions} missions · ${s.points>=0?'+':''}${s.points} pts</div>`).join('')||
+    '<p class="muted">No sorties debriefed yet.</p>';
   document.getElementById('squadrons').innerHTML=(d.squadrons||[]).map(s=>
     `<li><b>${esc(s.tag)}</b> <span class="muted">${s.score} pts · ${s.members} pilots · ${s.wins} wins</span></li>`).join('')||
     '<p class="muted">Put [TAG] in front of your name to fly for a squadron.</p>';
   document.getElementById('updated').textContent='Updated '+new Date().toLocaleTimeString();
 }
+let pilots=[],shown=null;
+function showPilot(name){
+  const p=pilots.find(x=>x.name===name);const el=document.getElementById('pilot');
+  if(!p){el.hidden=true;shown=null;return}
+  shown=name;el.hidden=false;
+  const rec=(Array.isArray(p.recent)?p.recent:[]).map(s=>`<tr><td>${esc(s.map)} d${s.day}</td><td>${esc(s.type)}</td>`+
+    `<td>${s.minutes}m</td><td>${esc(s.killsText)}</td><td>${s.points>=0?'+':''}${s.points}</td></tr>`).join('');
+  el.innerHTML=`<b>${esc(p.name)}</b> <span class="muted">${esc(p.rank)} · ${p.score} pts${p.squadron?' · '+esc(p.squadron):''}</span>`+
+    `<p class="muted">${p.sorties} sorties · ${p.hours} h · ${p.kills} kills · ${p.missions} missions · ${p.rescues} rescues</p>`+
+    (rec?`<table><tr><th>When</th><th>Aircraft</th><th>Time</th><th>Kills</th><th>Pts</th></tr>${rec}</table>`:
+    '<p class="muted">No sorties debriefed yet.</p>');
+}
+document.getElementById('pilots').addEventListener('click',e=>{const a=e.target.closest('a');if(!a)return;
+  e.preventDefault();const n=pilots[+a.dataset.i].name;showPilot(shown===n?null:n)});
 async function load(){try{const r=await fetch('public.json?'+Date.now());if(r.ok)draw(await r.json())}catch(e){}}
 load();setInterval(load,30000);
 </script></body></html>

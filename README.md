@@ -313,8 +313,8 @@ reads two files the campaign writes every few minutes and does two jobs:
 
 | Job | What it does |
 | --- | --- |
-| **Live web map** — `http://<server>:8088/` | Front line and base owners on a real map, war clock and who is ahead, weather, the latest captures and kills, top pilots and squadrons. Refreshes every 30 s; works on a phone. Only public information: no garrison sizes, no supply, no enemy positions. |
-| **Discord feed** — through a channel webhook | Posts captures, radar / AWACS / SAM / ship kills, convoys destroyed, completed missions, FARPs built, weather changes, war-clock warnings, the victory and the full war report. Each event once, even after restarts; if Discord is down it retries. |
+| **Live web map** — `http://<server>:8088/` | Front line and base owners on a real map, war clock and who is ahead, weather, the latest captures and kills, the **leaderboard** (top 50; click a name for that pilot's page: rank, sorties, hours, kills, missions and his **last 5 sorties**), squadrons and the **latest sorties** of everyone (v0.51). Refreshes every 30 s; works on a phone. Only public information: no garrison sizes, no supply, no enemy positions. |
+| **Discord feed** — through a channel webhook | Posts captures, radar / AWACS / SAM / ship kills, convoys destroyed, completed missions, FARPs built, weather changes, war-clock warnings, the victory and the full war report. Each event once, even after restarts; if Discord is down it retries. **Once a week** (default Monday 18:00, the companion PC's time) a **Week in the war** summary: bases gained, sorties flown, the week's top 5 pilots and top squadrons by points gained (v0.51; `"weekly": {"day": "mon", "hour": 18}` or `false` in `dcc_companion.json`). |
 
 Setup: in Discord, *channel settings → Integrations → Webhooks → New webhook → Copy URL*. Put it and
 your `Saved Games\DCS\DCC` folder in `server/dcc_companion.json` (copy the example), then run
@@ -327,7 +327,8 @@ any web host), `--no-web`, `--no-discord`. **DCSServerBot** users can run it alo
 Put a tag in your DCS name — `[VKG] Morten`, `VKG | Morten`, `-=VKG=- Morten` or `Morten [VKG]` (2–8
 letters or digits) — and you fly for that squadron. **F10 → Missions → Squadron leaderboard** adds up
 the members' scores and war wins; the war report lists the top squadrons of that war, and the web map
-shows the board.
+shows the board. Every sortie you land back home after (own base, FARP or carrier) is kept in your record — type,
+time, kills, missions, points — and the last 5 appear on your pilot page on the web map (v0.51).
 
 ## Weather, night and the AI's memory
 
@@ -959,6 +960,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `world.farpWeaponMatch` | Hellfire, APKWS, Hydra, Stinger, door guns, Russian / French helicopter weapons | Parts of DCS weapon names a FARP stocks; everything else only at airbases (v0.45) |
 | `world.farpAtStart` | true | Every held town starts as a stocked FARP (v0.44) |
 | `ext5.airAssault` | 3 defenders, 60 km, 60 m, 45 min | AIRASSAULT targets (weakest enemy bases within reach) and the gunship escort's height, stand-off and time (v0.49) |
+| `public.pilots` / `sorties` / `sortiesPerPilot` | 100, 20, 5 | public.json for the web map: pilots listed, latest sorties, sorties kept per pilot (v0.51) |
 | `srs.*` | 238 / 239 / 240 AM, 15 min | SRS voice: AWACS, Command and airfield-information frequencies, voices, how often airfield information plays (v0.50) |
 | `admin.*` | 30 s, 60 s, 15 s | Self-check delay and time on screen; delay before an admin reload; "Where can I spawn?" list sizes (v0.47) |
 | `aiSkill` | "Excellent" | Skill of every AI unit the engine (or CTLD) spawns — Ace; `make_mission.py` sets the mission's own AI (ships, templates) to Ace too (v0.41) |
@@ -1078,6 +1080,7 @@ src/
   dcc_dcs_armoury.lua DCS bridge: warehouse armoury (weapon names, tiers, shelves) and F10 > Armoury test
   dcc_dcs_admin.lua   DCS bridge: start-up self-check, Where can I spawn?, admin chat commands (v0.47)
   dcc_dcs_srs.lua     DCS bridge: SRS voice queue - bogey dope, command news, airfield information (v0.50)
+  dcc_dcs_stats.lua   DCS bridge: sortie history and pilot stats for the web map's pilot pages (v0.51)
   dcc_dcs_ext2.lua    DCS bridge: HVA hunts and escort, packages, aces, shell impacts, ambushes, pick-ups, heavy crates, search parties
   dcc_dcs_ext3.lua    DCS bridge: landings, cargo ships, carrier air wing, SCUD launchers, pop-ups, night illumination
   dcc_dcs_ext4.lua    DCS bridge: Combined Arms and ground players (missions, fire support), QRA scramble, repair kit, performance guard
