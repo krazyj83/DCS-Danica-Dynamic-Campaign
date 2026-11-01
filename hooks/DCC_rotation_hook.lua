@@ -32,10 +32,16 @@
 -- saves the war and reloads the mission - a 24/7 DCS server builds up memory
 -- over the days. Players are warned 30, 10 and 1 minute before (chat and on
 -- screen). The war carries on from the save. restart.enabled = false: off.
+--
+-- SRS VOICE (v0.50): the mission queues what should be spoken (AWACS bogey
+-- dope, command news, airfield information); the hook collects it and plays
+-- it with SRS's DCS-SR-ExternalAudio.exe. Set srs.dir below to the SRS install
+-- folder on the server. Hooks may start programs, so MissionScripting.lua
+-- stays sanitized. No SRS found: nothing is played, nothing breaks.
 -- ============================================================================
 
 local DCCR = {
-  version      = "0.48",
+  version      = "0.50",
   missionsDir  = lfs.writedir() .. "Missions\\DCC\\",
   stateFile    = lfs.writedir() .. "DCC\\rotation.json",
   adminFile    = lfs.writedir() .. "DCC\\admins.txt",   -- optional UCID list
@@ -50,6 +56,16 @@ local DCCR = {
     warn     = { 30, 10, 1 },        -- minutes before: warnings
     minUp    = 600,                  -- s a mission must have run before a daily restart (no restart loops)
   },
+  srs          = {
+    enabled  = true,
+    dir      = "C:\\Program Files\\DCS-SimpleRadio-Standalone",   -- SRS install folder on the server
+    exe      = "DCS-SR-ExternalAudio.exe",
+    port     = 5002,                 -- the SRS server's port
+    gap      = 1.5,                  -- s of silence between two lines on one frequency
+    charsPerSec = 14,                -- speaking speed, to know when a line is done
+  },
+  srsBusy      = {},                 -- frequency -> real time it is free again
+  srsQueue     = {},
   restartDone  = nil,                -- "YYYY-MM-DD" of the last daily restart
   warned       = {},
   loadedAt     = 0,
@@ -220,6 +236,70 @@ function DCCR.dailyRestart(now)
   return false
 end
 
+-- ---------------------------------------------------------------------------
+-- SRS voice (v0.50)
+-- ---------------------------------------------------------------------------
+local function srsExe()
+  local S = DCCR.srs
+  if S.found == nil then
+    S.found = fileExists(S.dir .. "\\" .. S.exe)
+    say(S.found and ("SRS text-to-speech found in " .. S.dir) or ("SRS text-to-speech not found: " .. S.dir .. "\\" .. S.exe
+      .. " - no voice (set srs.dir in this hook)"))
+  end
+  return S.found
+end
+
+local function clean(text)   -- no shell specials in a command line
+  return (tostring(text):gsub('[%"%%%^&|<>]', ""):gsub("[\r\n]+", " "))
+end
+
+function DCCR.srsCommand(m)
+  local S = DCCR.srs
+  return string.format('start "" /min /d "%s" /b "%s" -f %.3f -m %s -c %d -p %d -n "%s" -g %s -l %s -t "%s"',
+    S.dir, S.exe, m.freq, m.mod or "AM", m.coal or 2, S.port, clean(m.name or "DCC"), m.gender or "male",
+    m.culture or "en-GB", clean(m.text))
+end
+
+-- runs a command line; long ones go through a .bat (Windows limits a command line)
+function DCCR.run(cmd)
+  if #cmd > 250 then
+    local tmp = (os.getenv("TEMP") or lfs.writedir()) .. "\\dcc_srs_" .. math.floor(DCS.getRealTime() * 1000) .. ".bat"
+    local f = io.open(tmp, "w")
+    if not f then return false end
+    f:write("@echo off\r\n" .. cmd .. "\r\ndel \"%~f0\"\r\n")
+    f:close()
+    cmd = '"' .. tmp .. '"'
+  end
+  return os.execute(cmd)
+end
+
+function DCCR.srsTick(now)
+  local S = DCCR.srs
+  if not S.enabled then return end
+  local okP, res = pcall(net.dostring_in, "server", "return (DCC and DCC.srsPop) and DCC.srsPop() or ''")
+  if okP and type(res) == "string" and res ~= "" then
+    local okJ, list = pcall(net.json2lua, res)
+    if okJ and type(list) == "table" then
+      for _, m in ipairs(list) do DCCR.srsQueue[#DCCR.srsQueue + 1] = m end
+    end
+  end
+  if #DCCR.srsQueue == 0 or not srsExe() then
+    if not S.found then DCCR.srsQueue = {} end
+    return
+  end
+  local keep = {}
+  for _, m in ipairs(DCCR.srsQueue) do
+    local key = string.format("%.3f/%s", m.freq or 0, tostring(m.coal))
+    if (DCCR.srsBusy[key] or 0) <= now then
+      DCCR.run(DCCR.srsCommand(m))
+      DCCR.srsBusy[key] = now + #tostring(m.text) / S.charsPerSec + S.gap
+    else
+      keep[#keep + 1] = m
+    end
+  end
+  DCCR.srsQueue = keep
+end
+
 local cb = {}
 
 function cb.onPlayerTrySendChat(id, msg, all)
@@ -274,6 +354,10 @@ function cb.onSimulationFrame()
     if okF and file then say("admin reload of " .. file); net.load_mission(file) end
     return
   end
+
+  -- SRS voice
+  local okS, errS = pcall(DCCR.srsTick, now)
+  if not okS then say("srs: " .. tostring(errS)) end
 
   -- the daily restart (not while the map is about to change)
   if not DCCR.switchAt and DCCR.dailyRestart(now) then return end

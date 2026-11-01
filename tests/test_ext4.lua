@@ -235,7 +235,7 @@ end
 for _, f in ipairs({ "dcc_persist", "dcc_dcs", "dcc_dcs_supply", "dcc_dcs_ops", "dcc_dcs_intel", "dcc_dcs_radar",
                      "dcc_dcs_world", "dcc_dcs_jtac", "dcc_dcs_public", "dcc_dcs_air", "dcc_dcs_ground",
                      "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_dcs_ext2", "dcc_dcs_ext3", "dcc_dcs_ext4", "dcc_dcs_ext5",
-                     "dcc_dcs_armoury", "dcc_dcs_admin", "dcc_main" }) do
+                     "dcc_dcs_armoury", "dcc_dcs_admin", "dcc_dcs_srs", "dcc_main" }) do
   dofile(DCC_ROOT .. "/src/" .. f .. ".lua")
 end
 local errors = 0
@@ -528,6 +528,46 @@ B.airContacts.blue.RED_MIG.t = timer.getTime() - 300
 MOCK.click(vg.id, "Bogey dope")
 check("...an old contact does not count: clean", (MOCK.lastGroupText(vg.id) or ""):find("clean", 1, true) ~= nil)
 B.airContacts.blue = {}
+
+print(" SRS voice (v0.50)")
+DCC.srsQueue = {}
+B.airContacts.blue = { RED_MIG = { pos = { x = kp.x, z = kp.z + 20 * 1852 }, alt = 6096, type = "MiG-29S",
+                                   t = timer.getTime() } }
+MOCK.click(vg.id, "Bogey dope")
+local sq = DCC.srsQueue[#DCC.srsQueue]
+check("bogey dope also spoken on the AWACS frequency", sq and sq.freq == cfg.srs.freqs.awacs.blue and sq.coal == 2
+  and sq.text:find("Morten, Overlord, bra 0 9 0, 20, 20 thousand", 1, true) ~= nil, sq and sq.text)
+check("...and still shown as text", (MOCK.lastGroupText(vg.id) or ""):find("BRAA 090", 1, true) ~= nil)
+B.airContacts.blue = {}
+DCC.srsQueue = {}
+B.announce({ { kind = "capture", side = "red", text = "RED captured Gori - BLUE pushed back", node = "gori" },
+             { kind = "nosupply", side = "blue", text = "Zugdidi is out of supply" },
+             { kind = "convoy_lost", side = "red", text = "not spoken" } })
+local cmdB, cmdR, own = 0, 0, false
+for _, m in ipairs(DCC.srsQueue) do
+  if m.freq == cfg.srs.freqs.command.blue and m.coal == 2 then cmdB = cmdB + 1 end
+  if m.coal == 1 then cmdR = cmdR + 1 end
+  if m.text:find("out of supply", 1, true) then own = m.coal == 2 end
+  if m.text:find("not spoken", 1, true) then cmdB = 99 end
+end
+check("command net: a capture for both sides, own news for own side only", cmdB == 2 and cmdR == 1 and own, cmdB .. "/" .. cmdR)
+DCC.srsQueue = {}
+local info = B.airfieldInfo("kutaisi")
+check("airfield information: name, runway and stock", info and info:find("^Kutaisi information") and info:find("runway open", 1, true)
+  and info:find("aircraft of %d+ types in stock") ~= nil, info)
+viper.x, viper.z, viper.air = kp.x + 200, kp.z, false
+B.srsInfoAt = {}
+B.srsInfoTick()
+B.srsInfoTick()
+local infos = 0
+for _, m in ipairs(DCC.srsQueue) do if m.freq == cfg.srs.freqs.info.blue and m.text:find("Kutaisi information", 1, true) then infos = infos + 1 end end
+check("...broadcast when a player sits at the base, once per 15 min", infos == 1, infos)
+local js = DCC.srsPop()
+check("the hook collects the queue as JSON, then it is empty", js:sub(1, 1) == "[" and #DCC.srsQueue == 0 and DCC.srsPop() == "")
+for i = 1, 30 do B.srsSay("blue", "command", "line " .. i) end
+check("no hook collecting: only the newest lines are kept", #DCC.srsQueue == cfg.srs.maxQueue
+  and DCC.srsQueue[#DCC.srsQueue].text == "line 30")
+DCC.srsQueue = {}
 
 print(" Sortie debrief (v0.34)")
 p.debrief = nil

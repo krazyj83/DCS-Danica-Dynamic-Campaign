@@ -50,8 +50,8 @@ def mhz(hz):
     return f"{hz / 1e6:.3f}".rstrip("0").rstrip(".") if hz else "-"
 
 
-def comms_pages(theater, theater_name, airports, tankers):
-    """airports: [(name, side, atc_radio or None)]; returns list of images."""
+def comms_pages(theater, theater_name, airports, tankers, radios=None):
+    """airports: [(name, side, atc_radio or None)]; radios: [text] (SRS voice, v0.50); returns list of images."""
     rows = sorted(airports, key=lambda a: (a[1] != "blue", a[0]))
     per = 30
     pages = []
@@ -97,6 +97,13 @@ def comms_pages(theater, theater_name, airports, tankers):
             for side, text in tankers:
                 d.text((24, y), text, font=font(19, mono=True), fill=BLUE if side == "blue" else RED)
                 y += 29
+            if radios:
+                y += 10
+                d.text((24, y), "CAMPAIGN RADIO (SRS)", font=font(20, bold=True), fill=INK)
+                y += 34
+                for text in radios:
+                    d.text((24, y), text, font=font(19, mono=True), fill=INK)
+                    y += 29
         pages.append(img)
     return pages
 
@@ -223,9 +230,9 @@ def reference_page(theater_name):
     return img
 
 
-def build(theater, theater_name, airports, tankers):
+def build(theater, theater_name, airports, tankers, radios=None):
     """Returns {path in the .miz: png bytes}."""
-    imgs = comms_pages(theater, theater_name, airports, tankers)
+    imgs = comms_pages(theater, theater_name, airports, tankers, radios)
     imgs.append(map_page(theater, theater_name))
     imgs.append(reference_page(theater_name))
     return {f"KNEEBOARD/IMAGES/DCC_{i + 1:02d}.png": png(im) for i, im in enumerate(imgs)}

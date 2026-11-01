@@ -37,6 +37,7 @@ dofile(DCC_ROOT .. "/src/dcc_dcs_ext4.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ext5.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_armoury.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_admin.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_srs.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
 local errors = 0
@@ -283,6 +284,36 @@ do
   frames(10)
   check("next day: again", #SRV.loaded == nLoad + 2)
   HK.clock, HK.restart.enabled = realClock, false
+end
+
+print("SRS voice through the hook (v0.50)")
+do
+  DCC.persist.writeRotation({ current = "Caucasus", state = "running" })
+  SRV.theatre, SRV.file = "Caucasus", "C:\\Missions\\DCC\\DCC_Caucasus.miz"
+  SRV.cb.onMissionLoadEnd()
+  DCC.started, DCC.ended = false, false
+  env.mission.theatre = "Caucasus"
+  DCC.start()
+  local ran = {}
+  local realRun = HK.run
+  HK.run = function(cmd) ran[#ran + 1] = cmd; return true end
+  HK.srs.found = false
+  DCC.srsQueue = {}
+  DCC.dcs.srsSay("blue", "command", "Test one")
+  frames(6)
+  check("no SRS on the server: nothing played, queue dropped", #ran == 0 and #HK.srsQueue == 0 and #DCC.srsQueue == 0)
+  HK.srs.found = true
+  DCC.dcs.srsSay("blue", "command", "Kutaisi captured")
+  DCC.dcs.srsSay("blue", "command", 'Second "line" & more')
+  DCC.dcs.srsSay("red", "awacs", "Clean")
+  frames(6)
+  check("the hook collects the mission's lines and plays them", #ran == 2, #ran)
+  check("...with SRS's text-to-speech: frequency, AM, coalition, port, voice", ran[1] and ran[1]:find("DCS-SR-ExternalAudio.exe", 1, true)
+    and ran[1]:find(string.format("-f %.3f -m AM -c 2 -p 5002", DCC.config.srs.freqs.command.blue), 1, true) and ran[1]:find('-t "Kutaisi captured"', 1, true), ran[1])
+  check("...one line at a time per frequency (the second waits)", #HK.srsQueue == 1)
+  frames(10)
+  check("...then the next, without shell specials", #ran == 3 and ran[3]:find('-t "Second line  more"', 1, true) ~= nil, ran[3])
+  HK.run = realRun
 end
 
 print("War clock ends a war and rotates too")

@@ -198,6 +198,18 @@ med den seneste stilling. Ingen ny genstart samme morgen. I `dcs.log`: `DCC-ROTA
 
 Feedback:
 
+### S-109
+**SRS-stemme gennem hooken**
+`Status: IKKE TESTET` · Kort: alle · Siden v0.50 · Offline: test_rotation, test_ext4
+
+1. Sæt `srs.dir` i `DCC_rotation_hook.lua` til SRS-mappen på serveren. Installer hooken, genstart serveren.
+2. Søg i `dcs.log` efter `SRS text-to-speech`.
+
+**Forvent:** `SRS text-to-speech found in ...`. Ingen sorte kommandovinduer, der bliver stående. Hvis den ikke findes:
+ingen stemme, ingen fejl.
+
+Feedback:
+
 ## S-200 · Kort og rotation
 
 ### S-201
@@ -532,6 +544,18 @@ Feedback:
 
 **Forvent:** HQ først, så baserne med flest fly: antal typer og fly, typer med lavt lager (*low*) og typer, der er
 udsolgt (*OUT*). Helikoptervalget viser de åbne FARPer med 2 pads og 10 af hver type.
+
+Feedback:
+
+### P-209
+**SRS: AWACS, Command og flyvepladsinformation**
+`Status: IKKE TESTET` · Spillere: 1 med SRS · Kort: alle · Siden v0.50 · Offline: test_ext4
+
+1. Sæt radioerne på 238.0, 239.0 og 240.0 AM. Sid på en egen flyveplads i et par minutter.
+2. Brug *Support → Bogey dope* i luften. Vent på en erobring eller en anden nyhed.
+
+**Forvent:** 240.0: "Kutaisi information, wind ..., runway open, ... aircraft in stock." 238.0: bogey dope læst op
+("..., Overlord, bra ..."). 239.0: erobringer og egne nyheder. Kun din sides beskeder; én ad gangen pr. frekvens.
 
 Feedback:
 

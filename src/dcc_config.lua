@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.49.0",
+  version         = "0.50.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -328,6 +328,22 @@ DCC.config = {
     spawnLowStock  = 3,           -- ...a type with this many or fewer is listed as low
     spawnListRows  = 15,          -- ...and bases / FARPs listed
     reloadDelay    = 15,          -- s between "-dcc restart" / "-dcc freshwar yes" and the reload (server hook)
+  },
+
+  -- SRS voice (v0.50, dcc_dcs_srs.lua): the mission queues lines, the server hook speaks them through
+  -- SRS (DCS-SR-ExternalAudio.exe; its install folder is set in hooks/DCC_rotation_hook.lua, srs.dir).
+  srs = {
+    enabled     = true,
+    freqs       = { awacs   = { blue = 238.0, red = 238.0 },    -- MHz, AM; SRS keeps the coalitions apart; no airfield on any map uses these
+                    command = { blue = 239.0, red = 239.0 },
+                    info    = { blue = 240.0, red = 240.0 } },
+    modulation  = "AM",
+    names       = { awacs = "Overlord", command = "Command", info = "Information" },
+    gender      = { awacs = "male", command = "female", info = "female" },
+    culture     = "en-GB",
+    infoEveryMin = 15,     -- airfield information for one base at most this often...
+    infoKm      = 6,       -- ...when a player sits on the ground this close to it
+    maxQueue    = 20,      -- lines kept when no hook collects them
   },
 
   ctld = {
