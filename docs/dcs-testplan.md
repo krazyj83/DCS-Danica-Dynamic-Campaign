@@ -185,6 +185,19 @@ kommandoerne i chatten. `restart` genindlæser missionen efter 15 s, og krigen f
 
 Feedback:
 
+### S-108
+**Daglig genstart kl. 04:00**
+`Status: IKKE TESTET` · Kort: alle · Siden v0.48 · Offline: test_rotation
+
+1. Installer den nye `DCC_rotation_hook.lua`. Lad serveren køre over kl. 04:00 dansk tid (eller sæt `restart.time` i
+   hooken til om 35 minutter for at teste nu, og husk at sætte den tilbage).
+2. Vær på serveren fra 30 minutter før.
+
+**Forvent:** Advarsel i chat og på skærmen 30, 10 og 1 minut før. Kl. 04:00 genindlæses missionen; krigen fortsætter
+med den seneste stilling. Ingen ny genstart samme morgen. I `dcs.log`: `DCC-ROTATION ... daily restart`.
+
+Feedback:
+
 ## S-200 · Kort og rotation
 
 ### S-201

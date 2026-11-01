@@ -230,6 +230,12 @@ on their map unless they have eyes on you.
 - The hook only needs the `DCC_<map>.miz` files in `Missions\DCC\`; if one is missing it says so in
   chat and in `dcs.log` (`DCC-ROTATION`) and waits.
 - Prefer DCSServerBot? Leave the hook out and let it watch user flag 9900 instead.
+- **Daily restart (v0.48):** every day at **04:00 Danish time** (summer time handled, whatever the server's own time
+  zone) the hook saves the war and reloads the mission — a 24/7 DCS server builds up memory over the days.
+  Everyone is warned **30, 10 and 1 minute** before, in chat and on screen; the war carries on from the save. A
+  mission must have run 10 minutes first, so a restart never loops. Change it at the top of
+  `hooks/DCC_rotation_hook.lua` (`restart.time`, `restart.zone = "local"` for the server's clock,
+  `restart.enabled = false` to switch it off).
 
 ## Headquarters
 
