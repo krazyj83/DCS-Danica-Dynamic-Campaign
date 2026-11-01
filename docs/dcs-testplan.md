@@ -862,7 +862,7 @@ Feedback:
 `Status: RETEST` · Spillere: 1 i helikopter · Kort: alle · Siden v0.44 · Offline: test_ext4, test_armoury
 
 1. Start missionen (ny krig, eller genstart af en kørende krig). Åbn slot-listen ved en egen by.
-2. Spawn en helikopter på byens FARP (dynamic spawn). Åbn re-arm- og refuel-menuen.
+2. Spawn en helikopter på byens FARP (dynamic spawn) - også som ny pilot uden rang (v0.46). Åbn re-arm- og refuel-menuen.
 
 **Forvent:** Hver egen by er FARP på kortet. 2 pads med 10 af hver egen helikoptertype. 50 af hvert helikoptervåben (Hellfire
 K/L, APKWS, Hydra, Stinger, dørgevær på CH-47; Vikhr, Shturm/Ataka, S-8 for RED). Ingen jetvåben (AMRAAM, GBU). 1000 t brændstof.
@@ -871,6 +871,7 @@ Feedback: v0.43: FARPerne havde ingen dynamic spawn, våben eller brændstof ved
 Rettet i v0.44.0: en FARP åbnede først, når spillere havde bygget den, så en ny krig havde ingen. Nu starter hver
 egen by som FARP med 10 helikoptere, 50 våben og 1000 t brændstof per pad.
 v0.45.0: FARPerne har kun helikoptervåben (`world.farpWeaponMatch`).
+v0.46.0: ingen rang kræves for at spawne på en FARP (var Lieutenant Colonel).
 
 ## P-800 · Søkrig og hangarskibe
 

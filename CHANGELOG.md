@@ -6,6 +6,13 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.46.0 — 2026-11-01
+
+**Changed**
+- **No rank needed for FARP spawns** (was Lieutenant Colonel): any player can spawn a helicopter at an open FARP.
+  `ext.ranks.farp = "<rank>"` brings the requirement back.
+- DCS test plan: P-707 to RETEST (now: spawn as a new pilot).
+
 ## 0.45.0 — 2026-11-01
 
 **Changed**

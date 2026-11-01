@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.45.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.46.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.45.0",
+  version         = "0.46.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -321,7 +321,7 @@ DCC.config = {
     partisans = { maps = { Syria = true, PersianGulf = true }, chance = 0.004, max = 4, lifeTicks = 576,
                   sabotageSU = 1, sweepPerPlatoon = 0.004, ambush = 0.25 },
     scaling = { perPlayer = 0.05, max = 0.15, airPerPlayer = 0.25, airMax = 2 },
-    ranks = { arty = "Captain", cas = "Major", farp = "Lieutenant Colonel", picture = "Colonel" },
+    ranks = { arty = "Captain", cas = "Major", farp = nil, picture = "Colonel" },  -- farp: rank for FARP spawns; nil = anyone (v0.46, was "Lieutenant Colonel")
     wrecks = { max = 300, days = 3, scenery = true },
   },
 

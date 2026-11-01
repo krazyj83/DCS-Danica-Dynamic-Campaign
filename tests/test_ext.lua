@@ -340,7 +340,7 @@ end
 war.state.nodes[town].farp = { side = "blue", built = war.state.tick }
 local tp = B.nodePos[town]
 local rookie = MOCK.spawnPlayer(BLUE, "UH-1H", tp.x + 50, tp.z, "Newbie", true)
-check("a Lieutenant cannot spawn at a FARP", rookie.alive == false)
+check("v0.46: anyone can spawn at a FARP (no rank needed)", rookie.alive ~= false)
 
 print("Scaling")
 MOCK.spawnPlayer(BLUE, "F-16C_50", kp.x, kp.z, "A1")
