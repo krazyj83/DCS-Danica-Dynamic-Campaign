@@ -309,7 +309,7 @@ do
   frames(6)
   check("the hook collects the mission's lines and plays them", #ran == 2, #ran)
   check("...with SRS's text-to-speech: frequency, AM, coalition, port, voice", ran[1] and ran[1]:find("DCS-SR-ExternalAudio.exe", 1, true)
-    and ran[1]:find("-f 252.000 -m AM -c 2 -p 5002", 1, true) and ran[1]:find('-t "Kutaisi captured"', 1, true), ran[1])
+    and ran[1]:find(string.format("-f %.3f -m AM -c 2 -p 5002", DCC.config.srs.freqs.command.blue), 1, true) and ran[1]:find('-t "Kutaisi captured"', 1, true), ran[1])
   check("...one line at a time per frequency (the second waits)", #HK.srsQueue == 1)
   frames(10)
   check("...then the next, without shell specials", #ran == 3 and ran[3]:find('-t "Second line  more"', 1, true) ~= nil, ran[3])
