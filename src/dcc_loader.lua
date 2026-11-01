@@ -54,6 +54,7 @@ local files = {
   [[src\dcc_dcs_ext5.lua]],
   [[src\dcc_dcs_armoury.lua]],
   [[src\dcc_dcs_admin.lua]],
+  [[src\dcc_dcs_srs.lua]],
   [[src\dcc_main.lua]],
   [[catalogs\modern.lua]],
   [[theaters\caucasus.lua]],

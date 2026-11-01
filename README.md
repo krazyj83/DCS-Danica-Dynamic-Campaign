@@ -238,6 +238,26 @@ on their map unless they have eyes on you.
   `hooks/DCC_rotation_hook.lua` (`restart.time`, `restart.zone = "local"` for the server's clock,
   `restart.enabled = false` to switch it off).
 
+## SRS voice (v0.50)
+
+If the server runs **SRS** (Simple Radio Standalone), the campaign talks on three frequencies per side (both sides
+use the same numbers; SRS keeps the coalitions apart):
+
+| Frequency | Name | What you hear |
+| --- | --- | --- |
+| **238.0 AM** | Overlord | Your **bogey dope** answers, read out like a controller ("Morten, Overlord, bra 0 9 0, 20, 20 thousand, hot.") |
+| **239.0 AM** | Command | Captures, repulsed attacks, AWACS losses, surrenders, the war clock and victory; your side's main effort, bases out of supply and air assaults |
+| **240.0 AM** | Information | **Airfield information** for the own airbase you sit at: wind, temperature, QNH, runway open/closed, aircraft in stock (every 15 min per base) |
+
+The text messages stay as they are; the voice is extra. The frequencies are on the kneeboard's comms page.
+
+**How it works:** a mission may not start programs while `MissionScripting.lua` is sanitized, but a server hook may.
+So the mission only queues the lines, and the hook (`hooks/DCC_rotation_hook.lua`) collects them every 5 s and plays
+each with SRS's `DCS-SR-ExternalAudio.exe`, one at a time per frequency. **Server setup:** open the hook and set
+`srs.dir` to the SRS install folder (default `C:\Program Files\DCS-SimpleRadio-Standalone`) and `srs.port` if your
+SRS server does not use 5002. `dcs.log` says `DCC-ROTATION: SRS text-to-speech found in ...` (or not found — then
+there is simply no voice). Frequencies, voices and timing: `srs.*` in `src/dcc_config.lua`.
+
 ## Headquarters
 
 Each side has a **HQ** — a depot named `main` in the theater pack: Caucasus **Kutaisi** / **Krasnodar-Center**,
@@ -939,6 +959,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `world.farpWeaponMatch` | Hellfire, APKWS, Hydra, Stinger, door guns, Russian / French helicopter weapons | Parts of DCS weapon names a FARP stocks; everything else only at airbases (v0.45) |
 | `world.farpAtStart` | true | Every held town starts as a stocked FARP (v0.44) |
 | `ext5.airAssault` | 3 defenders, 60 km, 60 m, 45 min | AIRASSAULT targets (weakest enemy bases within reach) and the gunship escort's height, stand-off and time (v0.49) |
+| `srs.*` | 238 / 239 / 240 AM, 15 min | SRS voice: AWACS, Command and airfield-information frequencies, voices, how often airfield information plays (v0.50) |
 | `admin.*` | 30 s, 60 s, 15 s | Self-check delay and time on screen; delay before an admin reload; "Where can I spawn?" list sizes (v0.47) |
 | `aiSkill` | "Excellent" | Skill of every AI unit the engine (or CTLD) spawns — Ace; `make_mission.py` sets the mission's own AI (ships, templates) to Ace too (v0.41) |
 | `aiEcm` | "never" | AI aircraft jamming (ECM pods): never / lock / detected / always; nil = DCS default (v0.42) |
@@ -1056,6 +1077,7 @@ src/
   dcc_dcs_ext_ground.lua DCS bridge: bridge kits, minefields, industry sites, partisan cells
   dcc_dcs_armoury.lua DCS bridge: warehouse armoury (weapon names, tiers, shelves) and F10 > Armoury test
   dcc_dcs_admin.lua   DCS bridge: start-up self-check, Where can I spawn?, admin chat commands (v0.47)
+  dcc_dcs_srs.lua     DCS bridge: SRS voice queue - bogey dope, command news, airfield information (v0.50)
   dcc_dcs_ext2.lua    DCS bridge: HVA hunts and escort, packages, aces, shell impacts, ambushes, pick-ups, heavy crates, search parties
   dcc_dcs_ext3.lua    DCS bridge: landings, cargo ships, carrier air wing, SCUD launchers, pop-ups, night illumination
   dcc_dcs_ext4.lua    DCS bridge: Combined Arms and ground players (missions, fire support), QRA scramble, repair kit, performance guard

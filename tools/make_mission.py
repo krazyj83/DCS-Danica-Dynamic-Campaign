@@ -633,7 +633,14 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
     if any(s.get("side") == "blue" and s.get("kind") == "carrier" and s.get("ship") != "LHA_Tarawa"
            for s in theater.get("naval", []) or []):
         tankers.append(("blue", "S-3B (carrier recovery)     TACAN 76X SHL   drogue"))
-    knee_files = kneeboard.build(theater, theater_name, airports, tankers)
+    srs = load_config().get("srs") or {}
+    radios = []
+    if srs.get("enabled"):
+        for kind, what in (("awacs", "AWACS / bogey dope"), ("command", "Command news"), ("info", "Airfield information")):
+            f = srs["freqs"][kind]
+            radios.append(f"{what:<22} {f['blue']:.1f} {srs.get('modulation', 'AM')}  (BLUE)   "
+                          f"{f['red']:.1f} {srs.get('modulation', 'AM')}  (RED)")
+    knee_files = kneeboard.build(theater, theater_name, airports, tankers, radios)
     with zipfile.ZipFile(out, "a", compression=zipfile.ZIP_DEFLATED) as z:
         for path, text in dtc_files.items():
             z.writestr(path, text)

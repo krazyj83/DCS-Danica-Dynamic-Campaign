@@ -6,6 +6,22 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.50.0 — 2026-11-01
+
+**Added**
+- **SRS voice.** The campaign speaks on SRS (Simple Radio Standalone), per side:
+  - **238.0 AM — AWACS:** bogey dope answers ("Morten, Overlord, bra 0 9 0, 20, 20 thousand, hot.").
+  - **239.0 AM — Command:** captures, repulsed attacks, AWACS losses, surrenders, the war clock and victory for
+    everyone; your side's main effort, bases out of supply and air assaults for your side.
+  - **240.0 AM — Airfield information:** wind, temperature, QNH, runway, aircraft in stock, for an own airbase with
+    a player on the ground there (every 15 min per base).
+  The mission only queues the lines; the **server hook** plays them with SRS's `DCS-SR-ExternalAudio.exe`, one at
+  a time per frequency — so `MissionScripting.lua` stays sanitized. Set `srs.dir` in the hook to the SRS folder
+  on the server (default `C:\Program Files\DCS-SimpleRadio-Standalone`). No SRS found: no voice, no errors.
+  No airfield on any of the four maps uses these frequencies. Settings `srs.*`; the frequencies are on the
+  kneeboard's comms page. New module `dcc_dcs_srs.lua`.
+- DCS test plan: new S-109, P-209.
+
 ## 0.49.0 — 2026-11-01
 
 **Added**
