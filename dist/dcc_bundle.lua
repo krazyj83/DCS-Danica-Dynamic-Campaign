@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.44.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.45.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.44.0",
+  version         = "0.45.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -191,7 +191,19 @@ DCC.config = {
     farpUsePerTick = 0.25,    -- ...used per tick (5 min): full to dry in ~13 h
     farpLowShare   = 0.5,     -- below this a FARPSUP mission is posted
     farpHelos      = 10,      -- helicopters of each own type a FARP can spawn (v0.44: was 20)
-    farpWeapons    = 50,      -- v0.44: of each weapon on a FARP's shelf (airbases: ext.armoury.stock)
+    farpWeapons    = 50,      -- v0.44: of each helicopter weapon on a FARP's shelf (airbases: ext.armoury.stock)
+    -- v0.45: which weapons a FARP stocks: a DCS resource name (lower case) containing any of these. Everything
+    -- else stays at airbases. Covers the launchers and pods the weapons hang on, so they are listed too.
+    farpWeaponMatch = {
+      "agm_114", "agm-114", "hellfire", "m299", "m310",                     -- Hellfire K and L, launchers (AH-64D, OH-58D)
+      "agr_20", "agr-20", "apkws",                                           -- APKWS, all types
+      "hydra", "lau_61", "lau-61", "lau_68", "lau-68", "lau_131", "lau-131", "m261", "m260", "m257", "m274",  -- Hydra, all
+      "fim_92", "fim-92", "stinger", "atas",                                 -- Stinger (OH-58D, AH-64D)
+      "m240", "m134", "m60",                                                 -- door guns (CH-47F, UH-1H, UH-60L)
+      "vikhr", "9m127", "9m114", "9m120", "shturm", "ataka", "hot3", "hot_3", "mistral",  -- Ka-50, Mi-24P, Gazelle
+      "nurs.s-8", "nurs.c_8", "nurs.s_8", "nurs.s-13", "nurs.c_13", "nurs.s_5", "nurs.c_5", ".b_8", ".b-8", ".ub_32", ".ub-32",
+      ".b_13", ".b-13", ".ub_16", ".ub-16", "upk_23", "gun pod", "gunpod", "fuel_tank_230",   -- rockets, pods, AH-64 tank
+    },
     farpFuel       = 1000,    -- v0.44: fuel (tons, Mission Editor warehouse) at every FARP pad from mission start
     farpAtStart    = true,    -- v0.44: every town a side holds starts as a stocked FARP (also added once to an
                               --   older save); captured towns still need building
@@ -15849,6 +15861,15 @@ end
 -- By DCS's own category first (weapons.<category>.<name>), then by name.
 -- Adapters, launchers, pods, tanks, guns and everything else are "basic":
 -- always on the shelf, so a loadout never fails for want of a pylon.
+-- v0.45: does a FARP stock this weapon? (config world.farpWeaponMatch)
+function B.farpWeapon(name)
+  local n = string.lower(name)
+  for _, p in ipairs(DCC.config.world.farpWeaponMatch or {}) do
+    if n:find(p, 1, true) then return true end
+  end
+  return false
+end
+
 function B.weaponTier(name)
   local n = string.lower(name)
   local cat = n:match("^weapons%.([^%.]+)%.") or ""
@@ -15980,8 +16001,10 @@ function B.restockArmoury()
           local taken = math.max(0, (B.arm.last[key] or cur) - cur)
           local each = (t == "advanced" and cfg.advancedSU) or (t == "guided" and cfg.guidedSU) or 0
           if taken > 0 and each > 0 then ns.supply = math.max(0, (ns.supply or 0) - taken * each) end
-          local full = whs.farp[k] and (DCC.config.world.farpWeapons or cfg.stock[t] or 0)   -- v0.44: FARP shelf
-                       or (cfg.stock[t] or 0) * big
+          local full = (cfg.stock[t] or 0) * big
+          if whs.farp[k] then                        -- v0.44/45: a FARP stocks helicopter weapons only
+            full = B.farpWeapon(name) and (DCC.config.world.farpWeapons or 0) or 0
+          end
           local target = (ORDER[t] <= ORDER[tier]) and full or 0
           if whs.farp[k] and war:farpDry(id) then target = 0 end      -- a dry FARP: empty shelves
           if cur ~= target then ok(w.setItem, w, name, target) end   -- top up, or off the shelf

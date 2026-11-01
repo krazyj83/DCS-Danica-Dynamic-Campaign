@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.44.0",
+  version         = "0.45.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -187,7 +187,19 @@ DCC.config = {
     farpUsePerTick = 0.25,    -- ...used per tick (5 min): full to dry in ~13 h
     farpLowShare   = 0.5,     -- below this a FARPSUP mission is posted
     farpHelos      = 10,      -- helicopters of each own type a FARP can spawn (v0.44: was 20)
-    farpWeapons    = 50,      -- v0.44: of each weapon on a FARP's shelf (airbases: ext.armoury.stock)
+    farpWeapons    = 50,      -- v0.44: of each helicopter weapon on a FARP's shelf (airbases: ext.armoury.stock)
+    -- v0.45: which weapons a FARP stocks: a DCS resource name (lower case) containing any of these. Everything
+    -- else stays at airbases. Covers the launchers and pods the weapons hang on, so they are listed too.
+    farpWeaponMatch = {
+      "agm_114", "agm-114", "hellfire", "m299", "m310",                     -- Hellfire K and L, launchers (AH-64D, OH-58D)
+      "agr_20", "agr-20", "apkws",                                           -- APKWS, all types
+      "hydra", "lau_61", "lau-61", "lau_68", "lau-68", "lau_131", "lau-131", "m261", "m260", "m257", "m274",  -- Hydra, all
+      "fim_92", "fim-92", "stinger", "atas",                                 -- Stinger (OH-58D, AH-64D)
+      "m240", "m134", "m60",                                                 -- door guns (CH-47F, UH-1H, UH-60L)
+      "vikhr", "9m127", "9m114", "9m120", "shturm", "ataka", "hot3", "hot_3", "mistral",  -- Ka-50, Mi-24P, Gazelle
+      "nurs.s-8", "nurs.c_8", "nurs.s_8", "nurs.s-13", "nurs.c_13", "nurs.s_5", "nurs.c_5", ".b_8", ".b-8", ".ub_32", ".ub-32",
+      ".b_13", ".b-13", ".ub_16", ".ub-16", "upk_23", "gun pod", "gunpod", "fuel_tank_230",   -- rockets, pods, AH-64 tank
+    },
     farpFuel       = 1000,    -- v0.44: fuel (tons, Mission Editor warehouse) at every FARP pad from mission start
     farpAtStart    = true,    -- v0.44: every town a side holds starts as a stocked FARP (also added once to an
                               --   older save); captured towns still need building

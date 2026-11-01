@@ -470,7 +470,9 @@ right behind the front:
 
 Fuel and ammo trucks arrive, it shows on everyone's map, and your side's helicopters can **spawn there**
 (**10 of each type** per pad, dynamic spawn; **2 helipads per FARP**, so two helicopters can spawn at once;
-**50 of each weapon** and **1000 t fuel**, v0.44). **A FARP holds its own stock** (40 SU) and uses it up in about 13 hours;
+**50 of each helicopter weapon** and **1000 t fuel**, v0.44). Since v0.45 a FARP's shelf has only helicopter
+weapons — Hellfire K/L, APKWS, Hydra, Stinger, door guns (M240 / M134 / M60), Vikhr, Shturm / Ataka, HOT, Mistral,
+S-5 / S-8 / S-13 and their launchers; jet weapons stay at the airbases (`world.farpWeaponMatch`). **A FARP holds its own stock** (40 SU) and uses it up in about 13 hours;
 below half a **FARPSUP** mission asks for crates (a FARP kit refills it completely). A **dry** FARP stays
 yours but has no spawns and empty shelves until someone brings supply. A captured town loses its FARP —
 FARP towns are captured like any other base. Behind the scenes each town has two invisible FARPs in the
@@ -908,6 +910,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `supply.airMinStock` | 2 | Never fewer of any own type at an own airbase (v0.38) |
 | `world.farpPads` | 2 | Helipads per FARP (must match `FARP_PADS` in make_mission.py) (v0.38) |
 | `world.farpHelos` / `farpWeapons` / `farpFuel` | 10, 50, 1000 | Per FARP pad: helicopters of each own type, each weapon on the shelf, fuel in tons (fuel is baked into the mission) (v0.44) |
+| `world.farpWeaponMatch` | Hellfire, APKWS, Hydra, Stinger, door guns, Russian / French helicopter weapons | Parts of DCS weapon names a FARP stocks; everything else only at airbases (v0.45) |
 | `world.farpAtStart` | true | Every held town starts as a stocked FARP (v0.44) |
 | `freshWar` | "2026-10-28a" | Token: a different one in the save starts a fresh war once (troubleshooting); false = off (v0.40) |
 | `aiSkill` | "Excellent" | Skill of every AI unit the engine (or CTLD) spawns — Ace; `make_mission.py` sets the mission's own AI (ships, templates) to Ace too (v0.41) |

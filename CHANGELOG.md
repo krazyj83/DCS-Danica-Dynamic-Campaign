@@ -6,6 +6,16 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.45.0 — 2026-11-01
+
+**Changed**
+- **FARP shelves carry helicopter weapons only** (was every weapon): both Hellfires (K and L), APKWS (all
+  types), all Hydra rockets, Stinger (OH-58D, AH-64D), the door guns (M240 / M134 / M60: CH-47F, UH-1H, UH-60L),
+  Vikhr, Shturm / Ataka, HOT, Mistral, S-5 / S-8 / S-13 rockets, the AH-64's 230 gal tank, and the launchers and
+  pods they hang on — 50 of each. Jet weapons (AMRAAM, GBUs, jet tanks...) stay at the airbases. The list is
+  `world.farpWeaponMatch` (parts of the DCS weapon name).
+- DCS test plan: P-707 to RETEST.
+
 ## 0.44.0 — 2026-10-31
 
 **Fixed**
