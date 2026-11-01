@@ -428,8 +428,8 @@ and ignores the map rotation, so the real war is not touched):
 | Armoury at this base | anyone | What the base can arm you with |
 | Illumination on my map mark | anyone | 4 flares over the mark, one a minute, from an own base within 30 km (2 SU; every 5 min per side) |
 
-**Lieutenant Colonel** and up may spawn helicopters at FARPs. Ranks come from your score
-(Captain 100, Major 300, Lt Col 700, Colonel 1500).
+Ranks come from your score (Captain 100, Major 300, Lt Col 700, Colonel 1500). **Anyone** may spawn helicopters
+at FARPs since v0.46 (`ext.ranks.farp`, was Lieutenant Colonel).
 
 ## More air war
 
