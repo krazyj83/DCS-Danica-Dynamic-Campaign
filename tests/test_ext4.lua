@@ -188,6 +188,39 @@ DCC.War.restore(T, C, cfg, rw.state)
 check("...and only once (a FARP lost later stays lost)", rw.state.nodes[gone].farp == nil)
 
 -- ===========================================================================
+print("Pure model: air assault missions (v0.49)")
+-- ===========================================================================
+local aw = DCC.War.new(T, C, cfg, 47)
+aw:tick()
+local aaLimit = cfg.missions.perType.AIRASSAULT
+cfg.missions.perType.AIRASSAULT = 99
+aw:missionsTick()
+cfg.missions.perType.AIRASSAULT = aaLimit
+local aa, aaOk = nil, true
+for _, m in pairs(aw.state.missions) do
+  if m.type == "AIRASSAULT" then
+    local ns = aw.state.nodes[m.target]
+    if ns.side == m.side or aw.T.nodes[m.target].depot or #ns.platoons > cfg.ext5.airAssault.maxDefenders then aaOk = false end
+    if m.side == "blue" and not aa then aa = m end
+  end
+end
+check("AIRASSAULT on weak enemy bases (not depots), for transport helicopters", aa and aaOk and aa.needs == "LIFT", aa and aa.label)
+check("...the board names where to load the troops", aa and aa.label:find("troops from", 1, true) ~= nil)
+check("...still open while nobody landed", aa and aw:missionOutcome(aa, {}) == "open")
+local srcNode = aa.base.from
+local pid = aw.state.nodes[srcNode].platoons[1]
+aw:carryPlatoon(pid, "k1")
+aw:takeMission(aa.id, "k1", "Huey")
+aw:dropPlatoons({ pid }, aa.target, "blue")
+check("troops landed at the target: done", aw:missionOutcome(aa, {}) == "done")
+local aa2
+for _, m in pairs(aw.state.missions) do if m.type == "AIRASSAULT" and m ~= aa and m.side == "blue" then aa2 = m end end
+if aa2 then
+  aw.state.nodes[aa2.target].side = "blue"
+  check("target taken some other way: expired", aw:missionOutcome(aa2, {}) == "expired")
+end
+
+-- ===========================================================================
 print("Bridge")
 -- ===========================================================================
 dofile(DCC_ROOT .. "/tests/dcs_mock.lua")
@@ -201,7 +234,7 @@ for _, s in ipairs(T.naval) do
 end
 for _, f in ipairs({ "dcc_persist", "dcc_dcs", "dcc_dcs_supply", "dcc_dcs_ops", "dcc_dcs_intel", "dcc_dcs_radar",
                      "dcc_dcs_world", "dcc_dcs_jtac", "dcc_dcs_public", "dcc_dcs_air", "dcc_dcs_ground",
-                     "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_dcs_ext2", "dcc_dcs_ext3", "dcc_dcs_ext4",
+                     "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_dcs_ext2", "dcc_dcs_ext3", "dcc_dcs_ext4", "dcc_dcs_ext5",
                      "dcc_dcs_armoury", "dcc_dcs_admin", "dcc_main" }) do
   dofile(DCC_ROOT .. "/src/" .. f .. ".lua")
 end
@@ -582,6 +615,35 @@ end
 check("both HQs starred on everyone's map", hqBlue and hqRed)
 local st = table.concat(B.opsStatusLines("blue"), "\n")
 check("Campaign status names the HQs", st:find("HQ: ", 1, true) ~= nil, st:sub(1, 80))
+
+print(" Air assault gunship escort (v0.49)")
+local am = { id = "mAA1", type = "AIRASSAULT", side = "blue", status = "open", target = nil, taken = {}, needs = "LIFT" }
+for _, id in ipairs(war.T.order) do
+  if war.state.nodes[id].side == "red" and not war.T.nodes[id].depot then am.target = id; break end
+end
+war.state.missions[am.id] = am
+local tp5 = B.nodePos[am.target]
+local hu5, hg5 = MOCK.spawnPlayer(BLUE, "UH-60L", kp.x + 400, kp.z, "Lift", true)
+local p5 = B.players[hu5:getName()]
+p5.mission = am.id
+hu5.air = false
+B.opsPoll()
+check("on the ground: no gunships yet", B.x5.escorts[am.id] == nil)
+local poolBefore = war.state.airPool.blue.attack
+hu5.air = true
+B.opsPoll()
+local gsName = B.x5.escorts[am.id]
+local gs = gsName and MOCK.groups[gsName]
+check("taker airborne: an AI gunship pair launches", gs ~= nil and #gs.units == 2 and gs.units[1].type == "AH-64D_BLK_II", gsName)
+check("...as helicopters, low, toward the target", gs and gs.category == Group.Category.HELICOPTER and #gs.route == 3
+  and gs.route[3].x == tp5.x and gs.route[3].alt == cfg.ext5.airAssault.altM and gs.route[3].alt_type == "RADIO")
+check("...paid from the attack pool", war.state.airPool.blue.attack == poolBefore - 2)
+B.opsPoll()
+local nGs = 0
+for name in pairs(MOCK.groups) do if name:find("^DCC_GUNSHIP_") then nGs = nGs + 1 end end
+check("...only one pair per mission", nGs == 1)
+p5.mission = nil
+war.state.missions[am.id] = nil
 
 print(" Self-check and Where can I spawn? (v0.47)")
 env.mission.forcedOptions = { unrestrictedSATNAV = true }

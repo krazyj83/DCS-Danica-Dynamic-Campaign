@@ -926,6 +926,19 @@ egen by som FARP med 10 helikoptere, 50 våben og 1000 t brændstof per pad.
 v0.45.0: FARPerne har kun helikoptervåben (`world.farpWeaponMatch`).
 v0.46.0: ingen rang kræves for at spawne på en FARP (var Lieutenant Colonel).
 
+### P-708
+**AIRASSAULT med gunship-eskorte**
+`Status: IKKE TESTET` · Spillere: 1 i transporthelikopter · Kort: alle · Siden v0.49 · Offline: test_ext4, test_ops
+
+1. Tag en AIRASSAULT-mission fra boardet. Lad tropper på den nævnte base (*F10 → CTLD → Load troops*).
+2. Let. Flyv mod målet og sæt tropperne af inden for 3 km af det.
+
+**Forvent:** Når du er i luften: beskeden *gunships airborne* og et par AH-64D (RED: Mi-24P), der flyver lavt foran
+dig og angriber jordenheder ved målet. Når tropperne er sat af: *Air assault on ...!* og missionen er fuldført
+med point. Ingen ekstra gunships, hvis du letter igen.
+
+Feedback:
+
 ## P-800 · Søkrig og hangarskibe
 
 ### P-801

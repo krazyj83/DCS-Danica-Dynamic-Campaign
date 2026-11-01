@@ -689,6 +689,29 @@ do
   check("surrender announced", said)
 end
 
+print("AIRASSAULT (v0.49)")
+do
+  local wa = wire(DCC.War.new(T, C, cfg, 61))
+  wa:tick()
+  local lim = cfg.missions.perType.AIRASSAULT
+  cfg.missions.perType.AIRASSAULT = 99
+  wa:missionsTick()
+  cfg.missions.perType.AIRASSAULT = lim
+  local am
+  for _, mm in pairs(wa.state.missions) do if mm.type == "AIRASSAULT" and mm.side == "blue" and mm.status == "open" then am = mm end end
+  check("AIRASSAULT on the board", am ~= nil)
+  wa:takeMission(am.id, "ucidA", "Huey")
+  local pid = wa.state.nodes[am.base.from].platoons[1]
+  wa:carryPlatoon(pid, "ucidA")
+  wa:dropPlatoons({ pid }, am.target, "blue")
+  local moving = false
+  for _, mv in pairs(wa.state.moves) do if mv.airAssault and mv.to == am.target and mv.side == "blue" then moving = true end end
+  check("troops landed: an air assault on the target in the save", moving or wa.state.nodes[am.target].side == "blue")
+  wa:tick()
+  check("...completes AIRASSAULT and credits the pilot", wa.state.missions[am.id].status == "done"
+    and credited[#credited] == "ucidA:AIRASSAULT", wa.state.missions[am.id].status)
+end
+
 print("Long run with ops")
 local wl = DCC.War.new(T, C, cfg, 18)
 local ok = true

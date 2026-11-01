@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.48.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.49.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.48.0",
+  version         = "0.49.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -114,7 +114,7 @@ DCC.config = {
                 FARPSUP = 2, INTERCEPT = 3, HVAESCORT = 2, PKGESCORT = 2, MEDEVAC = 2, POW = 2,
                 AMPHIB = 1, SHIPSTRIKE = 2, SHIPESCORT = 2, SCUD = 2, POPUP = 3, TANKER = 1, ARTY = 2, FORT = 2, BRIDGE = 2,
                 RUNWAY = 1, SNATCH = 2, INDUSTRY = 1, COIN = 2,
-                ASSAULT = 4, HOLD = 4, GCONVOY = 3, MINESWEEP = 2, MINELAYER = 2 },   -- ground missions (CA players), mine sweeping
+                ASSAULT = 4, HOLD = 4, GCONVOY = 3, MINESWEEP = 2, MINELAYER = 2, AIRASSAULT = 2 },   -- ground missions (CA players), mine sweeping
     heloRangeKm     = 110,    -- helicopters only see missions within ~60 nm of their spawn
     slowRangeKm     = 222,    -- slow movers (slowTypes) within ~120 nm
     slowTypes       = { "A-10A", "A-10C", "A-10C_2", "Su-25", "Su-25T", "L-39ZA", "C-101CC", "MB-339A",
@@ -327,7 +327,7 @@ DCC.config = {
   admin = {
     selfCheckDelay       = 30,    -- s after mission start: the self-check runs (dcs.log, DCC\selfcheck.txt)
     selfCheckShowSeconds = 60,    -- warnings stay this long on screen
-    templates   = { "fighter", "tanker", "awacs", "attack", "sead", "airmobile", "drone" },  -- AI templates checked
+    templates   = { "fighter", "tanker", "awacs", "attack", "sead", "airmobile", "drone", "gunship" },  -- AI templates checked
     spawnListTypes = 8,           -- "Where can I spawn?": types named per list (then "+n more")
     spawnLowStock  = 3,           -- ...a type with this many or fewer is listed as low
     spawnListRows  = 15,          -- ...and bases / FARPs listed
@@ -458,6 +458,20 @@ DCC.config = {
     -- 16. Performance guard: fewer live units when DCS carries many ground units
     perf = { everySec = 60, restore = 0.85, minRadiusKm = 20,
              levels = { { units = 700, scale = 0.7 }, { units = 1000, scale = 0.45 } } },
+  },
+
+  -- v0.49: air assault missions (dcc_ext5.lua) and their AI gunship escort (dcc_dcs_ext5.lua)
+  ext5 = {
+    airAssault = {
+      maxDefenders = 3,      -- enemy bases with this many platoons or fewer are targets (not depots)
+      minTroops    = 2,      -- the own base the troops come from needs this many platoons
+      rangeKm      = 60,     -- target within this distance of that base
+      altM         = 60,     -- gunships fly this low (m above ground)...
+      speedMs      = 55,     -- ...at this speed (about 105 kt)
+      standoffKm   = 4,      -- they hold this far short of the target first...
+      zoneKm       = 3,      -- ...then attack ground units within this radius of it
+      lifeSeconds  = 2700,   -- and go home after 45 min (survivors return to the attack pool)
+    },
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------
@@ -6607,6 +6621,82 @@ function War:mainBase(side)
     end
   end
   return airbase
+end
+
+end
+
+-- >>> src/dcc_ext5.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - air assault missions (pure Lua 5.1, v0.49).
+-- Load after dcc_ext4.lua.
+-- ----------------------------------------------------------------------------
+-- AIRASSAULT (transport helicopters): fly troops (CTLD) to a weak enemy base
+-- near the front and land them there - they attack it at once (the existing
+-- CTLD air assault, War:dropPlatoons). The board names the target and the own
+-- base to load at. When a player who took it gets airborne in a helicopter,
+-- an AI gunship pair launches to clear the landing zone (bridge,
+-- dcc_dcs_ext5.lua). Done when your side's troops land at the target.
+-- ============================================================================
+
+DCC = DCC or {}
+local U = DCC.util
+local War = DCC.War
+
+local function AA(self) return self.cfg.ext5.airAssault end
+
+War.MISSION_NEEDS.AIRASSAULT = "LIFT"
+War.MISSION_ORDER[#War.MISSION_ORDER + 1] = "AIRASSAULT"
+
+-- Weak enemy bases (not depots) within reach of an own base that has troops to send.
+War.missionGenerators.AIRASSAULT = function(self, side)
+  local cfg, enemy, out = AA(self), U.otherSide(side), {}
+  for _, id in ipairs(self.T.order) do
+    local ns = self.state.nodes[id]
+    if ns.side == enemy and not self.T.nodes[id].depot and #ns.platoons <= cfg.maxDefenders then
+      local from, fromD
+      for _, fid in ipairs(self.T.order) do
+        local fs = self.state.nodes[fid]
+        if fs.side == side and #fs.platoons >= cfg.minTroops then
+          local d = U.distKm(self.T.nodes[fid], self.T.nodes[id])
+          if d <= cfg.rangeKm and (not fromD or d < fromD) then from, fromD = fid, d end
+        end
+      end
+      if from then
+        out[#out + 1] = { type = "AIRASSAULT", target = id, node = id, base = { from = from },
+          prio = #ns.platoons, label = string.format("air assault on %s (troops from %s)", self:nodeName(id),
+            self:nodeName(from)) }
+      end
+    end
+  end
+  table.sort(out, function(a, b)
+    if a.prio ~= b.prio then return a.prio < b.prio end
+    return a.target < b.target
+  end)
+  return out
+end
+
+-- Troops landed: an open AIRASSAULT mission on that base is done.
+local baseDrop = War.dropPlatoons
+function War:dropPlatoons(pids, id, side)
+  local before = self.state.nodes[id] and self.state.nodes[id].side
+  local r = baseDrop(self, pids, id, side)
+  if r and before and before ~= side then          -- landed at an enemy base (an assault, or taken outright)
+    for _, m in pairs(self.state.missions or {}) do
+      if m.type == "AIRASSAULT" and m.status == "open" and m.side == side and m.target == id then m.landed = true end
+    end
+  end
+  return r
+end
+
+local baseOutcome = War.missionOutcome
+function War:missionOutcome(m, events)
+  if m.type ~= "AIRASSAULT" then return baseOutcome(self, m, events) end
+  if m.landed then return "done" end
+  local ns = self.state.nodes[m.target]
+  if not ns or ns.side == m.side then return "expired" end         -- taken some other way
+  if #ns.platoons > AA(self).maxDefenders + 2 then return "expired" end   -- reinforced: no longer a soft target
+  return "open"
 end
 
 end
@@ -15803,6 +15893,133 @@ end
 
 end
 
+-- >>> src/dcc_dcs_ext5.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - DCS bridge: air assault gunship escort (v0.49).
+-- Load after dcc_dcs_ext4.lua.
+-- ----------------------------------------------------------------------------
+-- When a player who took an AIRASSAULT mission is airborne in a helicopter,
+-- an AI gunship pair (template DCC_TPL_<side>_gunship: AH-64D / Mi-24P) takes
+-- off from the own base nearest the target, flies low to the landing zone and
+-- attacks ground units around it until it is out of time or ammunition. One
+-- pair per mission, paid from the side's AI attack pool (lost gunships are
+-- gone from it, survivors return to it).
+-- ============================================================================
+
+DCC = DCC or {}
+local B = DCC.dcs
+local U = DCC.util
+
+local function AA() return DCC.config.ext5.airAssault end
+local function ok(fn, ...) local s, r = pcall(fn, ...); if s then return r end end
+local function alive(u) return u ~= nil and ok(u.isExist, u) == true and (ok(u.getLife, u) or 0) >= 1 end
+
+B.x5 = { escorts = {} }   -- mission id -> gunship group name
+
+local function waypoint(x, z, alt, speed, task)
+  return { x = x, y = z, alt = alt, alt_type = "RADIO", type = "Turning Point", action = "Turning Point",
+           speed = speed, speed_locked = true, ETA = 0, ETA_locked = false, task = task }
+end
+
+local function combo(tasks)
+  for i, t in ipairs(tasks) do t.number, t.auto, t.enabled = i, false, true end
+  return { id = "ComboTask", params = { tasks = tasks } }
+end
+
+-- Own base nearest the target (where the gunships take off from).
+local function launchBase(side, target)
+  local war, best, bestD = B.war, nil, nil
+  for _, id in ipairs(war.T.order) do
+    local ns, p = war.state.nodes[id], B.nodePos[id]
+    if ns.side == side and p then
+      local dx, dz = p.x - target.x, p.z - target.z
+      local d = math.sqrt(dx * dx + dz * dz)
+      if not bestD or d < bestD then best, bestD = id, d end
+    end
+  end
+  return best
+end
+
+-- Spawn the gunship pair for mission m. Returns the group name or nil.
+function B.spawnGunships(m)
+  local side, cfg = m.side, AA()
+  local tpl = B.findTemplate("DCC_TPL_" .. side .. "_gunship")
+  if not tpl then
+    if not B.x5.warned then U.log("air assault: template DCC_TPL_%s_gunship not found - regenerate the mission", side) end
+    B.x5.warned = true
+    return nil
+  end
+  local war = B.war
+  if not war:airAvailable(side, "attack", #tpl.units) then return nil end
+  local target = B.nodePos[m.target]
+  local from = launchBase(side, target)
+  local fp = from and B.nodePos[from] or target
+  local hdg = math.atan2(target.z - fp.z, target.x - fp.x)
+  local sp = { x = fp.x + math.cos(hdg) * 1500, z = fp.z + math.sin(hdg) * 1500 }
+  local gname = string.format("DCC_GUNSHIP_%s_%s", side, m.id)
+  local data = U.copy(tpl)
+  data.name, data.lateActivation, data.groupId, data.task = gname, nil, nil, "CAS"
+  for i, u in ipairs(data.units) do
+    u.unitId = nil
+    u.name = gname .. "_" .. i
+    u.x, u.y, u.alt, u.alt_type = sp.x + (i - 1) * 60, sp.z + (i - 1) * 60, cfg.altM, "RADIO"
+    u.speed, u.heading = cfg.speedMs, hdg
+  end
+  -- hold short of the landing zone, then work over it
+  local hold = { x = target.x - math.cos(hdg) * cfg.standoffKm * 1000, z = target.z - math.sin(hdg) * cfg.standoffKm * 1000 }
+  local attack = combo({
+    { id = "EngageTargetsInZone", params = { point = { x = target.x, y = target.z }, zoneRadius = cfg.zoneKm * 1000,
+      targetTypes = { "Ground Units" }, priority = 0 } },
+    { id = "Orbit", params = { pattern = "Circle", altitude = cfg.altM, speed = cfg.speedMs * 0.6 } } })
+  data.route = { points = {
+    waypoint(sp.x, sp.z, cfg.altM, cfg.speedMs, combo({})),
+    waypoint(hold.x, hold.z, cfg.altM, cfg.speedMs, combo({})),
+    waypoint(target.x, target.z, cfg.altM, cfg.speedMs * 0.6, attack) } }
+  local s, err = pcall(coalition.addGroup, B.countryId(side), Group.Category.HELICOPTER, data)
+  if not s then U.log("air assault: gunship spawn failed: %s", tostring(err)); return nil end
+  war:airTake(side, "attack", #data.units)
+  B.sorties[gname] = { side = side, role = "attack", kind = "GUNSHIP", born = timer.getTime(), life = cfg.lifeSeconds,
+                       size = #data.units, alive = #data.units, node = m.target }
+  trigger.action.outTextForCoalition(B.COAL[side], string.format("Command: gunships airborne from %s to cover the air "
+    .. "assault on %s.", from and war:nodeName(from) or "the rear", war:nodeName(m.target)), 15)
+  return gname
+end
+
+-- Launch the escort once a mission taker is airborne in a helicopter.
+function B.airAssaultTick()
+  for _, p in pairs(B.players or {}) do
+    local m = p.heli and p.mission and B.war.state.missions[p.mission]
+    if m and m.type == "AIRASSAULT" and m.status == "open" and not B.x5.escorts[m.id] then
+      local u = ok(Unit.getByName, p.unit)
+      if u and alive(u) and ok(u.inAir, u) then
+        B.x5.escorts[m.id] = B.spawnGunships(m) or false   -- false: tried (no template / no aircraft) - not again
+      end
+    end
+  end
+end
+
+local basePoll = B.opsPoll
+function B.opsPoll()
+  basePoll()
+  local s, err = pcall(B.airAssaultTick)
+  if not s then U.log("ERROR air assault: %s", tostring(err)) end
+end
+
+if B.EFFECT then
+  B.EFFECT.AIRASSAULT = "Load troops at the named base (F10 > CTLD > Load troops), fly to the target and set them down "
+    .. "within 3 km of it: they attack at once. When you are airborne, a pair of AI gunships flies ahead to clear "
+    .. "the landing zone. Several helicopters landing there fight as one assault."
+end
+
+local baseInit = B.init
+function B.init(war, theater, catalog)
+  baseInit(war, theater, catalog)
+  B.x5 = { escorts = {} }
+end
+
+end
+
 -- >>> src/dcc_dcs_armoury.lua
 do
 -- ============================================================================
@@ -16974,6 +17191,8 @@ DCC_CATALOGS.modern = {
       antiship = { type = "FA-18C_hornet", loadout = { { "AGM-84D", 4 }, { "AIM-9X", 2 }, { "AIM-120C", 2 } } },  -- only used against ships
       carriertanker = { type = "S-3B Tanker", loadout = {}, size = 1 },     -- recovery tanker over the carrier
       carriercap = { type = "FA-18C_hornet", loadout = { { "AIM-120C", 4 }, { "AIM-9X", 2 } } },
+      gunship = { type = "AH-64D_BLK_II", loadout = { { "4 x AGM-114K", 2 }, { "Hydra 70 M151 HE", 2 } },
+                  size = 2, helicopter = true },        -- v0.49: air assault escort
     },
     red = {
       fighter = { type = "MiG-29S",  loadout = { { "R-77", 4 }, { "R-73", 2 } } },
@@ -16985,6 +17204,7 @@ DCC_CATALOGS.modern = {
       airmobile = { type = "Mi-8MT", loadout = {}, size = 2, helicopter = true },
       antiship = { type = "Su-34",   loadout = { { "Kh-31A", 4 }, { "R-73", 2 } } },  -- only used against ships
       carriercap = { type = "Su-33",  loadout = { { "R-27ER", 4 }, { "R-73", 2 } } },
+      gunship = { type = "Mi-24P", loadout = { { "9M114 Shturm", 2 }, { "S-8KOM", 2 } }, size = 2, helicopter = true },
     },
   },
 

@@ -32,6 +32,7 @@ dofile(DCC_ROOT .. "/src/dcc_dcs_ext_ground.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ext2.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ext3.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_ext4.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_ext5.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_armoury.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
