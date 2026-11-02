@@ -41,10 +41,11 @@ check("...but guns and rockets are always fine", w:armTakeoff("kutaisi", 0, 0) =
 
 -- runways
 local rid = "sochi"
-for _ = 1, X.runwayHits - 1 do w:runwayHit(rid) end
-check("two hits do not close a runway", not w:runwayClosed(rid))
-w:runwayHit(rid)
-check("the third closes it", w:runwayClosed(rid))
+w:runwayHit(rid, 2000)
+w:runwayHit(rid, 2000)
+check("v0.54: 4000 lb do not close a runway", not w:runwayClosed(rid) and X.runwayLb == 6000)
+w:runwayHit(rid, 2000)
+check("...6000 lb in total close it", w:runwayClosed(rid))
 w.state.nodes[rid].supply = 100
 check("no airlifts into a closed airfield", w:startCargo("airlift", "red", "maykop", rid, 20) == nil)
 local rm
@@ -243,13 +244,37 @@ local function drop(x, z)
   w.alive = false
   MOCK.advance(1)
 end
+check("bomb weights by name", B.bombLb("weapons.bombs.Mk_84") == 2000 and B.bombLb("Mk_82") == 500
+  and B.bombLb("GBU_31_V_3B") == 2000 and B.bombLb("FAB_250") == 550 and B.bombLb("something new") == 500)
 drop(sochiAb.p.x + 500, sochiAb.p.z + 30)
-check("a bomb on the runway counts", war.state.runways.sochi and war.state.runways.sochi.hits == 1)
+check("a Mk-84 on the runway counts 2000 lb", war.state.runways.sochi and war.state.runways.sochi.lb == 2000)
 drop(sochiAb.p.x + 300, sochiAb.p.z + 400)
-check("a bomb 400 m off the runway does not", war.state.runways.sochi.hits == 1)
+check("a bomb 400 m off the runway does not", war.state.runways.sochi.lb == 2000)
 drop(sochiAb.p.x - 600, sochiAb.p.z)
+check("4000 lb: still open", not war:runwayClosed("sochi"))
 drop(sochiAb.p.x, sochiAb.p.z - 20)
-check("three hits: Sochi's runway closed", war:runwayClosed("sochi"))
+check("6000 lb: Sochi's runway closed", war:runwayClosed("sochi"))
+local bpos = { x = sochiAb.p.x + 9000, z = sochiAb.p.z + 9000 }
+local savedBridges = war.bridges
+war.bridges = { { a = "kutaisi", b = "zestaponi", pos = bpos } }
+local function dropMk(x, z, name)
+  local w = { alive = true, x = x, z = z }
+  w.isExist = function(self) return self.alive end
+  w.getPoint = function(self) return { x = self.x, y = 0, z = self.z } end
+  w.getDesc = function() return { category = 3, typeName = name } end
+  MOCK.fire({ id = world.event.S_EVENT_SHOT, initiator = hog, weapon = w })
+  MOCK.advance(1)
+  w.alive = false
+  MOCK.advance(1)
+end
+dropMk(bpos.x + 20, bpos.z, "Mk_82")
+dropMk(bpos.x, bpos.z + 15, "Mk_82")
+dropMk(bpos.x + 200, bpos.z, "Mk_84")
+check("v0.54: 1000 lb on the span (and a miss 200 m off): bridge still up", not war:roadClosed("kutaisi", "zestaponi")
+  and war:bridgeLbOn("kutaisi", "zestaponi") == 1000)
+dropMk(bpos.x - 10, bpos.z, "Mk_83")
+check("...2000 lb in total: down, road closed", war:roadClosed("kutaisi", "zestaponi"))
+war.bridges = savedBridges
 local mig = MOCK.spawnPlayer(RED, "MiG-29S", sochiAb.p.x, sochiAb.p.z, "Ivan")
 check("a jet cannot spawn at a closed airfield", mig.alive == false)
 local hind = MOCK.spawnPlayer(RED, "Mi-24P", sochiAb.p.x + 30, sochiAb.p.z, "Olga", true)

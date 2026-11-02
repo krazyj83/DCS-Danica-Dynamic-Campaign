@@ -237,9 +237,7 @@ function War:scudTick()
           ns.supply = math.max(0, (ns.supply or 0) - cfg.damageSU)
           local closed = false
           if self.T.nodes[best].kind == "airbase" and self.rng:next() < cfg.runwayChance and self.runwayHit then
-            for _ = 1, (self.cfg.ext and self.cfg.ext.runwayHits) or 3 do
-              if self:runwayHit(best) then closed = true end
-            end
+            closed = self:runwayHit(best, self.cfg.ext.runwayLb)   -- a SCUD hit closes it at once
           end
           self:addContact(enemy, "scud:" .. b.id, { kind = "scud", node = b.node, off = b.off, source = "sensor",
             label = "SCUD launcher" })

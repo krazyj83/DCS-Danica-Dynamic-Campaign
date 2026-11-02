@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.53.0",
+  version         = "0.54.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -235,6 +235,8 @@ DCC.config = {
     fortMax = 3, fortTicks = 72, fortCost = 10, fortBonus = 0.1,  -- dig in: +10 % per level every 6 h
     moraleNoSupply = 0.7, moraleCutOff = 0.8, surrenderAt = 2,
     bridgeTicks    = 72,     -- a destroyed bridge closes its road for 6 h
+    bridgeLb       = 2000,   -- v0.54: this many lb of bombs on the span bring a bridge down (the campaign counts,
+    bridgeHitM     = 40,     --   not DCS damage): a bomb this close to the bridge counts
     skirmishes     = true,   -- small fights always running on the front (for CAS)
     skirmishPerSide = 2,     -- vehicles per side per skirmish
     skirmishMax    = 8,      -- most skirmishes at once
@@ -297,8 +299,18 @@ DCC.config = {
                                        --   (guided from guidedAt, advanced from advancedAt)
                 depotStock = 1,        -- depots hold this many times the stock (v0.36: 1 = same as any base)
                 testMenu = false },    -- F10 > Armoury test (on in the test mission)
-    runwayHits = 3, runwayTicks = 48, runwayRepairSU = 30,   -- 3 bomb hits close an airfield for 4 h
+    runwayLb = 6000, runwayTicks = 48, runwayRepairSU = 30,  -- v0.54: 6000 lb of bombs close an airfield for 4 h
     runwayHitM = 60,             -- a bomb this close to the runway centre line counts
+    -- v0.54: bomb weight in lb by DCS weapon name (first match, lower case); anything else: bombLbDefault
+    bombLb = { { "mk_84", 2000 }, { "mk_83", 1000 }, { "mk_82", 500 }, { "mk_81", 250 }, { "mk_20", 500 },
+               { "gbu_10", 2000 }, { "gbu_24", 2000 }, { "gbu_31", 2000 }, { "gbu_16", 1000 }, { "gbu_32", 1000 },
+               { "gbu_12", 500 }, { "gbu_38", 500 }, { "gbu_54", 500 }, { "gbu_39", 250 },
+               { "cbu_97", 1000 }, { "cbu_87", 1000 }, { "cbu_99", 500 }, { "cbu_103", 1000 }, { "cbu_105", 1000 },
+               { "agm_154", 1000 }, { "bdu_", 0 }, { "sab_", 0 },
+               { "fab_1500", 3300 }, { "kab_1500", 3300 }, { "fab_500", 1100 }, { "kab_500", 1100 }, { "betab_500", 1100 },
+               { "rbk_500", 1100 }, { "fab_250", 550 }, { "rbk_250", 550 }, { "ofab", 250 }, { "fab_100", 220 },
+               { "ls_6", 1100 }, { "gb_6", 1100 }, { "lb_", 500 } },
+    bombLbDefault = 500,
     samMoveKm = { 1.5, 4 }, samMoveCooldown = 900,            -- shoot and scoot (seconds between moves)
     aiCrewChance = 0.7,          -- share of AI crews that eject alive
     support = {

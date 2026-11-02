@@ -110,7 +110,7 @@ building, MEDEVAC, prisoners — the moment they spawn, so a rear base always ha
 | **AIRASSAULT** | Transport helicopters | A weak enemy base near the front (not a depot), and the own base to load troops at | Your troops land within 3 km of it (CTLD) | They attack it at once. When you are airborne an **AI gunship pair** (AH-64D / Mi-24P) flies ahead to clear the landing zone (v0.49) |
 | **POW** | Transport helicopters | Prisoners after a capture or surrender | Flown to an own airbase or depot | Interrogation: intel on the 2 nearest enemy bases; +10 points |
 | **AMPHIB** | Anyone | Your marines' landing helicopters from the Tarawa / Kuznetsov | Within 20 km before they land | Marines attack a coastal town |
-| **RUNWAY** | A2G | Enemy airbase near the front, or a depot | 3 bombs within 60 m of the runway centre line | Airfield closed 4 h: no airlifts, no fixed-wing spawns; repair costs 30 SU |
+| **RUNWAY** | A2G | Enemy airbase near the front, or a depot | 6000 lb of bombs within 60 m of the runway centre line (v0.54) | Airfield closed 4 h: no airlifts, no fixed-wing spawns; repair costs 30 SU |
 | **INDUSTRY** | A2G | Enemy factory, power plant or refinery | 2 of its 3 buildings destroyed | That side's production −12 % per site until rebuilt (a day, 80 SU) |
 | **ARTY / FORT / BRIDGE** | A2G | Enemy battery / bunkers / a bridge on a supply road | Destroyed | See [Ground war](#ground-war) |
 | **ANTISHIP** | A2G | Enemy carrier group (once found) | Sunk | Its air wing is gone for the rest of the war |
@@ -122,13 +122,15 @@ building, MEDEVAC, prisoners — the moment they spawn, so a rear base always ha
 
 ### What it takes (firepower guide, v0.53)
 
-The briefing of every target mission ends with a **Weapons:** line. Runways follow the campaign's own rule; everything
-else is ordinary DCS damage, so these are rules of thumb, not guarantees.
+The briefing of every target mission ends with a **Weapons:** line. **Bridges and runways follow the campaign's own
+rule** (v0.54): it adds up the weight of every bomb that lands on them (Mk-82 500 lb, Mk-83 1000, Mk-84 / GBU-10 /
+GBU-31 2000, FAB-250 550, FAB-500 1100, FAB-1500 3300 …; table `ext.bombLb`). Everything else is ordinary DCS
+damage, so those are rules of thumb, not guarantees.
 
 | Target | What it takes |
 | --- | --- |
-| **Bridge** (BRIDGE) | Tough: **2–4 hits with 2000 lb bombs** (Mk-84, GBU-10/24/31, KAB-1500, FAB-1500) on the span. 500 lb bombs and missiles seldom drop one. A downed bridge closes its road for 6 h. |
-| **Runway** (RUNWAY) | **Any 3 bombs**, even Mk-82 / FAB-250, each within **60 m of the centre line** — one pass with a stick of 4–6 bombs along the runway. Rockets and missiles do not count. Closed for 4 h. |
+| **Bridge** (BRIDGE) | **2000 lb of bombs in total** on the span, each within 40 m of the bridge: one Mk-84 / GBU-10 / GBU-31, two Mk-83 or four Mk-82. Rockets and missiles do not count. A downed bridge closes its road for 6 h. |
+| **Runway** (RUNWAY) | **6000 lb of bombs in total**, each within **60 m of the centre line**: three Mk-84 / GBU-31, six Mk-83 or twelve Mk-82. Rockets and missiles do not count. Closed for 4 h. |
 | **Fuel tanks** (STRIKE) | One 500 lb bomb or a Maverick / Kh-25 each |
 | **Warehouses, ammo depots** (STRIKE) | A 1000–2000 lb bomb, or 2–3 × 500 lb each |
 | **Factory, power plant, refinery** (INDUSTRY) | 1–2 × 500 lb or one 1000 lb bomb per building; 2 of the 3 complete it |
@@ -138,8 +140,8 @@ else is ordinary DCS damage, so these are rules of thumb, not guarantees.
 | **Artillery** (ARTY), **SCUD** | A Maverick, Hellfire, Vikhr or 500 lb bomb per vehicle; cluster bombs (CBU-97/87, RBK) take several at once |
 | **Pop-up threat** (POPUP), **partisans** (COIN) | Rockets, cluster bombs or the gun; a mobile SAM: a Maverick / Hellfire or 500 lb bomb |
 | **Supply ship** (SHIPSTRIKE) | 1–2 anti-ship missiles (Harpoon, Kh-31A, Kh-35) or one 1000–2000 lb bomb hit |
-| **Minelayer** (MINELAYER) | Armed, shoots back: 2–3 anti-ship missiles from stand-off range |
-| **Carrier group** (ANTISHIP) | A package: 6 or more anti-ship missiles; the escorts shoot back |
+| **Minelayer** (MINELAYER) | Armed, shoots back: 1–2 anti-ship missiles from stand-off range |
+| **Carrier group** (ANTISHIP) | A package: 4 anti-ship missiles; the escorts shoot back |
 
 **Helicopter cargo is CTLD** (see [Helicopter logistics (CTLD)](#helicopter-logistics-ctld)): crates,
 troops, FOBs and AA systems through **F10 → CTLD**, all of it tied to the war.
@@ -204,7 +206,7 @@ one more bought every hour (max 24).
 | **Artillery** | 2 batteries per side (M109 / 2S19) move up behind the main effort and next to bases under attack. A battery next to a battle makes the enemy lose 30 % more; near players it is a real battery shelling the fight. Firing gives it away. | **ARTY** — destroy the battery (rebuilt after 6 h) |
 | **Front skirmishes** | Small fights (2 vehicles each side) always run on up to 8 front roads, even far from players, so there is always something for CAS. They follow the front and come back 30 min after being wiped out. | CAS anywhere on the front |
 | **Fortifications** | A base nobody attacks digs in: one level every 6 h (10 supply), up to 3, +10 % defence each. Bunkers appear when you are near. | **FORT** — destroy bunkers before an assault |
-| **Bridges** | Real DCS bridges on the roads are found at mission start. A destroyed bridge closes its road for 6 h: columns on it stop and the AI routes around it. | **BRIDGE** — on enemy supply roads |
+| **Bridges** | Real DCS bridges on the roads are found at mission start. A destroyed bridge (DCS damage, or 2000 lb of bombs on its span, v0.54) closes its road for 6 h: columns on it stop and the AI routes around it. | **BRIDGE** — on enemy supply roads |
 | **Morale** | A base out of supply defends at 70 %, one cut off from every depot at 80 %. Cut off, out of supply and down to 2 platoons, it surrenders. | Encircle and starve |
 | **Artillery duels** | A battery with no battle to support shells the nearest enemy base: it loses supply every tick, and the flashes give the battery away. Players within 15 km see the impacts. | **ARTY** |
 | **Prisoners and wounded** | Captures and surrenders leave prisoners, battles leave wounded, waiting at the base for a helicopter. | **POW**, **MEDEVAC** |
@@ -980,6 +982,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `world.farpHelos` / `farpWeapons` / `farpFuel` | 10, 50, 1000 | Per FARP pad: helicopters of each own type, each weapon on the shelf, fuel in tons (fuel is baked into the mission) (v0.44) |
 | `world.farpWeaponMatch` | Hellfire, APKWS, Hydra, Stinger, door guns, Russian / French helicopter weapons | Parts of DCS weapon names a FARP stocks; everything else only at airbases (v0.45) |
 | `world.farpAtStart` | true | Every held town starts as a stocked FARP (v0.44) |
+| `ext.runwayLb` / `ground.bridgeLb` | 6000 lb, 2000 lb | Bombs (by weight, `ext.bombLb`) within 60 m of a runway's centre line / 40 m of a bridge that close the runway or bring the bridge down (v0.54) |
 | `ext5.airAssault` | 3 defenders, 60 km, 60 m, 45 min | AIRASSAULT targets (weakest enemy bases within reach) and the gunship escort's height, stand-off and time (v0.49) |
 | `public.pilots` / `sorties` / `sortiesPerPilot` | 100, 20, 5 | public.json for the web map: pilots listed, latest sorties, sorties kept per pilot (v0.51) |
 | `srs.*` | 238 / 239 / 240 AM, 15 min | SRS voice: AWACS, Command and airfield-information frequencies, voices, how often airfield information plays (v0.50) |

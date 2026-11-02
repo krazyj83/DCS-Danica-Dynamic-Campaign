@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.53.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.54.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.53.0",
+  version         = "0.54.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -239,6 +239,8 @@ DCC.config = {
     fortMax = 3, fortTicks = 72, fortCost = 10, fortBonus = 0.1,  -- dig in: +10 % per level every 6 h
     moraleNoSupply = 0.7, moraleCutOff = 0.8, surrenderAt = 2,
     bridgeTicks    = 72,     -- a destroyed bridge closes its road for 6 h
+    bridgeLb       = 2000,   -- v0.54: this many lb of bombs on the span bring a bridge down (the campaign counts,
+    bridgeHitM     = 40,     --   not DCS damage): a bomb this close to the bridge counts
     skirmishes     = true,   -- small fights always running on the front (for CAS)
     skirmishPerSide = 2,     -- vehicles per side per skirmish
     skirmishMax    = 8,      -- most skirmishes at once
@@ -301,8 +303,18 @@ DCC.config = {
                                        --   (guided from guidedAt, advanced from advancedAt)
                 depotStock = 1,        -- depots hold this many times the stock (v0.36: 1 = same as any base)
                 testMenu = false },    -- F10 > Armoury test (on in the test mission)
-    runwayHits = 3, runwayTicks = 48, runwayRepairSU = 30,   -- 3 bomb hits close an airfield for 4 h
+    runwayLb = 6000, runwayTicks = 48, runwayRepairSU = 30,  -- v0.54: 6000 lb of bombs close an airfield for 4 h
     runwayHitM = 60,             -- a bomb this close to the runway centre line counts
+    -- v0.54: bomb weight in lb by DCS weapon name (first match, lower case); anything else: bombLbDefault
+    bombLb = { { "mk_84", 2000 }, { "mk_83", 1000 }, { "mk_82", 500 }, { "mk_81", 250 }, { "mk_20", 500 },
+               { "gbu_10", 2000 }, { "gbu_24", 2000 }, { "gbu_31", 2000 }, { "gbu_16", 1000 }, { "gbu_32", 1000 },
+               { "gbu_12", 500 }, { "gbu_38", 500 }, { "gbu_54", 500 }, { "gbu_39", 250 },
+               { "cbu_97", 1000 }, { "cbu_87", 1000 }, { "cbu_99", 500 }, { "cbu_103", 1000 }, { "cbu_105", 1000 },
+               { "agm_154", 1000 }, { "bdu_", 0 }, { "sab_", 0 },
+               { "fab_1500", 3300 }, { "kab_1500", 3300 }, { "fab_500", 1100 }, { "kab_500", 1100 }, { "betab_500", 1100 },
+               { "rbk_500", 1100 }, { "fab_250", 550 }, { "rbk_250", 550 }, { "ofab", 250 }, { "fab_100", 220 },
+               { "ls_6", 1100 }, { "gb_6", 1100 }, { "lb_", 500 } },
+    bombLbDefault = 500,
     samMoveKm = { 1.5, 4 }, samMoveCooldown = 900,            -- shoot and scoot (seconds between moves)
     aiCrewChance = 0.7,          -- share of AI crews that eject alive
     support = {
@@ -4660,6 +4672,22 @@ function War:bridgeDown(a, b)
     self:nodeName(a), self:nodeName(b), G(self).bridgeTicks * self.cfg.tickSeconds / 3600), { a = a, b = b })
 end
 
+-- v0.54: bombs on a bridge's span. The bridge goes down at cfg.ground.bridgeLb in total.
+function War:bridgeHit(a, b, lb)
+  if self:roadClosed(a, b) then return false end
+  self.state.bridgeLb = self.state.bridgeLb or {}
+  local k = key(a, b)
+  self.state.bridgeLb[k] = (self.state.bridgeLb[k] or 0) + (lb or self.cfg.ext.bombLbDefault)
+  if self.state.bridgeLb[k] >= G(self).bridgeLb then
+    self.state.bridgeLb[k] = nil
+    self:bridgeDown(a, b)
+    return true
+  end
+  return false
+end
+
+function War:bridgeLbOn(a, b) return (self.state.bridgeLb or {})[key(a, b)] or 0 end
+
 function War:bridgesTick()
   for k, untilTick in pairs(self.state.blocked) do
     if self.state.tick >= untilTick then
@@ -4893,14 +4921,16 @@ function War:runwayClosed(id)
   return r ~= nil and r.closedUntil ~= nil and self.state.tick < r.closedUntil
 end
 
-function War:runwayHit(id)
+-- lb: the bomb's weight (v0.54: a runway closes at cfg.runwayLb in total, not after a number of bombs)
+function War:runwayHit(id, lb)
   local cfg = X(self)
   if self:runwayClosed(id) then return false end
   local r = self.state.runways[id] or { hits = 0 }
   self.state.runways[id] = r
   r.hits = r.hits + 1
-  if r.hits >= cfg.runwayHits then
-    r.hits, r.closedUntil = 0, self.state.tick + cfg.runwayTicks
+  r.lb = (r.lb or 0) + (lb or cfg.bombLbDefault)
+  if r.lb >= cfg.runwayLb then
+    r.hits, r.lb, r.closedUntil = 0, 0, self.state.tick + cfg.runwayTicks
     local ns = self.state.nodes[id]
     self:log("runway_closed", ns.side, string.format("%s runway at %s cratered: closed for %d h", ns.side:upper(),
       self:nodeName(id), cfg.runwayTicks * self.cfg.tickSeconds / 3600), { node = id })
@@ -6009,9 +6039,7 @@ function War:scudTick()
           ns.supply = math.max(0, (ns.supply or 0) - cfg.damageSU)
           local closed = false
           if self.T.nodes[best].kind == "airbase" and self.rng:next() < cfg.runwayChance and self.runwayHit then
-            for _ = 1, (self.cfg.ext and self.cfg.ext.runwayHits) or 3 do
-              if self:runwayHit(best) then closed = true end
-            end
+            closed = self:runwayHit(best, self.cfg.ext.runwayLb)   -- a SCUD hit closes it at once
           end
           self:addContact(enemy, "scud:" .. b.id, { kind = "scud", node = b.node, off = b.off, source = "sensor",
             label = "SCUD launcher" })
@@ -8326,10 +8354,10 @@ B.EFFECT = EFFECT      -- other modules (CTLD) add or reword entries
 -- v0.53: how much it takes, shown in the briefing as "Weapons:". Runways count by the campaign's rule
 -- (bombs near the centre line); everything else is DCS damage, so these are rules of thumb.
 B.FIREPOWER = {
-  BRIDGE = "Bridges are tough: 2-4 hits with 2000 lb bombs (Mk-84, GBU-10/24/31, KAB-1500, FAB-1500) on the span. "
-    .. "500 lb bombs and missiles seldom drop one.",
-  RUNWAY = "Any 3 bombs count, even Mk-82 / FAB-250, if each lands within 60 m of the centre line - one pass with a "
-    .. "stick of 4-6 bombs along the runway does it. Rockets and missiles do not count.",
+  BRIDGE = "2000 lb of bombs in total on the span bring it down (e.g. one Mk-84 / GBU-10 / GBU-31, two Mk-83 or "
+    .. "four Mk-82), each within 40 m of the bridge. Rockets and missiles do not count.",
+  RUNWAY = "6000 lb of bombs in total close it, each within 60 m of the centre line (e.g. three Mk-84 / GBU-31, six "
+    .. "Mk-83 or twelve Mk-82). Rockets and missiles do not count.",
   STRIKE = "Fuel tanks: one 500 lb bomb or a Maverick / Kh-25 each. Warehouses and ammo depots: a 1000-2000 lb bomb, "
     .. "or 2-3 x 500 lb each. Every building destroyed counts.",
   INDUSTRY = "Workshops, tech combine, fuel and chemical tanks: 1-2 x 500 lb bombs or one 1000 lb bomb each.",
@@ -8343,8 +8371,8 @@ B.FIREPOWER = {
   POPUP = "MANPADS team: rockets, a cluster bomb or the gun. Mobile SAM: a Maverick / Hellfire or a 500 lb bomb.",
   COIN = "Infantry and a technical: rockets, cluster bombs or the gun.",
   SHIPSTRIKE = "Unarmed cargo ship: 1-2 anti-ship missiles (Harpoon, Kh-31A, Kh-35) or one 1000-2000 lb bomb hit.",
-  MINELAYER = "Armed patrol ship that shoots back: 2-3 anti-ship missiles from stand-off range.",
-  ANTISHIP = "A carrier group needs a package: 6 or more anti-ship missiles (Harpoon, Kh-31A, Kh-35); escorts shoot back.",
+  MINELAYER = "Armed patrol ship that shoots back: 1-2 anti-ship missiles from stand-off range.",
+  ANTISHIP = "A carrier group needs a package: 4 anti-ship missiles (Harpoon, Kh-31A, Kh-35); escorts shoot back.",
 }
 
 function B.brief(p, m)
@@ -12855,18 +12883,43 @@ function B.runwayDist(id, p)
   return best
 end
 
-function B.bombImpact(side, p)
+-- v0.54: a bomb's weight in lb from its DCS name (config ext.bombLb)
+function B.bombLb(name)
+  local n = string.lower(tostring(name or ""))
+  for _, e in ipairs(XC().bombLb or {}) do
+    if n:find(e[1], 1, true) then return e[2] end
+  end
+  return XC().bombLbDefault
+end
+
+function B.bombImpact(side, p, lb)
   local war = B.war
+  lb = lb or XC().bombLbDefault
+  -- a bridge's span (v0.54: the campaign counts the weight; DCS damage alone also still counts)
+  for _, br in ipairs(war.bridges or {}) do
+    if br.pos and dist2D(p, br.pos) <= DCC.config.ground.bridgeHitM and not war:roadClosed(br.a, br.b) then
+      local down = war:bridgeHit(br.a, br.b, lb)
+      if down then
+        ok(trigger.action.explosion, { x = br.pos.x, y = land.getHeight({ x = br.pos.x, y = br.pos.z }), z = br.pos.z }, 2000)
+        B.bridgeSeenDead = B.bridgeSeenDead or {}
+        B.bridgeSeenDead[(br.a < br.b) and (br.a .. "|" .. br.b) or (br.b .. "|" .. br.a)] = true
+      end
+      trigger.action.outTextForCoalition(B.COAL[side], down and string.format("Bridge %s - %s down!",
+        war:nodeName(br.a), war:nodeName(br.b)) or string.format("Bridge hit (%d of %d lb).",
+        war:bridgeLbOn(br.a, br.b), DCC.config.ground.bridgeLb), 10)
+      return "bridge"
+    end
+  end
   for _, id in ipairs(war.T.order) do
     local ns, tn = war.state.nodes[id], war.T.nodes[id]
     if tn.kind == "airbase" and ns.side ~= side and B.nodePos[id] and dist2D(p, B.nodePos[id]) < 5000 then
       local d = B.runwayDist(id, p)
       local hit = (d and d <= XC().runwayHitM) or (not d and dist2D(p, B.nodePos[id]) <= 800)
       if hit then
-        local closed = war:runwayHit(id)
+        local closed = war:runwayHit(id, lb)
         local r = war.state.runways[id]
         trigger.action.outTextForCoalition(B.COAL[side], closed and string.format("Runway at %s closed!", war:nodeName(id))
-          or string.format("Runway hit at %s (%d of %d).", war:nodeName(id), r and r.hits or 0, XC().runwayHits), 10)
+          or string.format("Runway hit at %s (%d of %d lb).", war:nodeName(id), r and r.lb or 0, XC().runwayLb), 10)
         return id
       end
     end
@@ -12874,6 +12927,8 @@ function B.bombImpact(side, p)
 end
 
 function B.trackBomb(w, side)
+  local d = ok(w.getDesc, w)
+  local lb = B.bombLb((d and (d.typeName or d.displayName)) or ok(w.getTypeName, w))
   local last
   local born = timer.getTime()
   local function step(_, t)
@@ -12882,7 +12937,7 @@ function B.trackBomb(w, side)
       if t - born < 180 then return t + 0.5 end
       return nil
     end
-    if last then ok(B.bombImpact, side, last) end
+    if last then ok(B.bombImpact, side, last, lb) end
     return nil
   end
   timer.scheduleFunction(step, nil, timer.getTime() + 0.5)
@@ -13318,7 +13373,7 @@ function B.init(war, theater, catalog)
   B.restoreWrecks()
 end
 
-B.EFFECT.RUNWAY = "Put 3 bombs on the runway (centre line, 60 m). The airfield closes for 4 h: no airlifts, no fixed-wing spawns."
+B.EFFECT.RUNWAY = "Put 6000 lb of bombs on the runway (within 60 m of the centre line). The airfield closes for 4 h: no airlifts, no fixed-wing spawns."
 B.EFFECT.SNATCH = "Land within 150 m of the enemy pilot, then at a friendly base. He talks: your side learns about his base."
 
 end

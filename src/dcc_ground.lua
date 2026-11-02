@@ -259,6 +259,22 @@ function War:bridgeDown(a, b)
     self:nodeName(a), self:nodeName(b), G(self).bridgeTicks * self.cfg.tickSeconds / 3600), { a = a, b = b })
 end
 
+-- v0.54: bombs on a bridge's span. The bridge goes down at cfg.ground.bridgeLb in total.
+function War:bridgeHit(a, b, lb)
+  if self:roadClosed(a, b) then return false end
+  self.state.bridgeLb = self.state.bridgeLb or {}
+  local k = key(a, b)
+  self.state.bridgeLb[k] = (self.state.bridgeLb[k] or 0) + (lb or self.cfg.ext.bombLbDefault)
+  if self.state.bridgeLb[k] >= G(self).bridgeLb then
+    self.state.bridgeLb[k] = nil
+    self:bridgeDown(a, b)
+    return true
+  end
+  return false
+end
+
+function War:bridgeLbOn(a, b) return (self.state.bridgeLb or {})[key(a, b)] or 0 end
+
 function War:bridgesTick()
   for k, untilTick in pairs(self.state.blocked) do
     if self.state.tick >= untilTick then
