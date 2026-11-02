@@ -575,6 +575,18 @@ Feedback:
 
 Feedback:
 
+### P-210
+**Våbenvejledning i briefingen**
+`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.53 · Offline: test_dcs_ops
+
+1. Tag en BRIDGE-, RUNWAY- og STRIKE-mission fra boardet og læs briefingen.
+2. Prøv vejledningen: fx 2 × GBU-10 på en bro, 3 × Mk-82 på en bane.
+
+**Forvent:** Briefingen slutter med en *Weapons:*-linje. Skriv i feedback, hvis en mål-type tog mere eller mindre
+end vejledningen siger, så tallene kan rettes.
+
+Feedback:
+
 ## P-300 · Jordkrigen
 
 ### P-301

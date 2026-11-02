@@ -120,6 +120,27 @@ building, MEDEVAC, prisoners — the moment they spawn, so a rear base always ha
 | **SNATCH** | Transport helicopters | Enemy pilot or AI crew on the ground | Land within 150 m, then at a friendly base | Prisoner: your side learns his home base; +15 points |
 | **COIN** | A2G | Partisan cell near a town you hold (Syria, Gulf) | The cell's group is wiped out | Stops sabotage and ambushes around the town |
 
+### What it takes (firepower guide, v0.53)
+
+The briefing of every target mission ends with a **Weapons:** line. Runways follow the campaign's own rule; everything
+else is ordinary DCS damage, so these are rules of thumb, not guarantees.
+
+| Target | What it takes |
+| --- | --- |
+| **Bridge** (BRIDGE) | Tough: **2–4 hits with 2000 lb bombs** (Mk-84, GBU-10/24/31, KAB-1500, FAB-1500) on the span. 500 lb bombs and missiles seldom drop one. A downed bridge closes its road for 6 h. |
+| **Runway** (RUNWAY) | **Any 3 bombs**, even Mk-82 / FAB-250, each within **60 m of the centre line** — one pass with a stick of 4–6 bombs along the runway. Rockets and missiles do not count. Closed for 4 h. |
+| **Fuel tanks** (STRIKE) | One 500 lb bomb or a Maverick / Kh-25 each |
+| **Warehouses, ammo depots** (STRIKE) | A 1000–2000 lb bomb, or 2–3 × 500 lb each |
+| **Factory, power plant, refinery** (INDUSTRY) | 1–2 × 500 lb or one 1000 lb bomb per building; 2 of the 3 complete it |
+| **Fortifications** (FORT) | Sandbag positions: one 500 lb bomb or a few rockets. The concrete bunker: a 2000 lb bomb or a penetrator (GBU-31(V)3/B) |
+| **SAM site** (SEAD/DEAD) | Radar: one HARM / Kh-58 / Kh-31P hit (or a Maverick / 500 lb bomb). Launchers: a Maverick, 500 lb bomb or cluster bomb each |
+| **Early-warning radar** (EWR) | One HARM / Kh-31P, a Maverick or a 500 lb bomb |
+| **Artillery** (ARTY), **SCUD** | A Maverick, Hellfire, Vikhr or 500 lb bomb per vehicle; cluster bombs (CBU-97/87, RBK) take several at once |
+| **Pop-up threat** (POPUP), **partisans** (COIN) | Rockets, cluster bombs or the gun; a mobile SAM: a Maverick / Hellfire or 500 lb bomb |
+| **Supply ship** (SHIPSTRIKE) | 1–2 anti-ship missiles (Harpoon, Kh-31A, Kh-35) or one 1000–2000 lb bomb hit |
+| **Minelayer** (MINELAYER) | Armed, shoots back: 2–3 anti-ship missiles from stand-off range |
+| **Carrier group** (ANTISHIP) | A package: 6 or more anti-ship missiles; the escorts shoot back |
+
 **Helicopter cargo is CTLD** (see [Helicopter logistics (CTLD)](#helicopter-logistics-ctld)): crates,
 troops, FOBs and AA systems through **F10 → CTLD**, all of it tied to the war.
 

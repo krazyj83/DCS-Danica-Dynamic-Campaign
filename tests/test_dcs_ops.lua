@@ -72,6 +72,12 @@ check("take SEAD from the menu", MOCK.click(vg.id, "SEAD:"))
 local m = missionOf(viper)
 check("mission assigned", m ~= nil and m.type == "SEAD")
 check("briefing has coordinates", MOCK.lastGroupText(vg.id):find("Target:", 1, true) ~= nil)
+check("v0.53: ...and what it takes (Weapons: HARM for the radar)", MOCK.lastGroupText(vg.id):find("Weapons: Radar: one HARM", 1, true) ~= nil)
+local fpOk = true
+for _, t in ipairs({ "BRIDGE", "RUNWAY", "STRIKE", "INDUSTRY", "FORT", "SEAD", "EWR", "ARTY", "SCUD", "SHIPSTRIKE", "ANTISHIP" }) do
+  if not (DCC.dcs.FIREPOWER[t] and #DCC.dcs.FIREPOWER[t] > 20) then fpOk = false; print("    no firepower text for " .. t) end
+end
+check("...for every target-killing mission type", fpOk)
 check("target marked on the F10 map for the group", MOCK.countMarks("groupmark") >= 1)
 local samNode = m.target
 at(viper, samNode, 30000, 0)

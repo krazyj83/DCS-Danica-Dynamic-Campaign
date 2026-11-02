@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.52.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.53.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.52.0",
+  version         = "0.53.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -8323,6 +8323,30 @@ local EFFECT = {
 }
 B.EFFECT = EFFECT      -- other modules (CTLD) add or reword entries
 
+-- v0.53: how much it takes, shown in the briefing as "Weapons:". Runways count by the campaign's rule
+-- (bombs near the centre line); everything else is DCS damage, so these are rules of thumb.
+B.FIREPOWER = {
+  BRIDGE = "Bridges are tough: 2-4 hits with 2000 lb bombs (Mk-84, GBU-10/24/31, KAB-1500, FAB-1500) on the span. "
+    .. "500 lb bombs and missiles seldom drop one.",
+  RUNWAY = "Any 3 bombs count, even Mk-82 / FAB-250, if each lands within 60 m of the centre line - one pass with a "
+    .. "stick of 4-6 bombs along the runway does it. Rockets and missiles do not count.",
+  STRIKE = "Fuel tanks: one 500 lb bomb or a Maverick / Kh-25 each. Warehouses and ammo depots: a 1000-2000 lb bomb, "
+    .. "or 2-3 x 500 lb each. Every building destroyed counts.",
+  INDUSTRY = "Workshops, tech combine, fuel and chemical tanks: 1-2 x 500 lb bombs or one 1000 lb bomb each.",
+  FORT = "Sandbag positions: one 500 lb bomb or a few rockets each. The concrete bunker: a 2000 lb bomb or a "
+    .. "penetrator (GBU-31(V)3/B).",
+  SEAD = "Radar: one HARM / Kh-58 / Kh-31P hit usually kills it (or a Maverick / 500 lb bomb). Launchers: a Maverick, "
+    .. "a 500 lb bomb or a cluster bomb each.",
+  EWR = "One HARM / Kh-31P, a Maverick or a 500 lb bomb.",
+  ARTY = "Each gun: a Maverick, Hellfire, Vikhr or a 500 lb bomb. Cluster bombs (CBU-97/87, RBK) take several at once.",
+  SCUD = "Launcher and truck: a Maverick / Hellfire or a 500 lb bomb each; rockets work too.",
+  POPUP = "MANPADS team: rockets, a cluster bomb or the gun. Mobile SAM: a Maverick / Hellfire or a 500 lb bomb.",
+  COIN = "Infantry and a technical: rockets, cluster bombs or the gun.",
+  SHIPSTRIKE = "Unarmed cargo ship: 1-2 anti-ship missiles (Harpoon, Kh-31A, Kh-35) or one 1000-2000 lb bomb hit.",
+  MINELAYER = "Armed patrol ship that shoots back: 2-3 anti-ship missiles from stand-off range.",
+  ANTISHIP = "A carrier group needs a package: 6 or more anti-ship missiles (Harpoon, Kh-31A, Kh-35); escorts shoot back.",
+}
+
 function B.brief(p, m)
   local pos = B.missionPos(m)
   local u = unitByName(p.unit)
@@ -8360,6 +8384,7 @@ function B.brief(p, m)
     lines[#lines + 1] = "Flight: " .. table.concat(names, ", ")
   end
   lines[#lines + 1] = EFFECT[m.type] or ""
+  if B.FIREPOWER[m.type] then lines[#lines + 1] = "Weapons: " .. B.FIREPOWER[m.type] end
   trigger.action.outTextForGroup(p.gid, table.concat(lines, "\n"), 30)
 end
 

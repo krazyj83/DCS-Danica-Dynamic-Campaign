@@ -6,6 +6,16 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.53.0 — 2026-11-02
+
+**Added**
+- **Firepower guide:** every target mission's briefing ends with a **Weapons:** line — what it takes to destroy the
+  target (bridges: 2–4 hits with 2000 lb bombs on the span; runways: any 3 bombs within 60 m of the centre line,
+  rockets and missiles do not count; fuel tanks, warehouses, factories, bunkers, SAM and EWR radars, artillery,
+  SCUDs, pop-up threats, ships). Runways follow the campaign's rule; the rest are rules of thumb for DCS damage.
+  The same table is in the README (*What it takes*).
+- DCS test plan: new P-210.
+
 ## 0.52.0 — 2026-11-02
 
 **Fixed**
