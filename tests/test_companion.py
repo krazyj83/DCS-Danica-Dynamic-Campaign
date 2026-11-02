@@ -116,6 +116,42 @@ class CompanionTest(unittest.TestCase):
         self.assertEqual(data["bases"]["blue"], 20)
         srv.shutdown()
 
+    def write_public(self, pilots, bases, sorties=0, squadrons=None):
+        with open(os.path.join(self.dir, "public.json"), "w", encoding="utf-8") as f:
+            json.dump({"map": "Caucasus", "day": 3.0, "bases": bases, "nodes": [],
+                       "pilots": [{"name": n, "score": sc} for n, sc in pilots.items()],
+                       "squadrons": [{"tag": t, "score": sc} for t, sc in (squadrons or {}).items()],
+                       "sorties": [{"n": sorties, "name": "x"}] if sorties else {}}, f)
+
+    def test_weekly_summary(self):
+        """v0.51: once a week the gains since last week; the first run only takes a snapshot."""
+        import time as T
+        self.cfg["weekly"] = {"day": "mon", "hour": 18}
+        monday = T.mktime((2026, 11, 2, 19, 0, 0, 0, 0, -1))           # Monday 19:00
+        self.write_public({"Morten": 100, "Lars": 50}, {"blue": 20, "red": 19}, sorties=10, squadrons={"[DAN]": 150})
+        feed = C.Feed(self.cfg)
+        self.assertFalse(feed.weekly(monday))                           # snapshot only
+        self.assertFalse(feed.weekly(monday + 3600))                   # same week: nothing
+        self.write_public({"Morten": 180, "Lars": 60, "New": 30}, {"blue": 22, "red": 17}, sorties=25,
+                          squadrons={"[DAN]": 240})
+        self.assertFalse(C.Feed(self.cfg).weekly(monday + 6 * 86400))   # Sunday: not yet
+        self.assertTrue(C.Feed(self.cfg).weekly(monday + 7 * 86400))    # next Monday 19:00: posted
+        text = self.hook.posts[-1]["content"]
+        self.assertIn("Week in the war", text)
+        self.assertIn("1. Morten +80 points", text)
+        self.assertIn("2. New +30 points", text)
+        self.assertIn("BLUE 22 (+2), RED 17 (-2)", text)
+        self.assertIn("15 sorties flown", text)
+        self.assertIn("[DAN] +90", text)
+        self.assertFalse(C.Feed(self.cfg).weekly(monday + 7 * 86400 + 600))   # once only
+        self.cfg["weekly"] = False
+        self.assertFalse(C.Feed(self.cfg).weekly(monday + 14 * 86400))        # switched off
+
+    def test_page_has_leaderboard_pilot_pages_and_sorties(self):
+        self.assertIn('id="pilot"', C.PAGE)
+        self.assertIn("Recent sorties", C.PAGE)
+        self.assertIn("showPilot", C.PAGE)
+
     def test_static_export(self):
         with open(os.path.join(self.dir, "public.json"), "w") as f:
             f.write("{}")

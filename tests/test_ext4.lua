@@ -235,7 +235,7 @@ end
 for _, f in ipairs({ "dcc_persist", "dcc_dcs", "dcc_dcs_supply", "dcc_dcs_ops", "dcc_dcs_intel", "dcc_dcs_radar",
                      "dcc_dcs_world", "dcc_dcs_jtac", "dcc_dcs_public", "dcc_dcs_air", "dcc_dcs_ground",
                      "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_dcs_ext2", "dcc_dcs_ext3", "dcc_dcs_ext4", "dcc_dcs_ext5",
-                     "dcc_dcs_armoury", "dcc_dcs_admin", "dcc_dcs_srs", "dcc_main" }) do
+                     "dcc_dcs_armoury", "dcc_dcs_admin", "dcc_dcs_srs", "dcc_dcs_stats", "dcc_main" }) do
   dofile(DCC_ROOT .. "/src/" .. f .. ".lua")
 end
 local errors = 0
@@ -583,6 +583,19 @@ check("landed at home: debrief", deb ~= "", deb)
 check("...kills", deb:find("Kills: 2 air", 1, true) ~= nil, deb)
 check("...missions and their effect", deb:find("CAS defend Senaki: COMPLETE - the battle went our way", 1, true) ~= nil)
 check("...points", deb:find("Points: +", 1, true) ~= nil)
+local rs = (DCC.pilots.data.pilots[p.key].recent or {})[1]
+check("v0.51: the sortie is kept in the pilot record", rs and rs.type == "F-16C_50" and rs.kills == 2
+  and rs.killsText == "2 air" and rs.missions == 1 and rs.points > 0 and rs.map == "Caucasus" and rs.n >= 1)
+for i = 1, 30 do DCC.pilots:get("k" .. i, "Pilot " .. i) end
+local pub = B.publicState()
+local me
+for _, pp in ipairs(pub.pilots) do if pp.name == p.name then me = pp end end
+check("public.json: more than 20 pilots, with totals and last sorties", #pub.pilots > 20 and me and me.kills >= 2
+  and me.recent[1] and me.recent[1].type == "F-16C_50" and me.hours ~= nil)
+check("...and the latest sorties of everyone", pub.sorties[1] and pub.sorties[1].name == p.name)
+for i = 1, 8 do p.debrief = { t = timer.getTime(), score = 0, rank = "x", kills = {}, missions = {} }; B.recordSortie(p) end
+check("...a pilot keeps his last 5", #DCC.pilots.data.pilots[p.key].recent == cfg.public.sortiesPerPilot)
+p.debrief = nil
 
 print(" Mine sweeping (v0.34)")
 local sport

@@ -38,6 +38,7 @@ dofile(DCC_ROOT .. "/src/dcc_dcs_ext5.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_armoury.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_admin.lua")
 dofile(DCC_ROOT .. "/src/dcc_dcs_srs.lua")
+dofile(DCC_ROOT .. "/src/dcc_dcs_stats.lua")
 dofile(DCC_ROOT .. "/src/dcc_main.lua")
 
 local errors = 0
