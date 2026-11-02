@@ -103,6 +103,9 @@ DCC_CATALOGS.modern = {
   fixedSlotShare = 0.25,
   fixedSlotFirst = { "FA-18C_hornet", "F-16C_50", "F-15ESE", "A-10C_2", "AH-64D_BLK_II", "F-14B", "AV8BNA",
                      "Su-27", "MiG-29S", "Ka-50_3", "JF-17" },     -- v0.36: 20 of each type everywhere (was 4 / 8)
+  -- Types that get no fixed slot (dynamic spawn only, DCS sets them up itself). v0.52: the La-7's fixed slot made
+  -- the Mission Editor refuse its radio (old 124 MHz presets from pydcs after DCS updated the La-7).
+  fixedSlotSkip = { "La-7" },
 
   -- ---------------------------------------------------------------------------
   -- Phase 3

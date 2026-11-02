@@ -521,7 +521,8 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
     # then the other depots, then the other airbases. Each base keeps most of its apron for dynamic
     # spawn (fixedSlotShare); only a type that fits nowhere else may go past that.
     for side in ("blue", "red"):
-        wanted = list(fixed[side] if fixed else all_types(side))
+        skip = set(catalog.get("fixedSlotSkip", []))       # v0.52: dynamic spawn only (La-7)
+        wanted = [t for t in (fixed[side] if fixed else all_types(side)) if t not in skip]
         wanted.sort(key=lambda t: (first.index(t) if t in first else len(first)))   # stable: DTC jets first
         ordered = sorted(bases[side], key=lambda b: (b[0], b[1]))
 
