@@ -967,6 +967,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `aiEcm` | "never" | AI aircraft jamming (ECM pods): never / lock / detected / always; nil = DCS default (v0.42) |
 | `runwayClearM` | 60 | Ground units and their waypoints stay this far off runways, taxiways and aprons (v0.37) |
 | `fixedSlotShare` (catalog) | 0.25 | Fixed client slots use at most this share of an airbase's parking; the rest is for dynamic spawn (v0.37) |
+| `fixedSlotSkip` (catalog) | La-7 | Types with no fixed slot, dynamic spawn only (v0.52: the La-7's fixed slot gave a radio error in the Mission Editor) |
 | `ext4.ground.smoke*` | 2 SU, 500 m, 5 rounds, 3 min, 5 min reload | Smoke screen ahead |
 | `ext4.aiSmoke` | on, 2 km, 10 min | AI attacks lay smoke near the base |
 | `ext4.aiSmoke.defend*`, `airKm`, `airMaxAltM` | on, 2 km, 6 km, 2500 m, 10 min, 300 m | Garrisons screen themselves |

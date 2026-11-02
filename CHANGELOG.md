@@ -6,6 +6,14 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.52.0 — 2026-11-02
+
+**Fixed**
+- **La-7 radio error in the Mission Editor** ("124.00 MHz" at Sochi-Adler): the La-7's fixed slot carried the old
+  radio presets from pydcs, which DCS's updated La-7 no longer accepts. The La-7 gets no fixed slot any more
+  (`fixedSlotSkip` in the catalog); it stays flyable through dynamic spawn, where DCS sets up its radio.
+- DCS test plan: new S-310.
+
 ## 0.51.0 — 2026-11-01
 
 **Added**

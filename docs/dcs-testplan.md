@@ -353,6 +353,18 @@ advarsler.
 
 Feedback:
 
+### S-310
+**Missionen åbner uden radiofejl**
+`Status: IKKE TESTET` · Kort: alle fire · Siden v0.52 · Offline: –
+
+1. Åbn hver `DCC_<map>.miz` i Mission Editor og gem den.
+
+**Forvent:** Ingen fejl om radiofrekvenser (v0.51: La-7 på Sochi-Adler, "124.00 MHz"). Intet fast La-7-slot;
+La-7 kan stadig spawnes dynamisk på RED's baser.
+
+Feedback: v0.51: fejl på La-7's frekvens 124.00 MHz.
+Rettet i v0.52.0: La-7 har ikke længere et fast slot (kun dynamic spawn).
+
 ---
 
 # P – Pilot
