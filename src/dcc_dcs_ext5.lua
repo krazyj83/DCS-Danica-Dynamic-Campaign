@@ -102,6 +102,13 @@ function B.airAssaultTick()
   end
 end
 
+-- v0.55: a bridge takes 2000 lb of bombs on the span - not a helicopter job (no BRIDGE on their board)
+local baseCanFly = B.canFly
+function B.canFly(p, m)
+  if m and m.type == "BRIDGE" and p and p.heli then return false end
+  return baseCanFly(p, m)
+end
+
 local basePoll = B.opsPoll
 function B.opsPoll()
   basePoll()

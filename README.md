@@ -112,7 +112,7 @@ building, MEDEVAC, prisoners — the moment they spawn, so a rear base always ha
 | **AMPHIB** | Anyone | Your marines' landing helicopters from the Tarawa / Kuznetsov | Within 20 km before they land | Marines attack a coastal town |
 | **RUNWAY** | A2G | Enemy airbase near the front, or a depot | 6000 lb of bombs within 60 m of the runway centre line (v0.54) | Airfield closed 4 h: no airlifts, no fixed-wing spawns; repair costs 30 SU |
 | **INDUSTRY** | A2G | Enemy factory, power plant or refinery | 2 of its 3 buildings destroyed | That side's production −12 % per site until rebuilt (a day, 80 SU) |
-| **ARTY / FORT / BRIDGE** | A2G | Enemy battery / bunkers / a bridge on a supply road | Destroyed | See [Ground war](#ground-war) |
+| **ARTY / FORT / BRIDGE** | A2G (BRIDGE: fixed-wing only, v0.55) | Enemy battery / bunkers / a bridge on a supply road | Destroyed | See [Ground war](#ground-war) |
 | **ANTISHIP** | A2G | Enemy carrier group (once found) | Sunk | Its air wing is gone for the rest of the war |
 | **SHIPSTRIKE / SHIPESCORT** | A2G / anyone | A supply ship on a sea lane | Sunk / docks with you near | 40 SU lost / delivered |
 | **SCUD** | A2G | A RED SCUD launcher that just fired | Destroyed before it moves on (~15 min) | No more SCUD impacts from it for 12 h |
@@ -129,7 +129,7 @@ damage, so those are rules of thumb, not guarantees.
 
 | Target | What it takes |
 | --- | --- |
-| **Bridge** (BRIDGE) | **2000 lb of bombs in total** on the span, each within 40 m of the bridge: one Mk-84 / GBU-10 / GBU-31, two Mk-83 or four Mk-82. Rockets and missiles do not count. A downed bridge closes its road for 6 h. |
+| **Bridge** (BRIDGE, fixed-wing only since v0.55) | **2000 lb of bombs in total** on the span, each within 40 m of the bridge: one Mk-84 / GBU-10 / GBU-31, two Mk-83 or four Mk-82. Rockets and missiles do not count. A downed bridge closes its road for 6 h. |
 | **Runway** (RUNWAY) | **6000 lb of bombs in total**, each within **60 m of the centre line**: three Mk-84 / GBU-31, six Mk-83 or twelve Mk-82. Rockets and missiles do not count. Closed for 4 h. |
 | **Fuel tanks** (STRIKE) | One 500 lb bomb or a Maverick / Kh-25 each |
 | **Warehouses, ammo depots** (STRIKE) | A 1000–2000 lb bomb, or 2–3 × 500 lb each |

@@ -588,6 +588,7 @@ end vejledningen siger, så tallene kan rettes.
 
 Feedback:
 v0.54.0: bro 2000 lb og bane 6000 lb i alt (kampagnen tæller vægten); minelægger 1-2, hangarskib 4 missiler.
+v0.55.0: helikoptere får ikke længere BRIDGE-missioner (tjek boardet i en AH-64D: ingen BRIDGE).
 
 ## P-300 · Jordkrigen
 

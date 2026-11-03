@@ -695,6 +695,11 @@ B.opsPoll()
 local nGs = 0
 for name in pairs(MOCK.groups) do if name:find("^DCC_GUNSHIP_") then nGs = nGs + 1 end end
 check("...only one pair per mission", nGs == 1)
+local apache = MOCK.spawnPlayer(BLUE, "AH-64D_BLK_II", kp.x + 600, kp.z, "Gunner", true)
+local pa = B.players[apache:getName()]
+check("v0.55: no BRIDGE missions for helicopters, but other attack missions", pa and pa.heli
+  and not B.canFly(pa, { type = "BRIDGE", needs = "A2G" }) and B.canFly(pa, { type = "ARTY", needs = "A2G" })
+  and B.canFly(p, { type = "BRIDGE", needs = "A2G" }), pa and tostring(pa.heli))
 p5.mission = nil
 war.state.missions[am.id] = nil
 
