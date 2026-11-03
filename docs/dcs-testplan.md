@@ -577,15 +577,17 @@ Feedback:
 
 ### P-210
 **Våbenvejledning i briefingen**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.53 · Offline: test_dcs_ops
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.53, ændret v0.54 · Offline: test_dcs_ops
 
 1. Tag en BRIDGE-, RUNWAY- og STRIKE-mission fra boardet og læs briefingen.
-2. Prøv vejledningen: fx 2 × GBU-10 på en bro, 3 × Mk-82 på en bane.
+2. Prøv vejledningen: 4 × Mk-82 (eller 1 × Mk-84) på en bro, 3 × Mk-84 (eller 12 × Mk-82) på en bane.
 
-**Forvent:** Briefingen slutter med en *Weapons:*-linje. Skriv i feedback, hvis en mål-type tog mere eller mindre
+**Forvent:** Briefingen slutter med en *Weapons:*-linje. Hvert træf giver *Bridge hit (x of 2000 lb)* / *Runway hit
+at ... (x of 6000 lb)*; ved 2000 / 6000 lb er broen nede / banen lukket. Skriv i feedback, hvis en mål-type tog mere eller mindre
 end vejledningen siger, så tallene kan rettes.
 
 Feedback:
+v0.54.0: bro 2000 lb og bane 6000 lb i alt (kampagnen tæller vægten); minelægger 1-2, hangarskib 4 missiler.
 
 ## P-300 · Jordkrigen
 

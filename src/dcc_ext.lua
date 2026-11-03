@@ -91,14 +91,16 @@ function War:runwayClosed(id)
   return r ~= nil and r.closedUntil ~= nil and self.state.tick < r.closedUntil
 end
 
-function War:runwayHit(id)
+-- lb: the bomb's weight (v0.54: a runway closes at cfg.runwayLb in total, not after a number of bombs)
+function War:runwayHit(id, lb)
   local cfg = X(self)
   if self:runwayClosed(id) then return false end
   local r = self.state.runways[id] or { hits = 0 }
   self.state.runways[id] = r
   r.hits = r.hits + 1
-  if r.hits >= cfg.runwayHits then
-    r.hits, r.closedUntil = 0, self.state.tick + cfg.runwayTicks
+  r.lb = (r.lb or 0) + (lb or cfg.bombLbDefault)
+  if r.lb >= cfg.runwayLb then
+    r.hits, r.lb, r.closedUntil = 0, 0, self.state.tick + cfg.runwayTicks
     local ns = self.state.nodes[id]
     self:log("runway_closed", ns.side, string.format("%s runway at %s cratered: closed for %d h", ns.side:upper(),
       self:nodeName(id), cfg.runwayTicks * self.cfg.tickSeconds / 3600), { node = id })

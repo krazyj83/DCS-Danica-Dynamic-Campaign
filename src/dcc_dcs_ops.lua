@@ -245,10 +245,10 @@ B.EFFECT = EFFECT      -- other modules (CTLD) add or reword entries
 -- v0.53: how much it takes, shown in the briefing as "Weapons:". Runways count by the campaign's rule
 -- (bombs near the centre line); everything else is DCS damage, so these are rules of thumb.
 B.FIREPOWER = {
-  BRIDGE = "Bridges are tough: 2-4 hits with 2000 lb bombs (Mk-84, GBU-10/24/31, KAB-1500, FAB-1500) on the span. "
-    .. "500 lb bombs and missiles seldom drop one.",
-  RUNWAY = "Any 3 bombs count, even Mk-82 / FAB-250, if each lands within 60 m of the centre line - one pass with a "
-    .. "stick of 4-6 bombs along the runway does it. Rockets and missiles do not count.",
+  BRIDGE = "2000 lb of bombs in total on the span bring it down (e.g. one Mk-84 / GBU-10 / GBU-31, two Mk-83 or "
+    .. "four Mk-82), each within 40 m of the bridge. Rockets and missiles do not count.",
+  RUNWAY = "6000 lb of bombs in total close it, each within 60 m of the centre line (e.g. three Mk-84 / GBU-31, six "
+    .. "Mk-83 or twelve Mk-82). Rockets and missiles do not count.",
   STRIKE = "Fuel tanks: one 500 lb bomb or a Maverick / Kh-25 each. Warehouses and ammo depots: a 1000-2000 lb bomb, "
     .. "or 2-3 x 500 lb each. Every building destroyed counts.",
   INDUSTRY = "Workshops, tech combine, fuel and chemical tanks: 1-2 x 500 lb bombs or one 1000 lb bomb each.",
@@ -262,8 +262,8 @@ B.FIREPOWER = {
   POPUP = "MANPADS team: rockets, a cluster bomb or the gun. Mobile SAM: a Maverick / Hellfire or a 500 lb bomb.",
   COIN = "Infantry and a technical: rockets, cluster bombs or the gun.",
   SHIPSTRIKE = "Unarmed cargo ship: 1-2 anti-ship missiles (Harpoon, Kh-31A, Kh-35) or one 1000-2000 lb bomb hit.",
-  MINELAYER = "Armed patrol ship that shoots back: 2-3 anti-ship missiles from stand-off range.",
-  ANTISHIP = "A carrier group needs a package: 6 or more anti-ship missiles (Harpoon, Kh-31A, Kh-35); escorts shoot back.",
+  MINELAYER = "Armed patrol ship that shoots back: 1-2 anti-ship missiles from stand-off range.",
+  ANTISHIP = "A carrier group needs a package: 4 anti-ship missiles (Harpoon, Kh-31A, Kh-35); escorts shoot back.",
 }
 
 function B.brief(p, m)

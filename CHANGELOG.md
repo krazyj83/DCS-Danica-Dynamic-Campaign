@@ -6,6 +6,18 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.54.0 — 2026-11-02
+
+**Changed**
+- **Runways close at 6000 lb of bombs** in total within 60 m of the centre line (was any 3 bombs): three Mk-84 /
+  GBU-31, six Mk-83 or twelve Mk-82. A SCUD hit still closes one at once. `ext.runwayLb` (replaces `runwayHits`).
+- **Bridges go down at 2000 lb of bombs** in total within 40 m of the span — the campaign counts it, so it no longer
+  depends on DCS's bridge damage (which still counts too): one Mk-84 / GBU-10 / GBU-31, two Mk-83 or four Mk-82.
+  `ground.bridgeLb`, `ground.bridgeHitM`. Players get "Bridge hit (1000 of 2000 lb)".
+- Bomb weights by DCS name in `ext.bombLb` (unknown bombs count 500 lb; practice bombs 0).
+- Firepower guide: minelayer 1–2 anti-ship missiles, carrier group 4.
+- DCS test plan: P-210 to RETEST.
+
 ## 0.53.0 — 2026-11-02
 
 **Added**

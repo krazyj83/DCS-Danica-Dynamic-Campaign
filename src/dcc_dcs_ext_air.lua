@@ -149,18 +149,43 @@ function B.runwayDist(id, p)
   return best
 end
 
-function B.bombImpact(side, p)
+-- v0.54: a bomb's weight in lb from its DCS name (config ext.bombLb)
+function B.bombLb(name)
+  local n = string.lower(tostring(name or ""))
+  for _, e in ipairs(XC().bombLb or {}) do
+    if n:find(e[1], 1, true) then return e[2] end
+  end
+  return XC().bombLbDefault
+end
+
+function B.bombImpact(side, p, lb)
   local war = B.war
+  lb = lb or XC().bombLbDefault
+  -- a bridge's span (v0.54: the campaign counts the weight; DCS damage alone also still counts)
+  for _, br in ipairs(war.bridges or {}) do
+    if br.pos and dist2D(p, br.pos) <= DCC.config.ground.bridgeHitM and not war:roadClosed(br.a, br.b) then
+      local down = war:bridgeHit(br.a, br.b, lb)
+      if down then
+        ok(trigger.action.explosion, { x = br.pos.x, y = land.getHeight({ x = br.pos.x, y = br.pos.z }), z = br.pos.z }, 2000)
+        B.bridgeSeenDead = B.bridgeSeenDead or {}
+        B.bridgeSeenDead[(br.a < br.b) and (br.a .. "|" .. br.b) or (br.b .. "|" .. br.a)] = true
+      end
+      trigger.action.outTextForCoalition(B.COAL[side], down and string.format("Bridge %s - %s down!",
+        war:nodeName(br.a), war:nodeName(br.b)) or string.format("Bridge hit (%d of %d lb).",
+        war:bridgeLbOn(br.a, br.b), DCC.config.ground.bridgeLb), 10)
+      return "bridge"
+    end
+  end
   for _, id in ipairs(war.T.order) do
     local ns, tn = war.state.nodes[id], war.T.nodes[id]
     if tn.kind == "airbase" and ns.side ~= side and B.nodePos[id] and dist2D(p, B.nodePos[id]) < 5000 then
       local d = B.runwayDist(id, p)
       local hit = (d and d <= XC().runwayHitM) or (not d and dist2D(p, B.nodePos[id]) <= 800)
       if hit then
-        local closed = war:runwayHit(id)
+        local closed = war:runwayHit(id, lb)
         local r = war.state.runways[id]
         trigger.action.outTextForCoalition(B.COAL[side], closed and string.format("Runway at %s closed!", war:nodeName(id))
-          or string.format("Runway hit at %s (%d of %d).", war:nodeName(id), r and r.hits or 0, XC().runwayHits), 10)
+          or string.format("Runway hit at %s (%d of %d lb).", war:nodeName(id), r and r.lb or 0, XC().runwayLb), 10)
         return id
       end
     end
@@ -168,6 +193,8 @@ function B.bombImpact(side, p)
 end
 
 function B.trackBomb(w, side)
+  local d = ok(w.getDesc, w)
+  local lb = B.bombLb((d and (d.typeName or d.displayName)) or ok(w.getTypeName, w))
   local last
   local born = timer.getTime()
   local function step(_, t)
@@ -176,7 +203,7 @@ function B.trackBomb(w, side)
       if t - born < 180 then return t + 0.5 end
       return nil
     end
-    if last then ok(B.bombImpact, side, last) end
+    if last then ok(B.bombImpact, side, last, lb) end
     return nil
   end
   timer.scheduleFunction(step, nil, timer.getTime() + 0.5)
@@ -612,5 +639,5 @@ function B.init(war, theater, catalog)
   B.restoreWrecks()
 end
 
-B.EFFECT.RUNWAY = "Put 3 bombs on the runway (centre line, 60 m). The airfield closes for 4 h: no airlifts, no fixed-wing spawns."
+B.EFFECT.RUNWAY = "Put 6000 lb of bombs on the runway (within 60 m of the centre line). The airfield closes for 4 h: no airlifts, no fixed-wing spawns."
 B.EFFECT.SNATCH = "Land within 150 m of the enemy pilot, then at a friendly base. He talks: your side learns about his base."
