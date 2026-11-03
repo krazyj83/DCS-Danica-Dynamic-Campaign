@@ -6,6 +6,13 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.55.0 — 2026-11-03
+
+**Changed**
+- **No BRIDGE missions for helicopters:** a bridge takes 2000 lb of bombs on the span (v0.54), so the mission
+  board no longer offers BRIDGE to helicopters. Every other attack mission stays.
+- DCS test plan: P-210 to RETEST.
+
 ## 0.54.0 — 2026-11-02
 
 **Changed**

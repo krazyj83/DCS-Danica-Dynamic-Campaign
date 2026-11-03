@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.54.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.55.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.54.0",
+  version         = "0.55.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -16096,6 +16096,13 @@ function B.airAssaultTick()
       end
     end
   end
+end
+
+-- v0.55: a bridge takes 2000 lb of bombs on the span - not a helicopter job (no BRIDGE on their board)
+local baseCanFly = B.canFly
+function B.canFly(p, m)
+  if m and m.type == "BRIDGE" and p and p.heli then return false end
+  return baseCanFly(p, m)
 end
 
 local basePoll = B.opsPoll
