@@ -6,6 +6,32 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.56.0 — 2026-11-04
+
+Beta test, 3 November.
+
+**Fixed**
+- **SA-11 reported destroyed after only its search radar was hit:** every SA-11 launcher (TELAR) has its own radar,
+  so the site stays up until the search radar **and all 3 launchers** are dead (catalog `sam.red.selfTracking`).
+- **SAM sites came back too fast:** a hit site was despawned and respawned at once — with every launcher players
+  had killed. Now the group stays as it is; killed launchers stay dead until the site is repaired (2 h) or
+  rebuilt (6 h), also when it is respawned later.
+- **Air assault: no troops to pick up** — a helicopter on a town's FARP pads (1.5 km out) was outside the town's
+  600 m troop zone. Each town's own FARP pads now have their own CTLD troop and crate zone.
+- **Winds 0 knots:** pydcs left the missions dead calm. `make_mission.py` now sets each map's prevailing wind at the
+  ground, 2000 m and 8000 m (`world.missionWind`). DCS cannot change the wind while a mission runs.
+- **Airfield information (SRS) failed** (`srs info ... tp` in dcs.log): DCS returns temperature and pressure as two
+  numbers. Wind from the north is read out as 3 6 0.
+- **~700 script errors** (`attempt to index local 'n' / 'tname' (a number value)`): scenery objects (houses,
+  bridges) have numbers for names; kill credit and fortification checks now handle them.
+- **Ammunition depots never appeared** (`unknown static shape_name ... .Ammunition depot`): they get their shape.
+
+**Changed**
+- **Fire control against desync:** campaign ground groups hold fire unless a player is within 15 km; battles
+  further out are fought on the dice (`ext5.fireControl`).
+- **Carrier dynamic spawn:** carriers' warehouses are unlimited (every type the deck takes) instead of 20 per type.
+- DCS test plan: new P-310, P-1006; P-209, P-401, P-409, P-708, P-801 to RETEST.
+
 ## 0.55.0 — 2026-11-03
 
 **Changed**

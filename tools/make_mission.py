@@ -264,7 +264,9 @@ def build_naval(m, theater, cjtf, types):
             wh.coalition = side.upper()
             wh.dynamic_spawn = True
             wh.allow_hot_start = True
-            wh.unlimited_aircrafts = False
+            # v0.56: beta testers still saw no carrier dynamic spawn with a per-type stock; an unlimited
+            # air wing (every type the deck takes) is the simpler set-up DCS offers (best guess, see P-801)
+            wh.unlimited_aircrafts = CARRIER_UNLIMITED
             wh.unlimited_munitions = True
             wh.unlimited_fuel = True
             stock_n = sh.get("dynamicStock", CARRIER_STOCK)
@@ -291,6 +293,7 @@ def build_naval(m, theater, cjtf, types):
 
 FARP_PADS = 2            # helipads per FARP and side (config world.farpPads must match, v0.38)
 CARRIER_STOCK = 20       # aircraft of each slot type a carrier holds for dynamic spawn (v0.37)
+CARRIER_UNLIMITED = True # v0.56: carriers offer every type their deck takes, without a count
 
 CTLD_DIR = os.path.join(ROOT, "vendor", "ctld")
 SCRIPTS_DIR = os.path.join(ROOT, "tools", "mission_scripts")

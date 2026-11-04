@@ -17,7 +17,7 @@ Testene er delt i to:
 
 ### 1. Vælg hvad du tester
 
-- **Efter hver ny version:** kør [røgtesten](#røgtest) (16 test, ca. en aften).
+- **Efter hver ny version:** kør [røgtesten](#røgtest) (17 test, ca. en aften).
 - **Når noget er rettet:** kør alle test med `Status: RETEST`.
 - **Når der er tid:** tag test med `Status: IKKE TESTET`, fx ét område ad gangen.
 
@@ -87,6 +87,7 @@ Kør disse efter hver ny version. De rører de vigtigste dele af motoren.
 | [P-1101](#p-1101) | Bogey dope og debrief (v0.34) |
 | [P-904](#p-904) | F-16 Link 16 synker med GPS (v0.43) |
 | [P-707](#p-707) | FARPer fra start (v0.44) |
+| [P-310](#p-310) | Ingen AI-mod-AI-kamp langt fra spillere (v0.56) |
 | [S-308](#s-308) | Selvtjek ved missionsstart (v0.47) |
 
 ---
@@ -565,7 +566,7 @@ Feedback:
 
 ### P-209
 **SRS: AWACS, Command og flyvepladsinformation**
-`Status: IKKE TESTET` · Spillere: 1 med SRS · Kort: alle · Siden v0.50 · Offline: test_ext4
+`Status: RETEST` · Spillere: 1 med SRS · Kort: alle · Siden v0.50 · Offline: test_ext4
 
 1. Sæt radioerne på 238.0, 239.0 og 240.0 AM. Sid på en egen flyveplads i et par minutter.
 2. Brug *Support → Bogey dope* i luften. Vent på en erobring eller en anden nyhed.
@@ -573,7 +574,8 @@ Feedback:
 **Forvent:** 240.0: "Kutaisi information, wind ..., runway open, ... aircraft in stock." 238.0: bogey dope læst op
 ("..., Overlord, bra ..."). 239.0: erobringer og egne nyheder. Kun din sides beskeder; én ad gangen pr. frekvens.
 
-Feedback:
+Feedback: v0.55, 3. nov: vinden meldt som 0 knob; fejl "srs info ... tp" i dcs.log.
+Rettet i v0.56.0: DCS giver temperatur og tryk som to tal (blev læst som en tabel). Missionerne har nu rigtig vind (se P-1006).
 
 ### P-210
 **Våbenvejledning i briefingen**
@@ -686,17 +688,33 @@ når lasten aldrig frem.
 
 Feedback:
 
+### P-310
+**Ingen AI-mod-AI-kamp langt fra spillere (desync)**
+`Status: IKKE TESTET` · Spillere: 2+ · Kort: alle · Siden v0.56 · Offline: test_ext4
+
+1. Flyv med flere spillere i et område med mange kampe ved fronten. Hold øje med desync og `dcs.log`.
+2. Flyv tæt på (under 15 km) et slag, og længere væk (20-40 km).
+
+**Forvent:** Inden for 15 km skyder enhederne på hinanden. Længere væk står de og holder ilden; slaget afgøres med
+terninger som langt fra spillere. Mindre desync end før.
+
+Feedback: v0.55, 3. nov: AI der skyder på AI gav massiv desync.
+Rettet i v0.56.0: kampagnens jordgrupper holder ilden, medmindre en spiller er inden for 15 km
+(`ext5.fireControl`).
+
 ## P-400 · Luftforsvar og luftkrig
 
 ### P-401
 **SAM-stilling og radar**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.3 · Offline: test_dcs_ops
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.3 · Offline: test_dcs_ops
 
 1. Flyv mod en fjendtlig flyveplads eller depot. Ødelæg SAM-radaren.
 
-**Forvent:** Stillingen spawner inden for 80 km. Beskeden *"radar … knocked out"*.
+**Forvent:** Stillingen spawner inden for 80 km. Hawk: beskeden *"radar … knocked out"*. SA-11 (v0.56): først ude, når
+søgeradaren og alle 3 launchere er væk. Skudte launchere kommer ikke igen, før stillingen er repareret.
 
-Feedback:
+Feedback: v0.55, 3. nov: SA-11 meldt ødelagt, da kun søgeradaren var skudt ned; stillingen kom for hurtigt igen.
+Rettet i v0.56.0: SA-11-launcherne har egen radar: stillingen er først ude, når søgeradaren og alle 3 launchere er væk. En ramt stilling respawnes ikke længere med det samme med alle launchere; dræbte launchere forbliver døde til reparationen (Hawk: radarer døde = undertrykt i 2 t).
 
 ### P-402
 **SAM tænder sent uden EWR**
@@ -772,13 +790,14 @@ Feedback:
 
 ### P-409
 **Strike-bygninger**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.3 · Offline: test_dcs_ops
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.3 · Offline: test_dcs_ops
 
 1. Tag en STRIKE-mission og ødelæg en brændstof-, ammo- eller lagerbygning.
 
 **Forvent:** Bygningerne står nær flyvepladsen, ikke på den. Beskeden *"… destroyed (1 of N)"*. Basen mister 25 SU.
 
-Feedback:
+Feedback: v0.55, 3. nov: "unknown static shape_name ... .Ammunition depot" i dcs.log - ammo-depotet kom aldrig frem.
+Rettet i v0.56.0: ammo-depotet spawnes med sin shape (SkladC).
 
 ### P-410
 **AI på Ace**
@@ -983,7 +1002,7 @@ v0.46.0: ingen rang kræves for at spawne på en FARP (var Lieutenant Colonel).
 
 ### P-708
 **AIRASSAULT med gunship-eskorte**
-`Status: IKKE TESTET` · Spillere: 1 i transporthelikopter · Kort: alle · Siden v0.49 · Offline: test_ext4, test_ops
+`Status: RETEST` · Spillere: 1 i transporthelikopter · Kort: alle · Siden v0.49 · Offline: test_ext4, test_ops
 
 1. Tag en AIRASSAULT-mission fra boardet. Lad tropper på den nævnte base (*F10 → CTLD → Load troops*).
 2. Let. Flyv mod målet og sæt tropperne af inden for 3 km af det.
@@ -992,7 +1011,8 @@ v0.46.0: ingen rang kræves for at spawne på en FARP (var Lieutenant Colonel).
 dig og angriber jordenheder ved målet. Når tropperne er sat af: *Air assault on ...!* og missionen er fuldført
 med point. Ingen ekstra gunships, hvis du letter igen.
 
-Feedback:
+Feedback: v0.55, 3. nov: ingen tropper at samle op til air assault.
+Rettet i v0.56.0: en helikopter på byens FARP-pads (1,5 km fra byen) var uden for byens troppezone på 600 m. Hver egen bys FARP-pads har nu sin egen CTLD-zone (tropper og kasser fra byen).
 
 ## P-800 · Søkrig og hangarskibe
 
@@ -1010,6 +1030,8 @@ ICLS 5. Skibenes ben ligger på åbent vand. S-3B svarer på 76X.
 Feedback: v0.36, 9 spillere: ingen dynamic spawn på hangarskibene.
 Rettet i v0.37.0: hvert hangarskib har nu sit eget lager med dynamic spawn (20 af hver slot-type, ubegrænset
 ammunition og brændstof).
+v0.56: v0.55, 3. nov: stadig ingen dynamic spawn på hangarskibet.
+Rettet i v0.56.0: hangarskibenes lager er nu ubegrænset (alle typer dækket tager) i stedet for 20 af hver type. Bedste gæt - tjek i Mission Editor, at Stennis har Dynamic Spawn slået til.
 
 ### P-802
 **Forsyningsskibe går ikke på grund**
@@ -1144,6 +1166,17 @@ Feedback:
 i 3 minutter.
 
 Feedback:
+
+### P-1006
+**Vind i missionen**
+`Status: IKKE TESTET` · Spillere: 1 · Kort: alle fire · Siden v0.56 · Offline: –
+
+1. Tjek vinden i Mission Editor (Weather) eller i cockpittet / ATC på hvert kort.
+
+**Forvent:** Vind fra kortets fremherskende retning (Kaukasus ca. 250°), 4-14 knob ved jorden, mere i højden.
+
+Feedback: v0.55, 3. nov: vinden var 0 knob.
+Rettet i v0.56.0: make_mission.py sætter vind ved jorden, 2000 m og 8000 m (`world.missionWind`).
 
 ## P-1100 · Nyt i v0.34
 
