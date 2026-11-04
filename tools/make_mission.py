@@ -60,6 +60,7 @@ from dcs.mission import StartType
 from dcs.triggers import TriggerStart
 from dcs import flyingunit, mapping, ships, task as dtask, unit as dunit
 from dcs.terrain.terrain import Warehouse
+from dcs.weather import Wind
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mod_types import MOD_TYPES  # noqa: E402
@@ -263,7 +264,9 @@ def build_naval(m, theater, cjtf, types):
             wh.coalition = side.upper()
             wh.dynamic_spawn = True
             wh.allow_hot_start = True
-            wh.unlimited_aircrafts = False
+            # v0.56: beta testers still saw no carrier dynamic spawn with a per-type stock; an unlimited
+            # air wing (every type the deck takes) is the simpler set-up DCS offers (best guess, see P-801)
+            wh.unlimited_aircrafts = CARRIER_UNLIMITED
             wh.unlimited_munitions = True
             wh.unlimited_fuel = True
             stock_n = sh.get("dynamicStock", CARRIER_STOCK)
@@ -290,12 +293,34 @@ def build_naval(m, theater, cjtf, types):
 
 FARP_PADS = 2            # helipads per FARP and side (config world.farpPads must match, v0.38)
 CARRIER_STOCK = 20       # aircraft of each slot type a carrier holds for dynamic spawn (v0.37)
+CARRIER_UNLIMITED = True # v0.56: carriers offer every type their deck takes, without a count
 
 CTLD_DIR = os.path.join(ROOT, "vendor", "ctld")
 SCRIPTS_DIR = os.path.join(ROOT, "tools", "mission_scripts")
 
 
 AI_SKILL = dunit.Skill.Excellent   # v0.41: every AI unit in the mission is Ace (the engine's own spawns: config aiSkill)
+
+
+def set_winds(m, theater_name, cfg):
+    """Real winds instead of pydcs's dead calm (v0.56: "winds reported 0 knots"). DCS cannot change the
+    wind while a mission runs, so the mission gets the map's prevailing wind, varied a little per build."""
+    import random
+    w = cfg["world"]["missionWind"]
+    rng = random.Random()
+    base = w["from"].get(theater_name, 270)
+    spread = w["fromSpread"]
+
+    def wind(rng_speed, veer):
+        frm = (base + rng.uniform(-spread / 2, spread / 2) + veer) % 360
+        to = round((frm + 180) % 360)        # the mission file stores the direction the wind blows TO
+        return Wind(to, round(rng.uniform(*rng_speed), 1))
+    m.weather.wind_at_ground = wind(w["ground"], 0)
+    m.weather.wind_at_2000 = wind(w["at2000"], 15)       # veers with height
+    m.weather.wind_at_8000 = wind(w["at8000"], 30)
+    m.weather.turbulence_at_ground = round(rng.uniform(*w["turbulence"]))
+    g = m.weather.wind_at_ground
+    print(f"  wind: from {(g.direction + 180) % 360:03.0f} at {g.speed * 1.944:.0f} kt on the ground")
 
 
 def set_ai_skill(m):
@@ -618,6 +643,7 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
         "F10 > Other > Campaign > Campaign status for the situation.")
 
     set_ai_skill(m)
+    set_winds(m, theater_name, load_config())
     fix_radio_frequencies(m)
     assign_datalinks(m)
     dtc_files = build_dtcs(m, theater, theater_name)

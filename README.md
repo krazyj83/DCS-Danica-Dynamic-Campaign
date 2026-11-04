@@ -92,7 +92,7 @@ building, MEDEVAC, prisoners — the moment they spawn, so a rear base always ha
 | **CAS** | A2G | A base under attack (ours or theirs) | The battle goes your side's way | Who holds the base; every kill is permanent |
 | **BAI** | A2G | Enemy convoy or column on a road | It is destroyed | Its cargo or platoons never arrive |
 | **STRIKE** | A2G | Fuel, ammo and warehouse buildings at an enemy depot/airbase | A building is destroyed | Each one burns 25 SU and cuts the base's output (all gone = 30 %); one rebuilt every 3 h |
-| **SEAD/DEAD** | SEAD | Enemy SAM site (Hawk / SA-11) | Radar or whole site killed | Radar: site offline ~2 h. Radar + launchers: destroyed, rebuilt in ~6 h for 60 SU |
+| **SEAD/DEAD** | SEAD | Enemy SAM site (Hawk / SA-11) | Hawk: radars or whole site killed. **SA-11: search radar and all 3 launchers** (each launcher has its own radar, v0.56) | Radars: site offline ~2 h. Radars + launchers: destroyed, rebuilt in ~6 h for 60 SU. Launchers you kill stay dead until then (v0.56) |
 | **EWR** | A2G | Enemy early-warning radar | It is destroyed | That side loses its long-range air picture there (6 h, 40 SU) |
 | **CAP** | A2A | Your main-effort area | 20 min on station, or an air kill there | 1 h of air superiority: enemy AI attack sorties stay away |
 | **ESCORT** | A2A (supply helicopters: anyone) | Your airlift transport or supply helicopters | They land with you mostly within 15 km | Cargo delivered |
@@ -394,7 +394,7 @@ the VEAF team), started and configured by the engine. Every helicopter type CTLD
 
 | In CTLD | In the war |
 | --- | --- |
-| Every own base is a CTLD **pickup and logistic zone** (1.5 km round an airbase, 600 m round a town) | Captured base: its zones change sides |
+| Every own base is a CTLD **pickup and logistic zone** (1.5 km round an airbase, 600 m round a town, and 300 m round the town's own **FARP pads**, v0.56) | Captured base: its zones change sides |
 | **Request a crate** at a base — supply crates also straight from **F10 → Missions → Supply crate (10 SU)** (v0.37) | The base pays **10 SU per crate**; a dry base says no |
 | **Supply crate** unloaded (or para-dropped) within 3 km of an own base | **+10 SU** there, completes LOGISTICS, builds towards a FARP |
 | **Load troops** at a base | **1 platoon per 10 soldiers** leaves the garrison (never the last one) |
@@ -601,6 +601,11 @@ in this order: a destroyed **strike building** (fuel store / supply building) �
 the ground for later. Without it the base repairs itself slowly (a building every 3 h, SAM 2–6 h, EWR 6 h,
 each for supply).
 
+**Fire control (v0.56, against desync).** Every shell two AI groups trade is sent to every client, and many AI
+battles in the live bubble swamped the network. Campaign ground groups (platoons, convoys, artillery, skirmishes,
+ambushes) now **hold fire unless a player is within 15 km**; those battles are fought on the dice like any battle
+far from players. Within 15 km everything is real, as before. Air defence always shoots. `ext5.fireControl`.
+
 **Performance guard.** Every minute the engine counts the ground units in DCS. From **700** it shrinks the
 war in the field (level 1, scale 0.7), from **1000** further (level 2, scale 0.45):
 
@@ -655,8 +660,9 @@ harbour for **5 min** in total — several helicopters sweep faster. Unswept min
 
 Every map has carrier groups for both sides:
 
-**Dynamic spawn on carriers (v0.37):** every carrier has its own warehouse — 20 of each of its slot types, unlimited
-munitions and fuel — so players pick the deck in the dynamic spawn list like any airbase (the fixed deck slots stay).
+**Dynamic spawn on carriers (v0.37, v0.56):** every carrier has its own warehouse with dynamic spawn — unlimited
+aircraft (every type its deck takes), munitions and fuel — so players pick the deck in the dynamic spawn list like
+any airbase (the fixed deck slots stay).
 
 | Map | BLUE | RED |
 | --- | --- | --- |
@@ -983,6 +989,8 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `world.farpWeaponMatch` | Hellfire, APKWS, Hydra, Stinger, door guns, Russian / French helicopter weapons | Parts of DCS weapon names a FARP stocks; everything else only at airbases (v0.45) |
 | `world.farpAtStart` | true | Every held town starts as a stocked FARP (v0.44) |
 | `ext.runwayLb` / `ground.bridgeLb` | 6000 lb, 2000 lb | Bombs (by weight, `ext.bombLb`) within 60 m of a runway's centre line / 40 m of a bridge that close the runway or bring the bridge down (v0.54) |
+| `ext5.fireControl.fireKm` | 15 km | AI ground groups only open fire (and battles are only fought by DCS) this close to a player (v0.56) |
+| `world.missionWind` | per map, 2–7 m/s | The missions' winds at ground / 2000 / 8000 m, from the map's prevailing direction (make_mission.py, v0.56) |
 | `ext5.airAssault` | 3 defenders, 60 km, 60 m, 45 min | AIRASSAULT targets (weakest enemy bases within reach) and the gunship escort's height, stand-off and time (v0.49) |
 | `public.pilots` / `sorties` / `sortiesPerPilot` | 100, 20, 5 | public.json for the web map: pilots listed, latest sorties, sorties kept per pilot (v0.51) |
 | `srs.*` | 238 / 239 / 240 AM, 15 min | SRS voice: AWACS, Command and airfield-information frequencies, voices, how often airfield information plays (v0.50) |

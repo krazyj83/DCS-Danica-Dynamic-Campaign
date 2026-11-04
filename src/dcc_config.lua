@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.55.0",
+  version         = "0.56.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -206,6 +206,10 @@ DCC.config = {
     farpPads       = 2,       -- helipads per FARP (v0.38: one invisible pad let only one helicopter spawn);
                               --   make_mission.py builds DCC_FARP_<town>_<side>, ..._2, ...
     antishipChance = 0.4,     -- chance per hour of an AI strike on a known enemy ship
+    -- v0.56: the missions' winds (make_mission.py; DCS cannot change wind while a mission runs). Prevailing
+    -- direction per map (degrees FROM), varied by up to fromSpread; speeds in m/s at ground / 2000 m / 8000 m.
+    missionWind = { from = { Caucasus = 250, Syria = 290, PersianGulf = 320, GermanyCW = 260 }, fromSpread = 40,
+                    ground = { 2, 7 }, at2000 = { 6, 14 }, at8000 = { 12, 28 }, turbulence = { 3, 12 } },
   },
   jtac = { laserCode = 1688, searchKm = 6, standoffKm = 4 },
 
@@ -368,6 +372,7 @@ DCC.config = {
     supplyWeight     = 500.01, -- kg; also CTLD's id for the supply crate
     zoneRadiusAirbaseM = 1500, -- pickup / logistic zone around an airbase
     zoneRadiusM      = 600,    -- around a town or carrier
+    farpZoneRadiusM  = 300,    -- v0.56: around a town's own FARP pads (troops and crates of that town)
     dropKm           = 3,      -- troops or crates this close to a base count as delivered there
     fobFarpKm        = 5,      -- a CTLD FOB this close to a town makes the town a FARP
     fobChargeKm      = 40,     -- crates at a FOB are paid by the nearest own base this close
@@ -498,6 +503,14 @@ DCC.config = {
       standoffKm   = 4,      -- they hold this far short of the target first...
       zoneKm       = 3,      -- ...then attack ground units within this radius of it
       lifeSeconds  = 2700,   -- and go home after 45 min (survivors return to the attack pool)
+    },
+    -- v0.56: AI-vs-AI fire control against multiplayer desync. Campaign ground groups (platoons, convoys,
+    -- artillery, skirmishes, ambushes) hold fire unless a player is within fireKm; battles further out are
+    -- fought on the dice even when their units are on the map.
+    fireControl = {
+      enabled  = true,
+      fireKm   = 15,
+      prefixes = { "^DCC_p%d", "^DCC_c%d", "^DCC_ARTY_", "^DCC_SKIRM_", "^DCC_AMB_", "^DCC_AMBL_" },
     },
   },
 

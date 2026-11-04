@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.55.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.56.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.55.0",
+  version         = "0.56.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -210,6 +210,10 @@ DCC.config = {
     farpPads       = 2,       -- helipads per FARP (v0.38: one invisible pad let only one helicopter spawn);
                               --   make_mission.py builds DCC_FARP_<town>_<side>, ..._2, ...
     antishipChance = 0.4,     -- chance per hour of an AI strike on a known enemy ship
+    -- v0.56: the missions' winds (make_mission.py; DCS cannot change wind while a mission runs). Prevailing
+    -- direction per map (degrees FROM), varied by up to fromSpread; speeds in m/s at ground / 2000 m / 8000 m.
+    missionWind = { from = { Caucasus = 250, Syria = 290, PersianGulf = 320, GermanyCW = 260 }, fromSpread = 40,
+                    ground = { 2, 7 }, at2000 = { 6, 14 }, at8000 = { 12, 28 }, turbulence = { 3, 12 } },
   },
   jtac = { laserCode = 1688, searchKm = 6, standoffKm = 4 },
 
@@ -372,6 +376,7 @@ DCC.config = {
     supplyWeight     = 500.01, -- kg; also CTLD's id for the supply crate
     zoneRadiusAirbaseM = 1500, -- pickup / logistic zone around an airbase
     zoneRadiusM      = 600,    -- around a town or carrier
+    farpZoneRadiusM  = 300,    -- v0.56: around a town's own FARP pads (troops and crates of that town)
     dropKm           = 3,      -- troops or crates this close to a base count as delivered there
     fobFarpKm        = 5,      -- a CTLD FOB this close to a town makes the town a FARP
     fobChargeKm      = 40,     -- crates at a FOB are paid by the nearest own base this close
@@ -502,6 +507,14 @@ DCC.config = {
       standoffKm   = 4,      -- they hold this far short of the target first...
       zoneKm       = 3,      -- ...then attack ground units within this radius of it
       lifeSeconds  = 2700,   -- and go home after 45 min (survivors return to the attack pool)
+    },
+    -- v0.56: AI-vs-AI fire control against multiplayer desync. Campaign ground groups (platoons, convoys,
+    -- artillery, skirmishes, ambushes) hold fire unless a player is within fireKm; battles further out are
+    -- fought on the dice even when their units are on the map.
+    fireControl = {
+      enabled  = true,
+      fireKm   = 15,
+      prefixes = { "^DCC_p%d", "^DCC_c%d", "^DCC_ARTY_", "^DCC_SKIRM_", "^DCC_AMB_", "^DCC_AMBL_" },
     },
   },
 
@@ -2161,10 +2174,17 @@ function War:samHit(id, what)
     self:log("sam_destroyed", ns.side, string.format("%s air defence at %s destroyed",
       ns.side:upper(), self:nodeName(id)), { node = id })
   elseif what == "radar" and ns.sam.status == "up" then
-    ns.sam = { status = "suppressed", since = self.state.tick }
+    -- v0.56: the site keeps its launcher losses and where it moved to
+    ns.sam = { status = "suppressed", since = self.state.tick, lostL = ns.sam.lostL, off = ns.sam.off, pdOff = ns.sam.pdOff }
     self:log("sam_suppressed", ns.side, string.format("%s air defence radar at %s knocked out",
       ns.side:upper(), self:nodeName(id)), { node = id })
   end
+end
+
+-- v0.56: launchers lost at a site that is still standing (they stay lost until it is repaired)
+function War:samLaunchersLost(id, n)
+  local ns = self.state.nodes[id]
+  if ns and ns.sam and ns.sam.status ~= "destroyed" and n > (ns.sam.lostL or 0) then ns.sam.lostL = n end
 end
 
 -- Repairs happen on their timers, paid from the node's supply.
@@ -2178,7 +2198,7 @@ function War:repairSams()
       local cost = (sam.status == "suppressed") and cfg.samRepairCost or cfg.samRebuildCost
       if self.state.tick - (sam.since or 0) >= wait and (ns.supply or 0) >= cost then
         ns.supply = ns.supply - cost
-        ns.sam = { status = "up" }
+        ns.sam = { status = "up", off = sam.off, pdOff = sam.pdOff }   -- repaired or rebuilt: full strength again
         self:log("sam_up", ns.side, string.format("%s air defence at %s back up", ns.side:upper(),
           self:nodeName(id)), { node = id })
       end
@@ -8341,7 +8361,8 @@ local EFFECT = {
   CAS = "Kill enemy ground forces in the battle. The outcome decides who holds the base.",
   BAI = "Destroy the column on the road. Its cargo or platoons never arrive.",
   STRIKE = "Destroy fuel, ammo or warehouse buildings. Each one burns supply and cuts the base's output for hours.",
-  SEAD = "Kill the radar to suppress the site for ~2 h, or radar and launchers to destroy it for ~6 h.",
+  SEAD = "Hawk: kill the radars to suppress the site for ~2 h, radars and launchers to destroy it for ~6 h. "
+    .. "SA-11: every launcher has its own radar - kill the search radar and all launchers (destroyed for ~6 h).",
   CAP = "Stay on station 20 min or shoot down an enemy aircraft. Gives 1 h of air superiority: enemy AI attack sorties stay away.",
   ESCORT = "Stay within 15 km of the transport until it lands. Enemy fighters may try to intercept it.",
   CONVOY = "Stay within 3 km of the convoy. An ambush waits ahead on the road. An escorted convoy is not ambushed.",
@@ -8364,7 +8385,7 @@ B.FIREPOWER = {
   FORT = "Sandbag positions: one 500 lb bomb or a few rockets each. The concrete bunker: a 2000 lb bomb or a "
     .. "penetrator (GBU-31(V)3/B).",
   SEAD = "Radar: one HARM / Kh-58 / Kh-31P hit usually kills it (or a Maverick / 500 lb bomb). Launchers: a Maverick, "
-    .. "a 500 lb bomb or a cluster bomb each.",
+    .. "a 500 lb bomb or a cluster bomb each. An SA-11 needs its search radar and all 3 launchers.",
   EWR = "One HARM / Kh-31P, a Maverick or a 500 lb bomb.",
   ARTY = "Each gun: a Maverick, Hellfire, Vikhr or a 500 lb bomb. Cluster bombs (CBU-97/87, RBK) take several at once.",
   SCUD = "Launcher and truck: a Maverick / Hellfire or a 500 lb bomb each; rockets work too.",
@@ -8685,7 +8706,10 @@ function B.spawnSam(id)
     end
   end
   if ns.sam.status == "up" then add(spec.radars, "r") end
-  add(spec.launchers, "l")
+  local lost = ns.sam.lostL or 0                            -- v0.56: launchers already killed stay dead
+  local ln = {}
+  for i = lost + 1, #spec.launchers do ln[#ln + 1] = spec.launchers[i] end
+  add(ln, "l")
   add(spec.support, "s")
   if #units == 0 then return end
   local gname = "DCC_SAM_" .. id
@@ -8693,7 +8717,7 @@ function B.spawnSam(id)
                  route = { points = { { x = units[1].x, y = units[1].y, type = "Turning Point",
                    action = "Off Road", speed = 0, ETA = 0, ETA_locked = false, speed_locked = true } } } }
   local s = pcall(coalition.addGroup, B.countryId(ns.side), Group.Category.GROUND, data)
-  if s then B.sams[id] = { group = gname, status = ns.sam.status, side = ns.side } end
+  if s then B.sams[id] = { group = gname, status = ns.sam.status, side = ns.side, lostBase = lost, launchers = #ln } end
 end
 
 function B.despawnSam(id)
@@ -8716,8 +8740,15 @@ function B.pollSam(id, rec)
       end
     end
   end
+  -- launchers killed so far stay killed (v0.56)
+  if rec.launchers and launchers < rec.launchers then
+    B.war:samLaunchersLost(id, (rec.lostBase or 0) + rec.launchers - launchers)
+  end
+  -- SA-11 style sites: every launcher (TELAR) has its own radar (catalog sam.<side>.selfTracking)
+  local spec = cat().sam and cat().sam[rec.side]
+  local tracking = radars + ((spec and spec.selfTracking) and launchers or 0)
   if radars == 0 and launchers == 0 then B.war:samHit(id, "destroyed")
-  elseif radars == 0 and rec.status == "up" then B.war:samHit(id, "radar") end
+  elseif tracking == 0 and rec.status == "up" then B.war:samHit(id, "radar") end
 end
 
 function B.reconcileSams()
@@ -8727,6 +8758,8 @@ function B.reconcileSams()
     if ns.sam then B.pollSam(id, rec) end
     local want = ns.sam and ns.sam.status ~= "destroyed" and ns.side == rec.side
                  and playerNear(B.nodePos[id], DCC.config.ops.samLiveRadiusKm + 10)
+    -- v0.56: a radar kill keeps the group as it is (its dead stay dead); only a repaired site is respawned
+    if want and ns.sam.status == "suppressed" and rec.status == "up" then rec.status = "suppressed" end
     if not want or (ns.sam and ns.sam.status ~= rec.status) then B.despawnSam(id) end
   end
   for _, id in ipairs(war.T.order) do
@@ -8773,7 +8806,8 @@ function B.reconcileStatics()
           local sp = spotNear(id, k, 1900 + (k % 2) * 250)
           local name = string.format("DCC_INF_%s_%d_%d", id, k, B.war.state.tick)
           local s = pcall(coalition.addStaticObject, B.countryId(ns.side),
-            { name = name, type = spec.type, category = spec.category, x = sp.x, y = sp.z, heading = 0, dead = false })
+            { name = name, type = spec.type, category = spec.category, shape_name = spec.shape,   -- v0.56: DCS needs the
+              x = sp.x, y = sp.z, heading = 0, dead = false })                                -- ammo depot's shape
           if s then rec.names[k] = name end
         end
       end
@@ -9168,7 +9202,7 @@ function B.onKill(e)
   local key = p and p.key or playerKey(name)
   local tgt = e.target
   if not tgt then return end
-  local tname = ok(tgt.getName, tgt) or ""
+  local tname = tostring(ok(tgt.getName, tgt) or "")   -- v0.56: scenery objects have numbers for names
   local field = "kills_ground"
   local category = ok(Object.getCategory, tgt)
   if category == Object.Category.STATIC then
@@ -9614,7 +9648,7 @@ function B.onShot(e)
   local id
   local tgt = ok(w.getTarget, w)
   local tname = tgt and ok(tgt.getName, tgt)
-  if tname then id = tname:match("^DCC_SAM_(.-)_[rls]%d+$") end
+  if tname then id = tostring(tname):match("^DCC_SAM_(.-)_[rls]%d+$") end
   if not id then   -- no lock reported: the nearest emitting enemy site
     local sp, best = shooter:getPoint(), nil
     for _, nid in ipairs(B.war.T.order) do
@@ -12012,6 +12046,7 @@ local baseOpsEvent = B.onOpsEvent
 function B.onOpsEvent(e)
   if e.id == world.event.S_EVENT_DEAD and e.initiator then
     local n = ok(e.initiator.getName, e.initiator)
+    n = n and tostring(n)                                -- v0.56: scenery objects have numbers for names
     if n and n:find("^DCC_FORT_") then B.onFortDead(n) end
   end
   baseOpsEvent(e)
@@ -12190,9 +12225,12 @@ function B.ctldSyncZones()
     local want = (side == "blue" or side == "red") and kind ~= "carrier" and B.nodePos[id] and coalOf(side) or nil
     local have = B.ctld.zones[id]
     if have and have.coal ~= want then
-      ok(zm.unregisterLogistic, zm, have.name)
-      ok(zm.unregisterTroopZone, zm, have.name)
-      B.ctld.zones[id], B.ctld.zoneNode[have.name] = nil, nil
+      for _, n in ipairs({ have.name, have.farp }) do
+        ok(zm.unregisterLogistic, zm, n)
+        ok(zm.unregisterTroopZone, zm, n)
+        B.ctld.zoneNode[n] = nil
+      end
+      B.ctld.zones[id] = nil
       have = nil
     end
     if want and not have then
@@ -12203,6 +12241,19 @@ function B.ctldSyncZones()
       ok(zm.registerFOBAsTroopZone, zm, name, pt, zoneRadius(id), want)
       B.ctld.zones[id] = { name = name, coal = want }
       B.ctld.zoneNode[name] = id
+      -- v0.56: the town's FARP pads (1.5 km out) get their own zone, so a helicopter spawned there can load
+      -- troops and crates of that town
+      local padName = war:canHaveFarp(id) and B.farpPadNames and B.farpPadNames(id, side)[1]
+      local pad = padName and ok(Airbase.getByName, padName)
+      local pp = pad and ok(pad.getPoint, pad)
+      if pp then
+        local fname = name .. " FARP"
+        local fpt = { x = pp.x, y = land.getHeight({ x = pp.x, y = pp.z }), z = pp.z }
+        ok(zm.registerFOBAsLogistic, zm, fname, fpt, CC().farpZoneRadiusM, want)
+        ok(zm.registerFOBAsTroopZone, zm, fname, fpt, CC().farpZoneRadiusM, want)
+        B.ctld.zones[id].farp = fname
+        B.ctld.zoneNode[fname] = id
+      end
     end
   end
 end
@@ -13348,6 +13399,7 @@ function B.onShot(e)
   if d and d.guidance == G_RADAR_P then
     local tgt = ok(w.getTarget, w)
     local tname = tgt and ok(tgt.getName, tgt)
+    tname = tname and tostring(tname)
     local id = tname and (tname:match("^DCC_SAM_(.-)_[rls]%d+$") or tname:match("^DCC_SAMPD_(.-)_%d+$"))
     if id then
       local spec = B.catalog.sam and B.catalog.sam[B.war.state.nodes[id].side]
@@ -16105,11 +16157,71 @@ function B.canFly(p, m)
   return baseCanFly(p, m)
 end
 
+-- ===========================================================================
+-- Fire control (v0.56): AI ground units only shoot each other near players
+-- ===========================================================================
+-- Every shell and tracer two AI groups trade has to be sent to every client:
+-- dozens of AI battles in the live bubble swamped the network (desync). Now
+-- only fights within fireKm of a player are fought by DCS; the rest hold fire
+-- and their battle is rolled on the dice like any battle far from players.
+local function FC() return DCC.config.ext5.fireControl end
+
+B.x5.fireNodes = {}
+
+local function nearPlayer(pos, pts, km)
+  for _, pp in ipairs(pts) do
+    local dx, dz = pp.x - pos.x, pp.z - pos.z
+    if dx * dx + dz * dz <= (km * 1000) ^ 2 then return true end
+  end
+  return false
+end
+
+local function managed(name)
+  for _, pat in ipairs(FC().prefixes) do if name:find(pat) then return true end end
+  return false
+end
+
+function B.fireControlTick()
+  local cfg = FC()
+  if not (cfg and cfg.enabled) then return end
+  local pts = B.playerPositions()
+  local war = B.war
+  B.x5.fireNodes = {}
+  for _, id in ipairs(war.T.order) do
+    local p = B.nodePos[id]
+    if p and nearPlayer(p, pts, cfg.fireKm) then B.x5.fireNodes[id] = true end
+  end
+  B.x5.roe = B.x5.roe or {}
+  local A = AI and AI.Option and AI.Option.Ground
+  if not A then return end
+  for _, c in ipairs({ coalition.side.RED, coalition.side.BLUE }) do
+    for _, g in ipairs(coalition.getGroups(c, Group.Category.GROUND) or {}) do
+      local name = ok(g.getName, g)
+      if type(name) == "string" and managed(name) then
+        local u = ok(g.getUnit, g, 1)
+        local pos = u and ok(u.getPoint, u)
+        if pos then
+          local fire = nearPlayer(pos, pts, cfg.fireKm)
+          if B.x5.roe[name] ~= fire then
+            local ctl = ok(g.getController, g)
+            if ctl then
+              ok(ctl.setOption, ctl, A.id.ROE, fire and A.val.ROE.OPEN_FIRE or A.val.ROE.WEAPON_HOLD)
+              B.x5.roe[name] = fire
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
 local basePoll = B.opsPoll
 function B.opsPoll()
   basePoll()
   local s, err = pcall(B.airAssaultTick)
   if not s then U.log("ERROR air assault: %s", tostring(err)) end
+  s, err = pcall(B.fireControlTick)
+  if not s then U.log("ERROR fire control: %s", tostring(err)) end
 end
 
 if B.EFFECT then
@@ -16121,7 +16233,15 @@ end
 local baseInit = B.init
 function B.init(war, theater, catalog)
   baseInit(war, theater, catalog)
-  B.x5 = { escorts = {} }
+  B.x5 = { escorts = {}, fireNodes = {}, roe = {} }
+  -- a battle counts as fought by DCS only while a player is close enough for the units to open fire
+  local liveFn = war.liveFn
+  war.liveFn = function(id)
+    if not liveFn(id) then return false end
+    local cfg = FC()
+    if not (cfg and cfg.enabled) then return true end
+    return B.x5.fireNodes[id] == true
+  end
 end
 
 end
@@ -16937,15 +17057,17 @@ function B.airfieldInfo(id)
     local spd = math.sqrt(w.x * w.x + w.z * w.z)
     if spd < 1 then parts[#parts + 1] = "wind calm"
     else
-      local from = (math.deg(math.atan2(-w.z, -w.x)) + 360) % 360
+      local from = math.floor((math.deg(math.atan2(-w.z, -w.x)) + 360) % 360 + 0.5)
+      if from == 0 then from = 360 end
       parts[#parts + 1] = string.format("wind %s at %d", digits(from), math.floor(spd * 1.944 + 0.5))
     end
   end
-  local tp = atmosphere and atmosphere.getTemperatureAndPressure and
-    ok(atmosphere.getTemperatureAndPressure, { x = p.x, y = p.y or 0, z = p.z })
-  if tp and tp.pressure then
-    parts[#parts + 1] = string.format("temperature %d, QNH %d", math.floor(tp.temperature - 273.15 + 0.5),
-      math.floor(tp.pressure / 100 + 0.5))
+  -- DCS returns two numbers: temperature (K) and pressure (Pa) - v0.56 (it was read as a table)
+  if atmosphere and atmosphere.getTemperatureAndPressure then
+    local s, t, pa = pcall(atmosphere.getTemperatureAndPressure, { x = p.x, y = p.y or 0, z = p.z })
+    if s and type(t) == "number" and type(pa) == "number" then
+      parts[#parts + 1] = string.format("temperature %d, QNH %d", math.floor(t - 273.15 + 0.5), math.floor(pa / 100 + 0.5))
+    end
   end
   parts[#parts + 1] = (war.runwayClosed and war:runwayClosed(id)) and "runway closed, helicopters only" or "runway open"
   local types, total = 0, 0
@@ -17608,7 +17730,8 @@ DCC_CATALOGS.modern = {
              support = { "Hawk pcp" }, pointDefence = { "M1097 Avenger", "M1097 Avenger" } },   -- Hawk: fixed; its Avengers move
     red  = { radars = { "SA-11 Buk SR 9S18M1" }, launchers = { "SA-11 Buk LN 9A310M1", "SA-11 Buk LN 9A310M1",
              "SA-11 Buk LN 9A310M1" }, support = { "SA-11 Buk CC 9S470M1" },
-             pointDefence = { "Tor 9A331" }, mobile = true },   -- SA-11 shoots and scoots
+             pointDefence = { "Tor 9A331" }, mobile = true,     -- SA-11 shoots and scoots
+             selfTracking = true },   -- v0.56: each TELAR has its own radar - the search radar alone does not suppress it
   },
 
   -- Armoury (warehouse mode): weapon resource names to try when DCS itself does not list
@@ -17671,11 +17794,11 @@ DCC_CATALOGS.modern = {
   -- The first is always the fuel store.
   infra = {
     { type = "Fuel tank",          category = "Fortifications" },
-    { type = ".Ammunition depot",  category = "Warehouses" },
+    { type = ".Ammunition depot",  category = "Warehouses", shape = "SkladC" },
     { type = "Warehouse",          category = "Warehouses" },
     { type = "Tank",               category = "Warehouses" },
     { type = "Warehouse",          category = "Warehouses" },
-    { type = ".Ammunition depot",  category = "Warehouses" },
+    { type = ".Ammunition depot",  category = "Warehouses", shape = "SkladC" },
   },
 
   -- Ambush team that hits an escorted convoy (helicopter convoy escort).

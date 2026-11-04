@@ -109,11 +109,71 @@ function B.canFly(p, m)
   return baseCanFly(p, m)
 end
 
+-- ===========================================================================
+-- Fire control (v0.56): AI ground units only shoot each other near players
+-- ===========================================================================
+-- Every shell and tracer two AI groups trade has to be sent to every client:
+-- dozens of AI battles in the live bubble swamped the network (desync). Now
+-- only fights within fireKm of a player are fought by DCS; the rest hold fire
+-- and their battle is rolled on the dice like any battle far from players.
+local function FC() return DCC.config.ext5.fireControl end
+
+B.x5.fireNodes = {}
+
+local function nearPlayer(pos, pts, km)
+  for _, pp in ipairs(pts) do
+    local dx, dz = pp.x - pos.x, pp.z - pos.z
+    if dx * dx + dz * dz <= (km * 1000) ^ 2 then return true end
+  end
+  return false
+end
+
+local function managed(name)
+  for _, pat in ipairs(FC().prefixes) do if name:find(pat) then return true end end
+  return false
+end
+
+function B.fireControlTick()
+  local cfg = FC()
+  if not (cfg and cfg.enabled) then return end
+  local pts = B.playerPositions()
+  local war = B.war
+  B.x5.fireNodes = {}
+  for _, id in ipairs(war.T.order) do
+    local p = B.nodePos[id]
+    if p and nearPlayer(p, pts, cfg.fireKm) then B.x5.fireNodes[id] = true end
+  end
+  B.x5.roe = B.x5.roe or {}
+  local A = AI and AI.Option and AI.Option.Ground
+  if not A then return end
+  for _, c in ipairs({ coalition.side.RED, coalition.side.BLUE }) do
+    for _, g in ipairs(coalition.getGroups(c, Group.Category.GROUND) or {}) do
+      local name = ok(g.getName, g)
+      if type(name) == "string" and managed(name) then
+        local u = ok(g.getUnit, g, 1)
+        local pos = u and ok(u.getPoint, u)
+        if pos then
+          local fire = nearPlayer(pos, pts, cfg.fireKm)
+          if B.x5.roe[name] ~= fire then
+            local ctl = ok(g.getController, g)
+            if ctl then
+              ok(ctl.setOption, ctl, A.id.ROE, fire and A.val.ROE.OPEN_FIRE or A.val.ROE.WEAPON_HOLD)
+              B.x5.roe[name] = fire
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
 local basePoll = B.opsPoll
 function B.opsPoll()
   basePoll()
   local s, err = pcall(B.airAssaultTick)
   if not s then U.log("ERROR air assault: %s", tostring(err)) end
+  s, err = pcall(B.fireControlTick)
+  if not s then U.log("ERROR fire control: %s", tostring(err)) end
 end
 
 if B.EFFECT then
@@ -125,5 +185,13 @@ end
 local baseInit = B.init
 function B.init(war, theater, catalog)
   baseInit(war, theater, catalog)
-  B.x5 = { escorts = {} }
+  B.x5 = { escorts = {}, fireNodes = {}, roe = {} }
+  -- a battle counts as fought by DCS only while a player is close enough for the units to open fire
+  local liveFn = war.liveFn
+  war.liveFn = function(id)
+    if not liveFn(id) then return false end
+    local cfg = FC()
+    if not (cfg and cfg.enabled) then return true end
+    return B.x5.fireNodes[id] == true
+  end
 end

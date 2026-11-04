@@ -555,6 +555,8 @@ DCC.srsQueue = {}
 local info = B.airfieldInfo("kutaisi")
 check("airfield information: name, runway and stock", info and info:find("^Kutaisi information") and info:find("runway open", 1, true)
   and info:find("aircraft of %d+ types in stock") ~= nil, info)
+check("v0.56: ...wind and QNH (DCS gives temperature and pressure as two numbers)", info and info:find("wind 3 6 0 at 8", 1, true)
+  and info:find("temperature 15, QNH 1013", 1, true) ~= nil, info)
 viper.x, viper.z, viper.air = kp.x + 200, kp.z, false
 B.srsInfoAt = {}
 B.srsInfoTick()
@@ -702,6 +704,31 @@ check("v0.55: no BRIDGE missions for helicopters, but other attack missions", pa
   and B.canFly(p, { type = "BRIDGE", needs = "A2G" }), pa and tostring(pa.heli))
 p5.mission = nil
 war.state.missions[am.id] = nil
+
+print(" Fire control: AI ground fights only near players (v0.56)")
+-- beta 3 Nov: AI shooting at AI caused massive desync
+local fcNode
+for _, id in ipairs(war.T.order) do if war.state.nodes[id].side == "red" and B.nodePos[id] then fcNode = id; break end end
+local fp = B.nodePos[fcNode]
+coalition.addGroup(81, Group.Category.GROUND, { name = "DCC_p9901", units = { { name = "DCC_p9901_1", type = "T-72B",
+  x = fp.x, y = fp.z } } })
+coalition.addGroup(81, Group.Category.GROUND, { name = "DCC_PICK_test", units = { { name = "DCC_PICK_test_1",
+  type = "Soldier AK", x = fp.x, y = fp.z } } })
+local fcHeli = MOCK.spawnPlayer(BLUE, "UH-1H", fp.x + 40000, fp.z, "Far", true)
+B.fireControlTick()
+local ROE = AI.Option.Ground.id.ROE
+local gp = MOCK.groups["DCC_p9901"]
+check("no player within 15 km: campaign platoons hold fire", gp.options and gp.options[ROE] == AI.Option.Ground.val.ROE.WEAPON_HOLD)
+check("...and the battle there is fought on the dice", not war:isNodeLive(fcNode) or not B.x5.fireNodes[fcNode])
+check("...groups that are not campaign fighters are left alone", not (MOCK.groups["DCC_PICK_test"].options or {})[ROE])
+fcHeli.x = fp.x + 8000
+B.fireControlTick()
+check("a player within 15 km: they open fire", gp.options[ROE] == AI.Option.Ground.val.ROE.OPEN_FIRE)
+check("...and DCS fights that battle (when the node is live)", B.x5.fireNodes[fcNode] == true
+  and (war:isNodeLive(fcNode) == (B.liveNodes[fcNode] == true)))
+fcHeli.alive = false
+gp.exists = false
+MOCK.groups["DCC_PICK_test"].exists = false
 
 print(" Self-check and Where can I spawn? (v0.47)")
 env.mission.forcedOptions = { unrestrictedSATNAV = true }

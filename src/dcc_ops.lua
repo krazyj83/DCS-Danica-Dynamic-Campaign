@@ -66,10 +66,17 @@ function War:samHit(id, what)
     self:log("sam_destroyed", ns.side, string.format("%s air defence at %s destroyed",
       ns.side:upper(), self:nodeName(id)), { node = id })
   elseif what == "radar" and ns.sam.status == "up" then
-    ns.sam = { status = "suppressed", since = self.state.tick }
+    -- v0.56: the site keeps its launcher losses and where it moved to
+    ns.sam = { status = "suppressed", since = self.state.tick, lostL = ns.sam.lostL, off = ns.sam.off, pdOff = ns.sam.pdOff }
     self:log("sam_suppressed", ns.side, string.format("%s air defence radar at %s knocked out",
       ns.side:upper(), self:nodeName(id)), { node = id })
   end
+end
+
+-- v0.56: launchers lost at a site that is still standing (they stay lost until it is repaired)
+function War:samLaunchersLost(id, n)
+  local ns = self.state.nodes[id]
+  if ns and ns.sam and ns.sam.status ~= "destroyed" and n > (ns.sam.lostL or 0) then ns.sam.lostL = n end
 end
 
 -- Repairs happen on their timers, paid from the node's supply.
@@ -83,7 +90,7 @@ function War:repairSams()
       local cost = (sam.status == "suppressed") and cfg.samRepairCost or cfg.samRebuildCost
       if self.state.tick - (sam.since or 0) >= wait and (ns.supply or 0) >= cost then
         ns.supply = ns.supply - cost
-        ns.sam = { status = "up" }
+        ns.sam = { status = "up", off = sam.off, pdOff = sam.pdOff }   -- repaired or rebuilt: full strength again
         self:log("sam_up", ns.side, string.format("%s air defence at %s back up", ns.side:upper(),
           self:nodeName(id)), { node = id })
       end

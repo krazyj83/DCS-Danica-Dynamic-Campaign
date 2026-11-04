@@ -86,9 +86,21 @@ MOCK.advance(31)
 local sg = MOCK.groups["DCC_SAM_" .. samNode]
 check("SAM site spawned when a player is within 80 km", sg ~= nil)
 if sg then
+  -- v0.56 (beta 3 Nov): an SA-11 was reported dead when only its search radar was killed - the TELARs
+  -- have their own radars. And a hit site came back at once with every launcher.
   for _, u in ipairs(sg.units) do if u.name:find("_r%d+$") then u.alive = false end end
   MOCK.advance(31)
-  check("radar kill read back: SAM suppressed", war.state.nodes[samNode].sam.status == "suppressed")
+  check("v0.56: SA-11 search radar killed: TELARs still track, the site is still up",
+    war.state.nodes[samNode].sam.status == "up" and MOCK.groups["DCC_SAM_" .. samNode] == sg, war.state.nodes[samNode].sam.status)
+  local tel = {}
+  for _, u in ipairs(sg.units) do if u.name:find("_l%d+$") then tel[#tel + 1] = u end end
+  tel[1].alive = false
+  MOCK.advance(31)
+  check("...one TELAR down: still up, the group is not respawned", war.state.nodes[samNode].sam.status == "up"
+    and MOCK.groups["DCC_SAM_" .. samNode] == sg and tel[1].alive == false)
+  for _, u in ipairs(tel) do u.alive = false end
+  MOCK.advance(31)
+  check("...search radar and every TELAR down: destroyed", war.state.nodes[samNode].sam.status == "destroyed")
   DCC.onTick()
   check("SEAD mission complete", war.state.missions[m.id].status == "done")
   check("points wait while the pilot is airborne", (DCC.pilots.data.pilots["Morten"].byType.SEAD or 0) == 0)
@@ -98,6 +110,46 @@ if sg then
   MOCK.fire({ id = world.event.S_EVENT_LAND, initiator = viper })
   check("mission credited to the pilot after landing", (DCC.pilots.data.pilots["Morten"].byType.SEAD or 0) == 1)
   viper.air = true
+end
+
+print("Hawk: radar kill suppresses, nothing comes back early (v0.56)")
+do
+  local hawkNode
+  for _, id in ipairs(war.T.order) do
+    local ns = war.state.nodes[id]
+    if ns.side == "blue" and ns.sam and ns.sam.status == "up" and id ~= "kutaisi" then hawkNode = id; break end
+  end
+  local flanker = MOCK.spawnPlayer(1, "Su-27", 0, 0, "Ivan")
+  at(flanker, hawkNode, 20000, 0)
+  flanker.air = true
+  viper.x, viper.z = viper.x + 400000, viper.z
+  MOCK.advance(31)
+  local hg2 = MOCK.groups["DCC_SAM_" .. hawkNode]
+  check("Hawk site spawned for the RED pilot", hg2 ~= nil)
+  if hg2 then
+    local ln = {}
+    for _, u in ipairs(hg2.units) do if u.name:find("_l%d+$") then ln[#ln + 1] = u end end
+    ln[1].alive = false
+    for _, u in ipairs(hg2.units) do if u.name:find("_r%d+$") then u.alive = false end end
+    MOCK.advance(31)
+    check("radars killed: Hawk suppressed", war.state.nodes[hawkNode].sam.status == "suppressed")
+    MOCK.advance(61)
+    check("...the same group stays: the dead launcher is not back", MOCK.groups["DCC_SAM_" .. hawkNode] == hg2
+      and ln[1].alive == false)
+    flanker.x = flanker.x + 400000
+    MOCK.advance(61)
+    flanker.x = flanker.x - 400000
+    MOCK.advance(61)
+    local again, l2, r2 = MOCK.groups["DCC_SAM_" .. hawkNode], 0, 0
+    for _, u in ipairs(again and again.units or {}) do
+      if u.alive ~= false and u.name:find("_l%d+$") then l2 = l2 + 1 end
+      if u.alive ~= false and u.name:find("_r%d+$") then r2 = r2 + 1 end
+    end
+    check("...respawned later without radars and one launcher short", again ~= nil and again ~= hg2 and r2 == 0
+      and l2 == #ln - 1, l2 .. " launchers, " .. r2 .. " radars")
+  end
+  flanker.alive = false
+  viper.x = viper.x - 400000
 end
 
 print("STRIKE")
@@ -124,6 +176,12 @@ local truck = { name = "DCC_c12_1", getName = function(s) return s.name end,
                 getDesc = function() return { category = Unit.Category.GROUND_UNIT } end }
 MOCK.fire({ id = world.event.S_EVENT_KILL, initiator = hog, target = truck })
 check("convoy truck kill credited", DCC.pilots.data.pilots["Jens"].kills_convoy == 1)
+-- v0.56 (beta 3 Nov, 700 errors in dcs.log): scenery objects (bridges, houses) have numbers for names
+local errsBefore = errors
+local house = { getName = function() return 123456 end, getDesc = function() return { category = 0 } end }
+MOCK.fire({ id = world.event.S_EVENT_KILL, initiator = hog, target = house })
+MOCK.fire({ id = world.event.S_EVENT_DEAD, initiator = house })
+check("v0.56: a scenery kill (number name) is no script error", errors == errsBefore, errors - errsBefore)
 
 print("RECON")
 DCC.onTick()

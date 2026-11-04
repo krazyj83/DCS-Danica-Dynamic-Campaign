@@ -463,6 +463,14 @@ end
 function Spot.createLaser(src, off, p, code) return newSpot("laser", src, off, p, code) end
 function Spot.createInfraRed(src, off, p) return newSpot("ir", src, off, p) end
 
+-- Atmosphere, as DCS has it (v0.56): getTemperatureAndPressure returns TWO numbers (K, Pa)
+MOCK.wind = MOCK.wind or { x = -4, y = 0, z = 0 }        -- a vector the wind blows TOWARD (m/s): here from the north
+atmosphere = {
+  getWind = function(p) return { x = MOCK.wind.x, y = MOCK.wind.y, z = MOCK.wind.z } end,
+  getWindWithTurbulence = function(p) return { x = MOCK.wind.x, y = MOCK.wind.y, z = MOCK.wind.z } end,
+  getTemperatureAndPressure = function(p) return 288.15, 101325 end,
+}
+
 -- Fog (DCS 2.9.10+)
 world.weather = {
   setFogThickness = function(t) MOCK.fog = MOCK.fog or {}; MOCK.fog.thickness = t end,
