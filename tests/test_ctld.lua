@@ -17,6 +17,16 @@ os.execute('mkdir -p "' .. MOCK.writedir .. '"')
 local TH = DCC_THEATERS.Caucasus
 MOCK.buildAirbases(TH)
 MOCK.addTemplates()
+-- the generated mission's FARP pads (2 per town and side, 1.5 km east / west of the town)
+for _, n in ipairs(TH.nodes) do
+  if n.kind == "town" then
+    local p = coord.LLtoLO(n.lat, n.lon, 0)
+    for _, sfx in ipairs({ "", "_2" }) do
+      MOCK.addFarp("DCC_FARP_" .. n.id .. "_blue" .. sfx, p.x + 1500, p.z + (sfx == "" and 0 or 60), 2)
+      MOCK.addFarp("DCC_FARP_" .. n.id .. "_red" .. sfx, p.x - 1500, p.z + (sfx == "" and 0 or 60), 1)
+    end
+  end
+end
 
 -- what the mission's first DO SCRIPT does, then CTLD.lua itself
 ctld = { dontInitialize = true }
@@ -62,6 +72,13 @@ local tz = zm:getTroopZone("Kutaisi")
 check("...and a BLUE troop pickup zone", tz and tz.coalition == BLUE and tz:hasPickup())
 local rz = zm:getLogisticZone(war:nodeName("sochi"))
 check("Sochi (RED) has a RED zone", rz and rz.coalition == RED)
+-- v0.56 (beta 3 Nov): "air assault: no troops to pick up" - a helicopter spawned on a town's FARP pad
+-- was 1.5 km from the town, outside its 600 m troop zone
+local gz = zm:getTroopZone(war:nodeName("gori") .. " FARP")
+local gpad = MOCK.airbases["DCC_FARP_gori_blue"].p
+check("v0.56: a troop pickup zone on the own FARP pads of a town", gz and gz.coalition == BLUE and gz:hasPickup()
+  and math.abs((gz.position or gz.point or gz.center or { x = 0 }).x - gpad.x) < 100)
+check("...and a logistic zone there (crates)", zm:getLogisticZone(war:nodeName("gori") .. " FARP") ~= nil)
 
 -- a player helicopter on the ground at Kutaisi
 local kp = B.nodePos.kutaisi

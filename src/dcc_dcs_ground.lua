@@ -324,6 +324,7 @@ local baseOpsEvent = B.onOpsEvent
 function B.onOpsEvent(e)
   if e.id == world.event.S_EVENT_DEAD and e.initiator then
     local n = ok(e.initiator.getName, e.initiator)
+    n = n and tostring(n)                                -- v0.56: scenery objects have numbers for names
     if n and n:find("^DCC_FORT_") then B.onFortDead(n) end
   end
   baseOpsEvent(e)

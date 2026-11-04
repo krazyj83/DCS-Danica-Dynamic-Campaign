@@ -128,9 +128,12 @@ function B.ctldSyncZones()
     local want = (side == "blue" or side == "red") and kind ~= "carrier" and B.nodePos[id] and coalOf(side) or nil
     local have = B.ctld.zones[id]
     if have and have.coal ~= want then
-      ok(zm.unregisterLogistic, zm, have.name)
-      ok(zm.unregisterTroopZone, zm, have.name)
-      B.ctld.zones[id], B.ctld.zoneNode[have.name] = nil, nil
+      for _, n in ipairs({ have.name, have.farp }) do
+        ok(zm.unregisterLogistic, zm, n)
+        ok(zm.unregisterTroopZone, zm, n)
+        B.ctld.zoneNode[n] = nil
+      end
+      B.ctld.zones[id] = nil
       have = nil
     end
     if want and not have then
@@ -141,6 +144,19 @@ function B.ctldSyncZones()
       ok(zm.registerFOBAsTroopZone, zm, name, pt, zoneRadius(id), want)
       B.ctld.zones[id] = { name = name, coal = want }
       B.ctld.zoneNode[name] = id
+      -- v0.56: the town's FARP pads (1.5 km out) get their own zone, so a helicopter spawned there can load
+      -- troops and crates of that town
+      local padName = war:canHaveFarp(id) and B.farpPadNames and B.farpPadNames(id, side)[1]
+      local pad = padName and ok(Airbase.getByName, padName)
+      local pp = pad and ok(pad.getPoint, pad)
+      if pp then
+        local fname = name .. " FARP"
+        local fpt = { x = pp.x, y = land.getHeight({ x = pp.x, y = pp.z }), z = pp.z }
+        ok(zm.registerFOBAsLogistic, zm, fname, fpt, CC().farpZoneRadiusM, want)
+        ok(zm.registerFOBAsTroopZone, zm, fname, fpt, CC().farpZoneRadiusM, want)
+        B.ctld.zones[id].farp = fname
+        B.ctld.zoneNode[fname] = id
+      end
     end
   end
 end

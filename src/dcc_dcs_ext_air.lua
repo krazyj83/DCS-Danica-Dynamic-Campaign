@@ -614,6 +614,7 @@ function B.onShot(e)
   if d and d.guidance == G_RADAR_P then
     local tgt = ok(w.getTarget, w)
     local tname = tgt and ok(tgt.getName, tgt)
+    tname = tname and tostring(tname)
     local id = tname and (tname:match("^DCC_SAM_(.-)_[rls]%d+$") or tname:match("^DCC_SAMPD_(.-)_%d+$"))
     if id then
       local spec = B.catalog.sam and B.catalog.sam[B.war.state.nodes[id].side]

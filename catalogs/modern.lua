@@ -255,7 +255,8 @@ DCC_CATALOGS.modern = {
              support = { "Hawk pcp" }, pointDefence = { "M1097 Avenger", "M1097 Avenger" } },   -- Hawk: fixed; its Avengers move
     red  = { radars = { "SA-11 Buk SR 9S18M1" }, launchers = { "SA-11 Buk LN 9A310M1", "SA-11 Buk LN 9A310M1",
              "SA-11 Buk LN 9A310M1" }, support = { "SA-11 Buk CC 9S470M1" },
-             pointDefence = { "Tor 9A331" }, mobile = true },   -- SA-11 shoots and scoots
+             pointDefence = { "Tor 9A331" }, mobile = true,     -- SA-11 shoots and scoots
+             selfTracking = true },   -- v0.56: each TELAR has its own radar - the search radar alone does not suppress it
   },
 
   -- Armoury (warehouse mode): weapon resource names to try when DCS itself does not list
@@ -318,11 +319,11 @@ DCC_CATALOGS.modern = {
   -- The first is always the fuel store.
   infra = {
     { type = "Fuel tank",          category = "Fortifications" },
-    { type = ".Ammunition depot",  category = "Warehouses" },
+    { type = ".Ammunition depot",  category = "Warehouses", shape = "SkladC" },
     { type = "Warehouse",          category = "Warehouses" },
     { type = "Tank",               category = "Warehouses" },
     { type = "Warehouse",          category = "Warehouses" },
-    { type = ".Ammunition depot",  category = "Warehouses" },
+    { type = ".Ammunition depot",  category = "Warehouses", shape = "SkladC" },
   },
 
   -- Ambush team that hits an escorted convoy (helicopter convoy escort).

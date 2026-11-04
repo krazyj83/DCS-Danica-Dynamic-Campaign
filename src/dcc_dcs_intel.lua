@@ -289,7 +289,7 @@ function B.onShot(e)
   local id
   local tgt = ok(w.getTarget, w)
   local tname = tgt and ok(tgt.getName, tgt)
-  if tname then id = tname:match("^DCC_SAM_(.-)_[rls]%d+$") end
+  if tname then id = tostring(tname):match("^DCC_SAM_(.-)_[rls]%d+$") end
   if not id then   -- no lock reported: the nearest emitting enemy site
     local sp, best = shooter:getPoint(), nil
     for _, nid in ipairs(B.war.T.order) do

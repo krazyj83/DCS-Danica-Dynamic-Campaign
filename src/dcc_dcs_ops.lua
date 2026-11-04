@@ -232,7 +232,8 @@ local EFFECT = {
   CAS = "Kill enemy ground forces in the battle. The outcome decides who holds the base.",
   BAI = "Destroy the column on the road. Its cargo or platoons never arrive.",
   STRIKE = "Destroy fuel, ammo or warehouse buildings. Each one burns supply and cuts the base's output for hours.",
-  SEAD = "Kill the radar to suppress the site for ~2 h, or radar and launchers to destroy it for ~6 h.",
+  SEAD = "Hawk: kill the radars to suppress the site for ~2 h, radars and launchers to destroy it for ~6 h. "
+    .. "SA-11: every launcher has its own radar - kill the search radar and all launchers (destroyed for ~6 h).",
   CAP = "Stay on station 20 min or shoot down an enemy aircraft. Gives 1 h of air superiority: enemy AI attack sorties stay away.",
   ESCORT = "Stay within 15 km of the transport until it lands. Enemy fighters may try to intercept it.",
   CONVOY = "Stay within 3 km of the convoy. An ambush waits ahead on the road. An escorted convoy is not ambushed.",
@@ -255,7 +256,7 @@ B.FIREPOWER = {
   FORT = "Sandbag positions: one 500 lb bomb or a few rockets each. The concrete bunker: a 2000 lb bomb or a "
     .. "penetrator (GBU-31(V)3/B).",
   SEAD = "Radar: one HARM / Kh-58 / Kh-31P hit usually kills it (or a Maverick / 500 lb bomb). Launchers: a Maverick, "
-    .. "a 500 lb bomb or a cluster bomb each.",
+    .. "a 500 lb bomb or a cluster bomb each. An SA-11 needs its search radar and all 3 launchers.",
   EWR = "One HARM / Kh-31P, a Maverick or a 500 lb bomb.",
   ARTY = "Each gun: a Maverick, Hellfire, Vikhr or a 500 lb bomb. Cluster bombs (CBU-97/87, RBK) take several at once.",
   SCUD = "Launcher and truck: a Maverick / Hellfire or a 500 lb bomb each; rockets work too.",
@@ -576,7 +577,10 @@ function B.spawnSam(id)
     end
   end
   if ns.sam.status == "up" then add(spec.radars, "r") end
-  add(spec.launchers, "l")
+  local lost = ns.sam.lostL or 0                            -- v0.56: launchers already killed stay dead
+  local ln = {}
+  for i = lost + 1, #spec.launchers do ln[#ln + 1] = spec.launchers[i] end
+  add(ln, "l")
   add(spec.support, "s")
   if #units == 0 then return end
   local gname = "DCC_SAM_" .. id
@@ -584,7 +588,7 @@ function B.spawnSam(id)
                  route = { points = { { x = units[1].x, y = units[1].y, type = "Turning Point",
                    action = "Off Road", speed = 0, ETA = 0, ETA_locked = false, speed_locked = true } } } }
   local s = pcall(coalition.addGroup, B.countryId(ns.side), Group.Category.GROUND, data)
-  if s then B.sams[id] = { group = gname, status = ns.sam.status, side = ns.side } end
+  if s then B.sams[id] = { group = gname, status = ns.sam.status, side = ns.side, lostBase = lost, launchers = #ln } end
 end
 
 function B.despawnSam(id)
@@ -607,8 +611,15 @@ function B.pollSam(id, rec)
       end
     end
   end
+  -- launchers killed so far stay killed (v0.56)
+  if rec.launchers and launchers < rec.launchers then
+    B.war:samLaunchersLost(id, (rec.lostBase or 0) + rec.launchers - launchers)
+  end
+  -- SA-11 style sites: every launcher (TELAR) has its own radar (catalog sam.<side>.selfTracking)
+  local spec = cat().sam and cat().sam[rec.side]
+  local tracking = radars + ((spec and spec.selfTracking) and launchers or 0)
   if radars == 0 and launchers == 0 then B.war:samHit(id, "destroyed")
-  elseif radars == 0 and rec.status == "up" then B.war:samHit(id, "radar") end
+  elseif tracking == 0 and rec.status == "up" then B.war:samHit(id, "radar") end
 end
 
 function B.reconcileSams()
@@ -618,6 +629,8 @@ function B.reconcileSams()
     if ns.sam then B.pollSam(id, rec) end
     local want = ns.sam and ns.sam.status ~= "destroyed" and ns.side == rec.side
                  and playerNear(B.nodePos[id], DCC.config.ops.samLiveRadiusKm + 10)
+    -- v0.56: a radar kill keeps the group as it is (its dead stay dead); only a repaired site is respawned
+    if want and ns.sam.status == "suppressed" and rec.status == "up" then rec.status = "suppressed" end
     if not want or (ns.sam and ns.sam.status ~= rec.status) then B.despawnSam(id) end
   end
   for _, id in ipairs(war.T.order) do
@@ -664,7 +677,8 @@ function B.reconcileStatics()
           local sp = spotNear(id, k, 1900 + (k % 2) * 250)
           local name = string.format("DCC_INF_%s_%d_%d", id, k, B.war.state.tick)
           local s = pcall(coalition.addStaticObject, B.countryId(ns.side),
-            { name = name, type = spec.type, category = spec.category, x = sp.x, y = sp.z, heading = 0, dead = false })
+            { name = name, type = spec.type, category = spec.category, shape_name = spec.shape,   -- v0.56: DCS needs the
+              x = sp.x, y = sp.z, heading = 0, dead = false })                                -- ammo depot's shape
           if s then rec.names[k] = name end
         end
       end
@@ -1059,7 +1073,7 @@ function B.onKill(e)
   local key = p and p.key or playerKey(name)
   local tgt = e.target
   if not tgt then return end
-  local tname = ok(tgt.getName, tgt) or ""
+  local tname = tostring(ok(tgt.getName, tgt) or "")   -- v0.56: scenery objects have numbers for names
   local field = "kills_ground"
   local category = ok(Object.getCategory, tgt)
   if category == Object.Category.STATIC then

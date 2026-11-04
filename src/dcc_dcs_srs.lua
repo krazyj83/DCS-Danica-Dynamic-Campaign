@@ -124,15 +124,17 @@ function B.airfieldInfo(id)
     local spd = math.sqrt(w.x * w.x + w.z * w.z)
     if spd < 1 then parts[#parts + 1] = "wind calm"
     else
-      local from = (math.deg(math.atan2(-w.z, -w.x)) + 360) % 360
+      local from = math.floor((math.deg(math.atan2(-w.z, -w.x)) + 360) % 360 + 0.5)
+      if from == 0 then from = 360 end
       parts[#parts + 1] = string.format("wind %s at %d", digits(from), math.floor(spd * 1.944 + 0.5))
     end
   end
-  local tp = atmosphere and atmosphere.getTemperatureAndPressure and
-    ok(atmosphere.getTemperatureAndPressure, { x = p.x, y = p.y or 0, z = p.z })
-  if tp and tp.pressure then
-    parts[#parts + 1] = string.format("temperature %d, QNH %d", math.floor(tp.temperature - 273.15 + 0.5),
-      math.floor(tp.pressure / 100 + 0.5))
+  -- DCS returns two numbers: temperature (K) and pressure (Pa) - v0.56 (it was read as a table)
+  if atmosphere and atmosphere.getTemperatureAndPressure then
+    local s, t, pa = pcall(atmosphere.getTemperatureAndPressure, { x = p.x, y = p.y or 0, z = p.z })
+    if s and type(t) == "number" and type(pa) == "number" then
+      parts[#parts + 1] = string.format("temperature %d, QNH %d", math.floor(t - 273.15 + 0.5), math.floor(pa / 100 + 0.5))
+    end
   end
   parts[#parts + 1] = (war.runwayClosed and war:runwayClosed(id)) and "runway closed, helicopters only" or "runway open"
   local types, total = 0, 0
