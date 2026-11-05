@@ -212,7 +212,7 @@ one more bought every hour (max 24).
 | **Prisoners and wounded** | Captures and surrenders leave prisoners, battles leave wounded, waiting at the base for a helicopter. | **POW**, **MEDEVAC** |
 | **SCUDs (RED)** | 2 launchers in the rear fire at BLUE depots and airbases every ~2.5 h (−15 SU, 35 % chance of a closed runway). The launch reveals them; 15 min later they move on. Rebuilt after 12 h. | **SCUD** hunt |
 | **Pop-up threats** | MANPADS teams and mobile SAMs (Stinger / Avenger, Igla / Strela) appear near the front, up to 3 per side for ~1.5 h, real units whenever enemy aircraft are within 40 km. On the map only once someone has seen one (8 km, line of sight) or it fires. | **POPUP** |
-| **Night illumination** | At night every battle with a player within 25 km is lit by a flare every 2 min; more on call (F10 → Support). | — |
+| **Night illumination** | At night every battle with a player within 25 km is lit by a flare every 5 min (v0.57); more on call (F10 → Support). | — |
 | **Dry land** | Every ground group and static spawned by any script (CTLD's too) is moved out of the water, waypoints included. | — |
 
 ## Radars, AWACS and recon photos
@@ -473,11 +473,11 @@ and ignores the map rotation, so the real war is not touched):
 
 | Command | Rank | What happens |
 | --- | --- | --- |
-| Artillery on my map mark | Captain | Your nearest artillery battery within 35 km fires 12 rounds (10 SU from its base; every 10 min per side) |
+| Artillery on my map mark | Captain | Your nearest artillery battery within 35 km fires 6 rounds (10 SU from its base; every 10 min per side; v0.57: was 12) |
 | CAS pair on my map mark | Major | An AI attack pair flies to the mark (20 SU, from the air pool; every 20 min per side) |
 | AWACS picture | Colonel | The 5 nearest enemy aircraft your side's sensors hold, as bearing / range / altitude |
 | Armoury at this base | anyone | What the base can arm you with |
-| Illumination on my map mark | anyone | 4 flares over the mark, one a minute, from an own base within 30 km (2 SU; every 5 min per side) |
+| Illumination on my map mark | anyone | 4 flares over the mark, one every 5 min (v0.57), from an own base within 30 km (2 SU; every 5 min per side) |
 
 Ranks come from your score (Captain 100, Major 300, Lt Col 700, Colonel 1500). **Anyone** may spawn helicopters
 at FARPs since v0.46 (`ext.ranks.farp`, was Lieutenant Colonel).
@@ -507,7 +507,7 @@ at FARPs since v0.46 (`ext.ranks.farp`, was Lieutenant Colonel).
   front: they sabotage supply and ambush columns. A garrison breaks them up now and then; COIN does it now.
 * **Convoy ambushes** — an escorted convoy meets a second ambush further down the road, and a live,
   unescorted front convoy near players can be ambushed too (30 %).
-* **Persistent wrecks** — destroyed vehicles stay as wrecks through restarts (3 days, at most 300), and
+* **Persistent wrecks** — destroyed vehicles stay as wrecks through restarts (3 days, at most the newest 100 per map, v0.57), and
   destroyed buildings stay destroyed.
 
 ## FARPs
@@ -562,7 +562,7 @@ as ground kills. Pilots never see these missions, and ground players never see a
 | CAS pair on my map mark | as for pilots |
 | Illumination on my map mark | as for pilots (night) |
 
-It is the same artillery the pilots call: a battery of your side within 35 km fires 12 rounds for 10 SU from its
+It is the same artillery the pilots call: a battery of your side within 35 km fires 6 rounds for 10 SU from its
 base, one fire mission per side every 10 min. Tank crews need **no rank** for their own fire missions (pilots
 need Captain), and a target closer than **300 m** is refused (*danger close*).
 
@@ -606,13 +606,24 @@ battles in the live bubble swamped the network. Campaign ground groups (platoons
 ambushes) now **hold fire unless a player is within 15 km**; those battles are fought on the dice like any battle
 far from players. Within 15 km everything is real, as before. Air defence always shoots. `ext5.fireControl`.
 
-**Performance guard.** Every minute the engine counts the ground units in DCS. From **700** it shrinks the
-war in the field (level 1, scale 0.7), from **1000** further (level 2, scale 0.45):
+**Less network load (v0.57).**
+- **Idle AI off:** standing campaign groups (garrisons, artillery, FARP crews, skirmishes) with no player within
+  **50 km** keep their place but DCS stops running their AI; it switches back on when a player comes closer.
+  Moving groups, SAM sites and radars keep their AI.
+- **Columns and supply convoys** are only real DCS units within **20 km** of a player (until 25 km, so they don't
+  flicker), or while a player has taken a mission on them. Further out they drive on the model's clock: **they still
+  arrive and resupply their bases on time** — they just cannot be seen or shot there.
+- **Smaller live bubble:** units spawn within **25 km** of a player (was 40), at most **60 platoons** (was 120).
+- Persistent wrecks: the newest **100** per map (was 300). Night flares: one every **5 min** (was 2). AI and
+  defender smoke: at most every **20 min** (was 10). Fire missions: **6 rounds** (was 12).
+
+**Performance guard.** Every minute the engine counts the ground units in DCS. From **550** it shrinks the
+war in the field (level 1, scale 0.7), from **800** further (level 2, scale 0.45) (v0.57: was 700 / 1000):
 
 | | normal | level 1 | level 2 |
 | --- | --- | --- | --- |
-| live radius | 40 km | 34 km | 29 km |
-| live platoons | 120 | 84 | 54 |
+| live radius | 25 km | 20 km | 20 km |
+| live platoons | 60 | 42 | 27 |
 | front skirmishes | 8 | 5 | 3 |
 | pop-up threats | 3 | 2 | 1 |
 
@@ -743,7 +754,7 @@ Spectators see only the front line and who owns each base.
 | **Convoy** | Trucks carrying supply one road at a time toward the front. Near players they are real trucks — destroy them and the cargo never arrives. |
 | **Airlift** | A transport aircraft (C-130 / Il-76) carrying supply between friendly airbases. Always a real aircraft, so it can be intercepted anywhere. Keeps cut-off airbases alive. |
 | **Main effort** | Each side picks one enemy node to break, piles platoons and supply next to it, then attacks with everything it staged. |
-| **Live bubble** | Nodes within 40 km of any player are *live*: their garrisons, columns and convoys are spawned as real DCS groups, and DCS does the fighting. Everywhere else the war runs on dice. |
+| **Live bubble** | Nodes within 25 km of any player are *live* (v0.57: was 40): their garrisons, columns and convoys are spawned as real DCS groups, and DCS does the fighting. Everywhere else the war runs on dice. |
 | **Read-back** | Every 30 s the engine polls spawned groups. Dead vehicles lower a platoon's health or a convoy's cargo; positions become progress along the road. |
 | **Warehouse** | Each airbase's DCS warehouse holds the owner's player aircraft (dynamic spawn, 20 of each type) and 100 of every weapon. Players take aircraft out and bring them back; lost ones are replaced one an hour, paid for in supply — only at a supplied base. |
 | **Mission board** | Player missions generated from the live war for each side. Each points at something real in the save; its effect happens in the model itself. |
@@ -947,7 +958,7 @@ after every new version.
 - **Own assaults** — arrows from staging node to target; **own airlifts** — a line origin → destination. Only your side sees them.
 - **Messages** — captures, repulsed attacks and destroyed convoys/airlifts for everyone; your side's main effort, assaults, airlifts and out-of-supply warnings for your side.
 - **Airbases** — DCS auto-capture is off; the airbase coalition follows the war, and so do the aircraft you can spawn there. Spawning at a base your side does not own removes you with a message.
-- **Ground battles and convoys** — within 40 km of a front everything is real: what you destroy is gone from the war.
+- **Ground battles and convoys** — within 25 km of a player everything is spawned (convoys within 20 km, fighting within 15 km): what you destroy is gone from the war.
 
 ---
 
@@ -967,8 +978,9 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `supply.convoyCapacity` | 30 | SU per convoy |
 | `supply.maxAirlifts` | 2 | Transports in the air per side |
 | `supply.airRestockTicks` / `airRestockCost` | 12 / 5 | One lost aircraft replaced per hour per base, for 5 SU |
-| `liveRadiusKm` | 40 | How close a player must be for units to spawn |
-| `maxLivePlatoons` | 120 | Hard cap on spawned platoons (~500 vehicles) — lower it if the server struggles |
+| `liveRadiusKm` | 25 | How close a player must be for units to spawn (v0.57: was 40) |
+| `maxLivePlatoons` | 60 | Hard cap on spawned platoons (~250 vehicles; v0.57: was 120) — lower it if the server struggles |
+| `ext5.fireControl.idleKm` / `convoyKm` | 50 km, 20 km | Idle AI off with no player this close; columns and convoys spawned only this close (v0.57) |
 | `battleLossRate` | 0.15 | How fast dice battles bleed; higher = faster wars |
 | `warClockDays` | 7 | A war ends after this many days of server time; most ground gained wins. 0 = no clock |
 | `warClockDaysNoSave` | 1 | The same on a server that cannot save (hosted without file access) |
@@ -1008,7 +1020,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `ext4.mines.layerShips` / `layerSpeedKmh` / `detectAt` / `spotKm` | Castle / Bykov → Molniya, 30 km/h, 30 %, 20 km | Minelayer ships |
 | `ext4.bogey` | 60 s, 100 nm | Bogey dope: contact age and range |
 | `ext4.repair` | 1 t, 20 SU, 3 km | Engineer repair kit |
-| `ext4.perf.levels` | 700 → 0.7, 1000 → 0.45 | Performance guard: ground units and scale per level |
+| `ext4.perf.levels` | 550 → 0.7, 800 → 0.45 | Performance guard: ground units and scale per level |
 
 Phase 3 settings are in `ops` (SAM repair times and costs, structures, AI air pools, air
 cover, ambush chance, CSAR timeout, crate size) and `missions` (board size per type, CAP time,

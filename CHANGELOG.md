@@ -6,6 +6,20 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.57.0 — 2026-11-05
+
+**Changed** (less multiplayer desync)
+- **Idle AI off:** standing campaign ground groups with no player within 50 km keep their place, but their AI is
+  switched off; it comes back on when a player is within 50 km (`ext5.fireControl.idleKm`).
+- **Columns and supply convoys only spawn within 20 km of a player** (kept until 25 km), or while a player has
+  taken a mission on them. Further out they move on the model's clock and still arrive and resupply on time
+  (`convoyKm`, `convoyHysteresisKm`).
+- **Smaller live bubble:** 25 km (was 40), 60 platoons (was 120). **Performance guard** from 550 / 800 ground
+  units (was 700 / 1000).
+- **Wrecks:** the newest 100 per map (was 300). **Flares:** one every 5 min, automatic and on call (was 2 min /
+  1 min). **AI and defender smoke:** every 20 min at most (was 10). **Fire missions:** 6 rounds (was 12).
+- DCS test plan: new P-311; P-301, P-310, P-1002 and S-306 to RETEST.
+
 ## 0.56.0 — 2026-11-04
 
 Beta test, 3 November.
