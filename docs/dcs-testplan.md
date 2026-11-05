@@ -323,7 +323,7 @@ v0.51.0: pilotsider, seneste sorties og ugentligt Discord-resumé.
 
 ### S-306
 **Performance guard**
-`Status: IKKE TESTET` · Kort: Germany (flest baser) · Siden v0.27 · Offline: test_ext4
+`Status: RETEST` · Kort: Germany (flest baser) · Siden v0.27 · Offline: test_ext4
 
 1. Få mange spillere spredt over fronten, eller sæt `ext4.perf.levels` lavt i en testbuild.
 
@@ -331,6 +331,7 @@ v0.51.0: pilotsider, seneste sorties og ugentligt Discord-resumé.
 Når tallet falder 15 % under grænsen, kommer det tilbage.
 
 Feedback:
+v0.57.0: performance guard fra 550 / 800 enheder (var 700 / 1000).
 
 ### S-307
 **Minelægger uden Currenthill-mod**
@@ -605,6 +606,7 @@ landingsbanen, forpladsen eller taxivejene. Når du flyver væk, forsvinder de i
 
 Feedback: v0.36, 9 spillere: kampvogne på landingsbanen.
 Rettet i v0.37.0: alle jordenheder og deres waypoints flyttes mindst 60 m væk fra bane, taxivej og forplads.
+v0.57.0: live-zonen er nu 25 km (var 40), højst 60 delinger.
 
 ### P-302
 **Kills tæller i krigen**
@@ -690,7 +692,7 @@ Feedback:
 
 ### P-310
 **Ingen AI-mod-AI-kamp langt fra spillere (desync)**
-`Status: IKKE TESTET` · Spillere: 2+ · Kort: alle · Siden v0.56 · Offline: test_ext4
+`Status: RETEST` · Spillere: 2+ · Kort: alle · Siden v0.56 · Offline: test_ext4
 
 1. Flyv med flere spillere i et område med mange kampe ved fronten. Hold øje med desync og `dcs.log`.
 2. Flyv tæt på (under 15 km) et slag, og længere væk (20-40 km).
@@ -701,6 +703,19 @@ terninger som langt fra spillere. Mindre desync end før.
 Feedback: v0.55, 3. nov: AI der skyder på AI gav massiv desync.
 Rettet i v0.56.0: kampagnens jordgrupper holder ilden, medmindre en spiller er inden for 15 km
 (`ext5.fireControl`).
+v0.57.0: inaktive grupper uden spiller inden for 50 km får AI slået fra; kolonner og konvojer spawnes kun inden for 20 km.
+
+### P-311
+**Konvojer kun tæt på spillere, forsyning kører stadig**
+`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.57 · Offline: test_ext4, test_dcs_bridge
+
+1. Se *Campaign status* for en konvoj på vej. Flyv til et punkt på dens vej, der er mere end 30 km fra dig.
+2. Flyv tæt på (under 20 km) og væk igen. Vent til den når frem.
+
+**Forvent:** Konvojen dukker op, når du er inden for 20 km, og forsvinder igen efter 25 km. Den når frem til tiden,
+og basen får sin forsyning (*Campaign status*), også når ingen så den. Garnisoner langt væk (over 50 km) står stille.
+
+Feedback:
 
 ## P-400 · Luftforsvar og luftkrig
 
@@ -1128,13 +1143,14 @@ Feedback:
 
 ### P-1002
 **Lysgranater over slag om natten**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.26 · Offline: test_ext3
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.26 · Offline: test_ext3
 
 1. Om natten (20–06): flyv inden for 25 km af et slag.
 
 **Forvent:** En lysgranat i 650 m hvert 2. minut. Lys nok til at se målene.
 
 Feedback:
+v0.57.0: en lysgranat hvert 5. minut (automatisk og på kald).
 
 ### P-1003
 **Combined Arms: kør en deling**

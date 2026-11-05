@@ -250,6 +250,8 @@ check("...for 2 supply at the nearest base", math.abs(war.state.nodes.kutaisi.su
 B.callIllumination(viper:getName())
 check("...then the mortars reload", (MOCK.lastGroupText(vg.id) or ""):find("reloading", 1, true) ~= nil)
 MOCK.advance(300)
+check("v0.57: the flares come one every 5 min", #flares == f0 + 1, #flares - f0)
+MOCK.advance(X.illum.callFlares * X.illum.callEverySec)
 check("Support > Illumination: 4 flares over the mark", #flares == f0 + X.illum.callFlares, #flares - f0)
 local items = table.concat(MOCK.menuItems(vg.id), " | ")
 check("the Support menu has it", items:find("Illumination on my map mark", 1, true) ~= nil)

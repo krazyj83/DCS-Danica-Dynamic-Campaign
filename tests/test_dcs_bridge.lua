@@ -90,7 +90,7 @@ check("BLUE player at BLUE Batumi kept", ok.destroyed ~= true)
 
 print("Live bubble")
 check("Gori is live", B.liveNodes.gori == true)
-check("Tskhinvali (28 km) is live", B.liveNodes.tskhinvali == true)
+check("v0.57: Tskhinvali (28 km) is outside the 25 km bubble", B.liveNodes.tskhinvali ~= true)
 check("Batumi (far away) is not live", B.liveNodes.batumi == nil)
 local goriPlatoons = #war.state.nodes.gori.platoons
 local spawnedAtGori = 0
@@ -115,16 +115,16 @@ local h = war.state.platoons[hurt] and war.state.platoons[hurt].health or 0
 check("partial losses lower platoon health", h < 1 and h > 0, h)
 
 print("Despawn keeps damage")
-player.x, player.z = coord.LLtoLO(45.0, 37.0, 0).x, coord.LLtoLO(45.0, 37.0, 0).z  -- fly to Anapa
+player.x, player.z = B.nodePos.anapa.x + 3000, B.nodePos.anapa.z   -- fly to Anapa
 B.liveCheck()
 check("Gori groups removed after players leave", MOCK.groups["DCC_" .. hurt] == nil)
 check("damage kept in the model", war.state.platoons[hurt] and war.state.platoons[hurt].health == h)
 check("Anapa now live instead", B.liveNodes.anapa == true)
 
 print("Convoys")
-player.x, player.z = gori.x, gori.z
+player.x, player.z = B.nodePos.tbilisi.x + 5000, B.nodePos.tbilisi.z   -- v0.57: convoys spawn within 20 km of a player
 B.liveCheck()
--- Put a BLUE convoy on the road Tbilisi -> Gori (both ends near the player).
+-- Put a BLUE convoy on the road Tbilisi -> Gori (it starts next to the player).
 war.state.nodes.tbilisi.supply = 200
 local cv = war:startCargo("convoy", "blue", "tbilisi", "gori", 30)
 B.reconcileCargo()
@@ -170,7 +170,8 @@ MOCK.advance(48 * 3600)                     -- two days of mission time through 
 DCC.util.log = realLog
 check("no script errors in 2 days of loops", errors == 0, errors)
 check("war advanced ~576 ticks", war.state.tick >= 570, war.state.tick)
-local liveGroups = MOCK.countGroups()
+local liveGroups = 0                         -- platoon groups (the budget is for platoons; SAMs, convoys etc. come on top)
+for name, g in pairs(MOCK.groups) do if g.exists and name:find("^DCC_p%d") then liveGroups = liveGroups + 1 end end
 check("spawned group count within budget", liveGroups <= DCC.config.maxLivePlatoons, liveGroups)
 check("assault arrows drawn for own side", MOCK.countMarks("arrow") >= 0)
 local supplyText = false

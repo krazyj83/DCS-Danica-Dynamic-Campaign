@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.56.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.57.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.56.0",
+  version         = "0.57.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -255,8 +255,8 @@ DCC.config = {
              sortiesPerPilot = 5 },               -- ...and per pilot (kept in pilots.json)
 
   -- Live bubble (what gets spawned as real DCS units) -----------------------
-  liveRadiusKm     = 40,    -- nodes within this distance of a player are live
-  maxLivePlatoons  = 120,   -- hard cap on spawned platoons (~500 vehicles)
+  liveRadiusKm     = 25,    -- nodes within this distance of a player are live (v0.57: was 40, network load)
+  maxLivePlatoons  = 60,    -- hard cap on spawned platoons (~250 vehicles; v0.57: was 120)
   liveHysteresisKm = 10,    -- a live node stays live until players are this much further out
   liveStallTicks   = 6,     -- a live battle with no progress gets one dice round every 30 min
   captureRadiusKm  = 3,     -- attackers must be this close to take a node
@@ -322,7 +322,7 @@ DCC.config = {
     samMoveKm = { 1.5, 4 }, samMoveCooldown = 900,            -- shoot and scoot (seconds between moves)
     aiCrewChance = 0.7,          -- share of AI crews that eject alive
     support = {
-      artySU = 10, artyRangeKm = 35, artyRounds = 12, artyCooldownMin = 10,
+      artySU = 10, artyRangeKm = 35, artyRounds = 6, artyCooldownMin = 10,   -- v0.57: 6 rounds (was 12)
       casSU = 20, casCooldownMin = 20,
       markMinutes = 15,          -- a map mark is good for this long
     },
@@ -338,7 +338,7 @@ DCC.config = {
                   sabotageSU = 1, sweepPerPlatoon = 0.004, ambush = 0.25 },
     scaling = { perPlayer = 0.05, max = 0.15, airPerPlayer = 0.25, airMax = 2 },
     ranks = { arty = "Captain", cas = "Major", farp = nil, picture = "Colonel" },  -- farp: rank for FARP spawns; nil = anyone (v0.46, was "Lieutenant Colonel")
-    wrecks = { max = 300, days = 3, scenery = true },
+    wrecks = { max = 100, days = 3, scenery = true },   -- v0.57: newest 100 per map (was 300)
   },
 
   -- CTLD (VEAF CTLD v2, built into the missions): helicopter logistics
@@ -452,8 +452,8 @@ DCC.config = {
     popup = { chance = 0.05, max = 3, lifeTicks = 18, manpadsShare = 0.6, spawnKm = 40, despawnKm = 60,
               seeKm = 8 },
     -- 10. night illumination: flares over night battles near players, and on call
-    illum = { autoKm = 25, everySec = 120, heightM = 650, power = 1000000,
-              callSU = 2, callKm = 30, callFlares = 4, callCooldownMin = 5 },
+    illum = { autoKm = 25, everySec = 300, heightM = 650, power = 1000000,    -- v0.57: a flare every 5 min (was 2)
+              callSU = 2, callKm = 30, callFlares = 4, callEverySec = 300, callCooldownMin = 5 },  -- called: 1 per 5 min
   },
 
   -- v0.27: Combined Arms, QRA, engineers, performance guard ----------------------
@@ -474,8 +474,8 @@ DCC.config = {
     -- AI attacks lay smoke when their lead vehicles are within withinKm of the base (v0.30)
     -- ...and live garrisons screen themselves (smoke grenades, free) against an attack
     -- within defendKm or a low enemy aircraft within airKm (v0.32)
-    aiSmoke = { enabled = true, withinKm = 2, everyMin = 10,
-                defend = true, defendKm = 2, airKm = 6, airMaxAltM = 2500, defendEveryMin = 10, defendOffsetM = 300,
+    aiSmoke = { enabled = true, withinKm = 2, everyMin = 20,     -- v0.57: 20 min (was 10), network load
+                defend = true, defendKm = 2, airKm = 6, airMaxAltM = 2500, defendEveryMin = 20, defendOffsetM = 300,
                 shotSec = 60, diveMps = 15 },   -- aircraft only when attacking: fired in 60 s, or diving at the base
     -- 8. harbour mines (v0.34): every everyTicks each side mines an enemy lane port with
     --    chance; they last lifeTicks; a ship past strikeAt of its lane hits them; a
@@ -493,7 +493,7 @@ DCC.config = {
     repair = { weight = 1000.01, charge = 2, km = 3 },    -- charge x crateSU = 20 SU
     -- 16. Performance guard: fewer live units when DCS carries many ground units
     perf = { everySec = 60, restore = 0.85, minRadiusKm = 20,
-             levels = { { units = 700, scale = 0.7 }, { units = 1000, scale = 0.45 } } },
+             levels = { { units = 550, scale = 0.7 }, { units = 800, scale = 0.45 } } },   -- v0.57: was 700 / 1000
   },
 
   -- v0.49: air assault missions (dcc_ext5.lua) and their AI gunship escort (dcc_dcs_ext5.lua)
@@ -515,6 +515,13 @@ DCC.config = {
       enabled  = true,
       fireKm   = 15,
       prefixes = { "^DCC_p%d", "^DCC_c%d", "^DCC_ARTY_", "^DCC_SKIRM_", "^DCC_AMB_", "^DCC_AMBL_" },
+      -- v0.57: AI switched off for standing campaign groups with no player this close (they stay visible;
+      -- moving groups, SAM sites and radars keep their AI)
+      idleKm   = 50,
+      idlePrefixes = { "^DCC_p%d", "^DCC_ARTY_", "^DCC_FARPCREW_", "^DCC_SKIRM_" },
+      -- v0.57: road columns and supply convoys are only spawned within convoyKm of a player (dice further out;
+      -- they still arrive and resupply bases), and kept until convoyKm + convoyHysteresisKm
+      convoyKm = 20, convoyHysteresisKm = 5,
     },
   },
 
@@ -14953,10 +14960,11 @@ function B.callIllumination(uname)
   end
   B.x3.illumAt[p.side] = timer.getTime()
   for i = 1, c.callFlares do
-    timer.scheduleFunction(function() B.flare(m.pos) end, nil, timer.getTime() + 10 + (i - 1) * 60)
+    timer.scheduleFunction(function() B.flare(m.pos) end, nil, timer.getTime() + 10 + (i - 1) * (c.callEverySec or 60))
   end
   trigger.action.outTextForCoalition(B.COAL[p.side], string.format(
-    "%s: illumination from %s - %d flares over the mark, one a minute.", p.name, war:nodeName(node), c.callFlares), 12)
+    "%s: illumination from %s - %d flares over the mark, one every %d min.", p.name, war:nodeName(node), c.callFlares,
+    math.floor((c.callEverySec or 60) / 60 + 0.5)), 12)
 end
 
 if B.buildSupportMenu then
@@ -16215,6 +16223,79 @@ function B.fireControlTick()
   end
 end
 
+-- ===========================================================================
+-- v0.57: idle AI off far from players; columns only spawned near players
+-- ===========================================================================
+-- Standing campaign groups with no player within idleKm get their AI switched
+-- off (they stay where they are, visible, but DCS stops thinking for them).
+function B.idleTick(pts)
+  local cfg = FC()
+  B.x5.aiOff = B.x5.aiOff or {}
+  for _, c in ipairs({ coalition.side.RED, coalition.side.BLUE }) do
+    for _, g in ipairs(coalition.getGroups(c, Group.Category.GROUND) or {}) do
+      local name = ok(g.getName, g)
+      if type(name) == "string" then
+        local idleGroup = false
+        for _, pat in ipairs(cfg.idlePrefixes) do if name:find(pat) then idleGroup = true end end
+        local u = idleGroup and ok(g.getUnit, g, 1)
+        local pos = u and ok(u.getPoint, u)
+        if pos then
+          local v = ok(u.getVelocity, u)
+          local moving = v and (v.x * v.x + v.z * v.z) > 1
+          local off = not moving and not nearPlayer(pos, pts, cfg.idleKm)
+          if (B.x5.aiOff[name] or false) ~= off then
+            local ctl = ok(g.getController, g)
+            if ctl and ctl.setOnOff then
+              ok(ctl.setOnOff, ctl, not off)
+              B.x5.aiOff[name] = off
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
+-- Where a road move is in the model (straight line from - to, by progress).
+function B.movePos(mv)
+  local a, b = B.nodePos[mv.from], B.nodePos[mv.to]
+  if not a or not b then return a or b end
+  local t = math.max(0, math.min(1, mv.progress or 0))
+  return { x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t }
+end
+
+-- Should this road column / supply convoy be real DCS units now?
+function B.moveNear(mv)
+  local cfg = FC()
+  if not (cfg and cfg.enabled and cfg.convoyKm) or mv.kind == "airlift" then return true end
+  if B.forced and B.forced[mv.id] then return true end              -- a player is escorting / hunting it
+  local p = B.movePos(mv)
+  if not p then return true end
+  B.x5.nearMoves = B.x5.nearMoves or {}
+  local km = cfg.convoyKm + (B.x5.nearMoves[mv.id] and cfg.convoyHysteresisKm or 0)
+  local near = nearPlayer(p, B.playerPositions(), km)
+  B.x5.nearMoves[mv.id] = near or nil
+  return near
+end
+
+local baseDesired = B.desired
+function B.desired()
+  local want = baseDesired()
+  for pid, w in pairs(want) do
+    if w.kind == "move" and w.mv and not B.moveNear(w.mv) then want[pid] = nil end
+  end
+  return want
+end
+
+local baseDesiredCargo = B.desiredCargo
+function B.desiredCargo()
+  local want = baseDesiredCargo()
+  for mid, mv in pairs(want) do
+    if not B.moveNear(mv) then want[mid] = nil end
+  end
+  return want
+end
+
 local basePoll = B.opsPoll
 function B.opsPoll()
   basePoll()
@@ -16222,6 +16303,10 @@ function B.opsPoll()
   if not s then U.log("ERROR air assault: %s", tostring(err)) end
   s, err = pcall(B.fireControlTick)
   if not s then U.log("ERROR fire control: %s", tostring(err)) end
+  if FC() and FC().enabled then
+    s, err = pcall(B.idleTick, B.playerPositions())
+    if not s then U.log("ERROR idle AI: %s", tostring(err)) end
+  end
 end
 
 if B.EFFECT then
@@ -16234,6 +16319,12 @@ local baseInit = B.init
 function B.init(war, theater, catalog)
   baseInit(war, theater, catalog)
   B.x5 = { escorts = {}, fireNodes = {}, roe = {} }
+  -- v0.57: a column far from players moves on the model's clock (it is not spawned there)
+  local baseMoveLive = war.isMoveLive
+  war.isMoveLive = function(self, mv)
+    if not baseMoveLive(self, mv) then return false end
+    return B.moveNear(mv)
+  end
   -- a battle counts as fought by DCS only while a player is close enough for the units to open fire
   local liveFn = war.liveFn
   war.liveFn = function(id)

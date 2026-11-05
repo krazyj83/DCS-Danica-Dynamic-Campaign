@@ -167,6 +167,79 @@ function B.fireControlTick()
   end
 end
 
+-- ===========================================================================
+-- v0.57: idle AI off far from players; columns only spawned near players
+-- ===========================================================================
+-- Standing campaign groups with no player within idleKm get their AI switched
+-- off (they stay where they are, visible, but DCS stops thinking for them).
+function B.idleTick(pts)
+  local cfg = FC()
+  B.x5.aiOff = B.x5.aiOff or {}
+  for _, c in ipairs({ coalition.side.RED, coalition.side.BLUE }) do
+    for _, g in ipairs(coalition.getGroups(c, Group.Category.GROUND) or {}) do
+      local name = ok(g.getName, g)
+      if type(name) == "string" then
+        local idleGroup = false
+        for _, pat in ipairs(cfg.idlePrefixes) do if name:find(pat) then idleGroup = true end end
+        local u = idleGroup and ok(g.getUnit, g, 1)
+        local pos = u and ok(u.getPoint, u)
+        if pos then
+          local v = ok(u.getVelocity, u)
+          local moving = v and (v.x * v.x + v.z * v.z) > 1
+          local off = not moving and not nearPlayer(pos, pts, cfg.idleKm)
+          if (B.x5.aiOff[name] or false) ~= off then
+            local ctl = ok(g.getController, g)
+            if ctl and ctl.setOnOff then
+              ok(ctl.setOnOff, ctl, not off)
+              B.x5.aiOff[name] = off
+            end
+          end
+        end
+      end
+    end
+  end
+end
+
+-- Where a road move is in the model (straight line from - to, by progress).
+function B.movePos(mv)
+  local a, b = B.nodePos[mv.from], B.nodePos[mv.to]
+  if not a or not b then return a or b end
+  local t = math.max(0, math.min(1, mv.progress or 0))
+  return { x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t }
+end
+
+-- Should this road column / supply convoy be real DCS units now?
+function B.moveNear(mv)
+  local cfg = FC()
+  if not (cfg and cfg.enabled and cfg.convoyKm) or mv.kind == "airlift" then return true end
+  if B.forced and B.forced[mv.id] then return true end              -- a player is escorting / hunting it
+  local p = B.movePos(mv)
+  if not p then return true end
+  B.x5.nearMoves = B.x5.nearMoves or {}
+  local km = cfg.convoyKm + (B.x5.nearMoves[mv.id] and cfg.convoyHysteresisKm or 0)
+  local near = nearPlayer(p, B.playerPositions(), km)
+  B.x5.nearMoves[mv.id] = near or nil
+  return near
+end
+
+local baseDesired = B.desired
+function B.desired()
+  local want = baseDesired()
+  for pid, w in pairs(want) do
+    if w.kind == "move" and w.mv and not B.moveNear(w.mv) then want[pid] = nil end
+  end
+  return want
+end
+
+local baseDesiredCargo = B.desiredCargo
+function B.desiredCargo()
+  local want = baseDesiredCargo()
+  for mid, mv in pairs(want) do
+    if not B.moveNear(mv) then want[mid] = nil end
+  end
+  return want
+end
+
 local basePoll = B.opsPoll
 function B.opsPoll()
   basePoll()
@@ -174,6 +247,10 @@ function B.opsPoll()
   if not s then U.log("ERROR air assault: %s", tostring(err)) end
   s, err = pcall(B.fireControlTick)
   if not s then U.log("ERROR fire control: %s", tostring(err)) end
+  if FC() and FC().enabled then
+    s, err = pcall(B.idleTick, B.playerPositions())
+    if not s then U.log("ERROR idle AI: %s", tostring(err)) end
+  end
 end
 
 if B.EFFECT then
@@ -186,6 +263,12 @@ local baseInit = B.init
 function B.init(war, theater, catalog)
   baseInit(war, theater, catalog)
   B.x5 = { escorts = {}, fireNodes = {}, roe = {} }
+  -- v0.57: a column far from players moves on the model's clock (it is not spawned there)
+  local baseMoveLive = war.isMoveLive
+  war.isMoveLive = function(self, mv)
+    if not baseMoveLive(self, mv) then return false end
+    return B.moveNear(mv)
+  end
   -- a battle counts as fought by DCS only while a player is close enough for the units to open fire
   local liveFn = war.liveFn
   war.liveFn = function(id)

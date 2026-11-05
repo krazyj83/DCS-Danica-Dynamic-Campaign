@@ -532,10 +532,11 @@ function B.callIllumination(uname)
   end
   B.x3.illumAt[p.side] = timer.getTime()
   for i = 1, c.callFlares do
-    timer.scheduleFunction(function() B.flare(m.pos) end, nil, timer.getTime() + 10 + (i - 1) * 60)
+    timer.scheduleFunction(function() B.flare(m.pos) end, nil, timer.getTime() + 10 + (i - 1) * (c.callEverySec or 60))
   end
   trigger.action.outTextForCoalition(B.COAL[p.side], string.format(
-    "%s: illumination from %s - %d flares over the mark, one a minute.", p.name, war:nodeName(node), c.callFlares), 12)
+    "%s: illumination from %s - %d flares over the mark, one every %d min.", p.name, war:nodeName(node), c.callFlares,
+    math.floor((c.callEverySec or 60) / 60 + 0.5)), 12)
 end
 
 if B.buildSupportMenu then

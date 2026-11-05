@@ -329,17 +329,17 @@ print(" Performance guard")
 check("counts the ground units in DCS", B.groundUnitCount() > 0, B.groundUnitCount())
 local realCount = B.groundUnitCount
 local R0, P0, S0, U0 = cfg.liveRadiusKm, cfg.maxLivePlatoons, cfg.ground.skirmishMax, cfg.ext3.popup.max
-B.groundUnitCount = function() return 800 end
+B.groundUnitCount = function() return 650 end      -- v0.57: guard from 550 / 800 units (was 700 / 1000)
 B.perfCheck(true)
-check("800 units: level 1, smaller bubble", B.x4.perfLevel == 1 and cfg.liveRadiusKm < R0 and cfg.maxLivePlatoons < P0,
+check("650 units: level 1, smaller bubble", B.x4.perfLevel == 1 and cfg.liveRadiusKm < R0 and cfg.maxLivePlatoons < P0,
   cfg.liveRadiusKm .. " km / " .. cfg.maxLivePlatoons)
 check("...and the server is told", (MOCK.texts[#MOCK.texts] or ""):find("Server busy", 1, true) ~= nil)
 B.groundUnitCount = function() return 1200 end
 B.perfCheck(true)
 check("1200 units: level 2", B.x4.perfLevel == 2 and cfg.ground.skirmishMax < S0 and cfg.ext3.popup.max <= U0)
-B.groundUnitCount = function() return 900 end
+B.groundUnitCount = function() return 750 end
 B.perfCheck(true)
-check("900 (just below): stays at level 2 (no flicker)", B.x4.perfLevel == 2)
+check("750 (just below): stays at level 2 (no flicker)", B.x4.perfLevel == 2)
 B.groundUnitCount = function() return 300 end
 B.perfCheck(true)
 check("300: everything back", B.x4.perfLevel == 0 and cfg.liveRadiusKm == R0 and cfg.maxLivePlatoons == P0
@@ -444,6 +444,8 @@ war.state.platoons.pSMK = { id = "pSMK", side = "blue", role = tmpl.role, health
 war.state.moves.mSMK = { id = "mSMK", kind = "assault", side = "blue", from = gnode, to = enemy, status = "fighting",
                          platoons = { "pSMK" }, progress = 1, km = 10 }
 B.liveNodes[enemy] = true
+local realMoveNear = B.moveNear
+B.moveNear = function() return true end             -- v0.57: columns are only spawned near players; here: always
 bat.node = enemy
 war.state.nodes[enemy].supply = 50
 local n0 = #smokes
@@ -464,6 +466,7 @@ print(" Defender smoke (v0.32)")
 war.state.nodes[enemy].platoons = (#war.state.nodes[enemy].platoons > 0) and war.state.nodes[enemy].platoons
   or { gpid }
 B.x4.defSmoke = {}
+local smkPilot = MOCK.spawnPlayer(BLUE, "UH-1H", ep2.x + 6000, ep2.z, "Spotter", true)   -- v0.57: live bubble is 25 km
 B.liveNodes[enemy] = true
 local d0 = #smokes
 B.defenseSmokeTick()
@@ -474,6 +477,8 @@ for i = d0 + 1, #smokes do
   if not (sm.pt.x > ep2.x and sm.pt.x <= ep2.x + X.aiSmoke.defendOffsetM + 1) then toward = false end
 end
 check("attack 1.5 km out: the garrison screens itself toward it", toward, #smokes - d0)
+smkPilot.alive = false
+B.moveNear = realMoveNear
 local d1 = #smokes
 B.defenseSmokeTick()
 MOCK.advance(40)
@@ -726,6 +731,42 @@ B.fireControlTick()
 check("a player within 15 km: they open fire", gp.options[ROE] == AI.Option.Ground.val.ROE.OPEN_FIRE)
 check("...and DCS fights that battle (when the node is live)", B.x5.fireNodes[fcNode] == true
   and (war:isNodeLive(fcNode) == (B.liveNodes[fcNode] == true)))
+
+print(" Idle AI off and convoys near players only (v0.57)")
+fcHeli.x = fp.x + 60000
+B.idleTick(B.playerPositions())
+check("no player within 50 km: a standing platoon's AI is off", gp.aiOn == false)
+check("...other groups (pickups) are not touched", MOCK.groups["DCC_PICK_test"].aiOn == nil)
+fcHeli.x = fp.x + 30000
+B.idleTick(B.playerPositions())
+check("a player within 50 km: AI back on", gp.aiOn == true)
+local cvA, cvB
+for _, id in ipairs(war.T.order) do
+  if war.state.nodes[id].side == "blue" and B.nodePos[id] then
+    if not cvA then cvA = id elseif not cvB then cvB = id end
+  end
+end
+local mvC = { id = "mvx1", kind = "convoy", side = "blue", from = cvA, to = cvB, progress = 0.5, km = 50, platoons = {},
+              status = "moving", cargo = true, supply = 10 }
+local mp = B.movePos(mvC)
+local realPP = B.playerPositions
+B.playerPositions = function() return { fcHeli:getPoint() } end   -- only this pilot counts here
+fcHeli.x, fcHeli.z = mp.x + 30000, mp.z
+check("a convoy 30 km from any player is not spawned (dice)", not B.moveNear(mvC) and not war:isMoveLive(mvC))
+fcHeli.x = mp.x + 15000
+check("...within 20 km it is", B.moveNear(mvC))
+fcHeli.x = mp.x + 23000
+check("...and stays until 25 km (no flicker)", B.moveNear(mvC))
+fcHeli.x = mp.x + 27000
+check("...then goes back to the dice", not B.moveNear(mvC))
+B.forced = B.forced or {}
+B.forced[mvC.id] = true
+check("a convoy on a taken escort mission is always real", B.moveNear(mvC))
+B.forced[mvC.id] = nil
+B.playerPositions = realPP
+check("v0.57 settings: live bubble 25 km, 60 platoons, guard at 550 units, 100 wrecks, flares every 5 min",
+  DCC.config.liveRadiusKm == 25 and DCC.config.maxLivePlatoons == 60 and DCC.config.ext4.perf.levels[1].units == 550
+  and DCC.config.ext.wrecks.max == 100 and DCC.config.ext3.illum.everySec == 300 and DCC.config.ext3.illum.callEverySec == 300)
 fcHeli.alive = false
 gp.exists = false
 MOCK.groups["DCC_PICK_test"].exists = false
