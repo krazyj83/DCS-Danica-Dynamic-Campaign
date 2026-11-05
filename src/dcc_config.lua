@@ -251,8 +251,8 @@ DCC.config = {
              sortiesPerPilot = 5 },               -- ...and per pilot (kept in pilots.json)
 
   -- Live bubble (what gets spawned as real DCS units) -----------------------
-  liveRadiusKm     = 40,    -- nodes within this distance of a player are live
-  maxLivePlatoons  = 120,   -- hard cap on spawned platoons (~500 vehicles)
+  liveRadiusKm     = 25,    -- nodes within this distance of a player are live (v0.57: was 40, network load)
+  maxLivePlatoons  = 60,    -- hard cap on spawned platoons (~250 vehicles; v0.57: was 120)
   liveHysteresisKm = 10,    -- a live node stays live until players are this much further out
   liveStallTicks   = 6,     -- a live battle with no progress gets one dice round every 30 min
   captureRadiusKm  = 3,     -- attackers must be this close to take a node
@@ -318,7 +318,7 @@ DCC.config = {
     samMoveKm = { 1.5, 4 }, samMoveCooldown = 900,            -- shoot and scoot (seconds between moves)
     aiCrewChance = 0.7,          -- share of AI crews that eject alive
     support = {
-      artySU = 10, artyRangeKm = 35, artyRounds = 12, artyCooldownMin = 10,
+      artySU = 10, artyRangeKm = 35, artyRounds = 6, artyCooldownMin = 10,   -- v0.57: 6 rounds (was 12)
       casSU = 20, casCooldownMin = 20,
       markMinutes = 15,          -- a map mark is good for this long
     },
@@ -334,7 +334,7 @@ DCC.config = {
                   sabotageSU = 1, sweepPerPlatoon = 0.004, ambush = 0.25 },
     scaling = { perPlayer = 0.05, max = 0.15, airPerPlayer = 0.25, airMax = 2 },
     ranks = { arty = "Captain", cas = "Major", farp = nil, picture = "Colonel" },  -- farp: rank for FARP spawns; nil = anyone (v0.46, was "Lieutenant Colonel")
-    wrecks = { max = 300, days = 3, scenery = true },
+    wrecks = { max = 100, days = 3, scenery = true },   -- v0.57: newest 100 per map (was 300)
   },
 
   -- CTLD (VEAF CTLD v2, built into the missions): helicopter logistics
@@ -448,8 +448,8 @@ DCC.config = {
     popup = { chance = 0.05, max = 3, lifeTicks = 18, manpadsShare = 0.6, spawnKm = 40, despawnKm = 60,
               seeKm = 8 },
     -- 10. night illumination: flares over night battles near players, and on call
-    illum = { autoKm = 25, everySec = 120, heightM = 650, power = 1000000,
-              callSU = 2, callKm = 30, callFlares = 4, callCooldownMin = 5 },
+    illum = { autoKm = 25, everySec = 300, heightM = 650, power = 1000000,    -- v0.57: a flare every 5 min (was 2)
+              callSU = 2, callKm = 30, callFlares = 4, callEverySec = 300, callCooldownMin = 5 },  -- called: 1 per 5 min
   },
 
   -- v0.27: Combined Arms, QRA, engineers, performance guard ----------------------
@@ -470,8 +470,8 @@ DCC.config = {
     -- AI attacks lay smoke when their lead vehicles are within withinKm of the base (v0.30)
     -- ...and live garrisons screen themselves (smoke grenades, free) against an attack
     -- within defendKm or a low enemy aircraft within airKm (v0.32)
-    aiSmoke = { enabled = true, withinKm = 2, everyMin = 10,
-                defend = true, defendKm = 2, airKm = 6, airMaxAltM = 2500, defendEveryMin = 10, defendOffsetM = 300,
+    aiSmoke = { enabled = true, withinKm = 2, everyMin = 20,     -- v0.57: 20 min (was 10), network load
+                defend = true, defendKm = 2, airKm = 6, airMaxAltM = 2500, defendEveryMin = 20, defendOffsetM = 300,
                 shotSec = 60, diveMps = 15 },   -- aircraft only when attacking: fired in 60 s, or diving at the base
     -- 8. harbour mines (v0.34): every everyTicks each side mines an enemy lane port with
     --    chance; they last lifeTicks; a ship past strikeAt of its lane hits them; a
@@ -489,7 +489,7 @@ DCC.config = {
     repair = { weight = 1000.01, charge = 2, km = 3 },    -- charge x crateSU = 20 SU
     -- 16. Performance guard: fewer live units when DCS carries many ground units
     perf = { everySec = 60, restore = 0.85, minRadiusKm = 20,
-             levels = { { units = 700, scale = 0.7 }, { units = 1000, scale = 0.45 } } },
+             levels = { { units = 550, scale = 0.7 }, { units = 800, scale = 0.45 } } },   -- v0.57: was 700 / 1000
   },
 
   -- v0.49: air assault missions (dcc_ext5.lua) and their AI gunship escort (dcc_dcs_ext5.lua)
@@ -511,6 +511,13 @@ DCC.config = {
       enabled  = true,
       fireKm   = 15,
       prefixes = { "^DCC_p%d", "^DCC_c%d", "^DCC_ARTY_", "^DCC_SKIRM_", "^DCC_AMB_", "^DCC_AMBL_" },
+      -- v0.57: AI switched off for standing campaign groups with no player this close (they stay visible;
+      -- moving groups, SAM sites and radars keep their AI)
+      idleKm   = 50,
+      idlePrefixes = { "^DCC_p%d", "^DCC_ARTY_", "^DCC_FARPCREW_", "^DCC_SKIRM_" },
+      -- v0.57: road columns and supply convoys are only spawned within convoyKm of a player (dice further out;
+      -- they still arrive and resupply bases), and kept until convoyKm + convoyHysteresisKm
+      convoyKm = 20, convoyHysteresisKm = 5,
     },
   },
 

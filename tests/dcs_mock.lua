@@ -208,6 +208,7 @@ function GroupMT:getController()
     setOption = function(_, id, v) g.options = g.options or {}; g.options[id] = v end,
     setCommand = function(_, c) g.commands = g.commands or {}; g.commands[c.id] = c.params and c.params.value end,
     setTask = function(_, t) g.lastTask = t end,
+    setOnOff = function(_, on) g.aiOn = on end,
     pushTask = function(_, t) g.pushed = g.pushed or {}; table.insert(g.pushed, t) end,
     getDetectedTargets = function()
       local out = {}
