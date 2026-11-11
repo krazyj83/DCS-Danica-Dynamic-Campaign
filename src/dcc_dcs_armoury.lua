@@ -184,6 +184,7 @@ local function warehousesOf(id, side)
   end
   return out
 end
+B.warehousesOf = warehousesOf
 
 function B.restockArmoury()
   if not B.armWarehouseMode() or #B.arm.names == 0 then return end

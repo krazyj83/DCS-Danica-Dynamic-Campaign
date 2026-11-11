@@ -90,6 +90,7 @@ Kør disse efter hver ny version. De rører de vigtigste dele af motoren.
 | [P-310](#p-310) | Ingen AI-mod-AI-kamp langt fra spillere (v0.56) |
 | [S-308](#s-308) | Selvtjek ved missionsstart (v0.47) |
 | [P-110](#p-110) | Dynamic spawn på HQ: synlig og med missioner (v0.58) |
+| [P-113](#p-113) | Våbenlager pr. base (v0.59) |
 
 ---
 
@@ -518,6 +519,20 @@ om bord er nu kun et besætningsskift, og *Supply crate* henter en tabt registre
 **Forvent:** Ingen "MAYDAY" og ingen CSAR-mission på boardet. En udskydning i luften giver stadig CSAR.
 
 Feedback:
+
+### P-113
+**Våbenlager: Weapons stock here og Where is …**
+`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.59 · Offline: test_armoury
+
+1. Spawn på en egen base. Læs spawn-beskeden.
+2. *F10 → Other → Support → Weapons stock here*. Notér fx antal AIM-120 / Hellfire.
+3. Tag nogle af dem i re-arm-menuen, og åbn siden igen efter næste opfyldning (5 min).
+4. *Support → Where is … → Air-to-ground → Hellfire*.
+
+**Forvent:** Siden viser våbenfamilier med antal, som passer med re-arm-menuen; LOW under 25 % af en fuld hylde, OUT
+ved 0. Spawn-beskeden nævner det, der er lavt eller tomt. *Where is …* viser dine nærmeste baser med antal og afstand.
+
+Feedback: v0.58, 11. nov: svært for spillerne at vide, hvor meget af hver våbentype der er på hver base.
 
 ## P-200 · F10-menuer og missioner
 

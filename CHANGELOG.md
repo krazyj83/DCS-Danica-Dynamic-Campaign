@@ -6,6 +6,19 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.59.0 — 2026-11-11
+
+**Added**
+- **Weapons stock pages:** *F10 → Support → Weapons stock here* shows the base's supply and every weapon family
+  (AIM-120, HARM, Hellfire, Hydra 70 …) with its count, LOW or OUT — read live from the DCS warehouses, so it is
+  exactly what the re-arm menu offers. *F10 → Support → Where is …* lists your side's nearest bases holding a
+  family. The spawn message names what is low or out. Families in the catalogue (`weapons.families`), settings in
+  `stock`.
+- DCS test plan: new P-113 (in the smoke test).
+
+**Changed**
+- *Armoury at this base* is now *Weapons stock here*.
+
 ## 0.58.0 — 2026-11-11
 
 Beta test, 10 November.

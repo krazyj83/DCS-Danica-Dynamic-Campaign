@@ -436,7 +436,7 @@ function B.buildSupportMenu(p)
   missionCommands.addCommandForGroup(p.gid, "Artillery on my map mark", root, B.callArtillery, p.unit)
   missionCommands.addCommandForGroup(p.gid, "CAS pair on my map mark", root, B.callCas, p.unit)
   missionCommands.addCommandForGroup(p.gid, "AWACS picture", root, B.picture, p.unit)
-  missionCommands.addCommandForGroup(p.gid, "Armoury at this base", root, B.showArmoury, p.unit)
+  missionCommands.addCommandForGroup(p.gid, "Weapons stock here", root, B.showArmoury, p.unit)
 end
 
 local baseRegister = B.registerPlayer

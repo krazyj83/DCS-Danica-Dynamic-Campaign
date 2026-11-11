@@ -53,7 +53,7 @@ DCC_ARMOURY_MODE = "warehouse"
 DCC_TEST_MISSION = true
 for _, f in ipairs({ "dcc_persist", "dcc_dcs", "dcc_dcs_supply", "dcc_dcs_ops", "dcc_dcs_intel", "dcc_dcs_radar",
                      "dcc_dcs_world", "dcc_dcs_jtac", "dcc_dcs_public", "dcc_dcs_air", "dcc_dcs_ground",
-                     "dcc_dcs_ctld", "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_dcs_ext2", "dcc_dcs_ext3", "dcc_dcs_ext4", "dcc_dcs_ext5", "dcc_dcs_armoury", "dcc_main" }) do
+                     "dcc_dcs_ctld", "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_dcs_ext2", "dcc_dcs_ext3", "dcc_dcs_ext4", "dcc_dcs_ext5", "dcc_dcs_armoury", "dcc_dcs_slots", "dcc_dcs_stock", "dcc_main" }) do
   dofile(DCC_ROOT .. "/src/" .. f .. ".lua")
 end
 local errors = 0
@@ -206,6 +206,41 @@ for _, id in ipairs(war.T.order) do
 end
 local owh = MOCK.airbases[B.airbases[other]].wh
 check("...a plain airbase too, not only the depot: HARMs on its shelf", (owh.items["weapons.missiles.AGM_88C"] or 0) > 0, other)
+
+print("Weapons stock pages (v0.59)")
+-- beta feedback: players could not tell how much of each weapon a base had
+check("families: AIM-120C -> AIM-120, AGR-20A -> APKWS, Hydra M151 -> Hydra 70",
+  B.catalog.weapons.families[B.familyOf("weapons.missiles.AIM_120C")][1] == "AIM-120"
+  and B.catalog.weapons.families[B.familyOf("weapons.missiles.AGR_20A")][1] == "APKWS"
+  and B.catalog.weapons.families[B.familyOf("weapons.nurs.HYDRA_70_M151")][1] == "Hydra 70")
+check("...by DCS category: C-802 is anti-ship, not an S-8 rocket; LS-6 bomb is GPS",
+  B.catalog.weapons.families[B.familyOf("weapons.missiles.C_802AK")][1] == "Anti-ship"
+  and B.catalog.weapons.families[B.familyOf("weapons.bombs.LS_6")][1] == "GPS bombs (JDAM)")
+check("...pods and tanks have no family", B.familyOf("weapons.droptanks.FuelTank_350L") == nil)
+B.restockArmoury()
+wh.items["weapons.missiles.AGM_88C"] = 10
+wh.items["weapons.missiles.AGM_114K"] = 0
+local page = B.stockPage("kutaisi", "blue")
+check("stock page: counts per family", page:find("AIM-120 100", 1, true) ~= nil, page)
+check("...LOW below a quarter of a full shelf, OUT at 0", page:find("HARM / anti-radar 10 LOW", 1, true) ~= nil
+  and page:find("Hellfire 0 OUT", 1, true) ~= nil, page)
+local hog = MOCK.spawnPlayer(2, "A-10C_2", MOCK.airbases[B.airbases.kutaisi].p.x + 50, MOCK.airbases[B.airbases.kutaisi].p.z, "Hog")
+local hp = B.players[hog:getName()]
+local spawnText = MOCK.texts[#MOCK.texts]
+for _, t in ipairs(MOCK.groupTexts[hp.gid] or {}) do if t:find("Armoury at", 1, true) then spawnText = t end end
+check("spawn message names what is low and out", spawnText:find("Low: HARM / anti-radar (10)", 1, true) ~= nil
+  and spawnText:find("Out: Hellfire", 1, true) ~= nil, spawnText)
+check("F10 > Support > Weapons stock here", MOCK.click(hp.gid, "Weapons stock here")
+  and MOCK.texts[#MOCK.texts]:find("WEAPONS STOCK - Kutaisi", 1, true) ~= nil, MOCK.texts[#MOCK.texts])
+check("F10 > Support > Where is ... > Hellfire: other bases, not Kutaisi", MOCK.click(hp.gid, "Hellfire")
+  and MOCK.texts[#MOCK.texts]:find("WHERE IS Hellfire", 1, true) ~= nil
+  and MOCK.texts[#MOCK.texts]:find("km: 100", 1, true) ~= nil
+  and MOCK.texts[#MOCK.texts]:find("Kutaisi", 1, true) == nil, MOCK.texts[#MOCK.texts])
+local mi = {}
+for _, n in ipairs(MOCK.menuItems(hp.gid)) do mi[n] = true end
+check("...grouped: Air-to-air, Air-to-ground, Bombs, Rockets", mi["Where is ..."] and mi["Air-to-air"] and mi["Air-to-ground"]
+  and mi["Bombs"] and mi["Rockets"])
+B.restockArmoury()
 
 print("Without getResourceMap: inventory, then the catalogue")
 Warehouse = nil
