@@ -75,6 +75,18 @@ war.state.weather = { kind = "clear", since = war.state.tick }
 B.applyWeather()
 check("weather in the status", table.concat(B.opsStatusLines("blue"), " "):find("Weather: clear skies", 1, true) ~= nil)
 
+print("DCS dynamic weather (v0.60)")
+check("static weather in the mission: nothing to match", B.matchDynamicWeather() == nil)
+env.mission.weather = { atmosphere_type = 1, cyclones = { { pressure_excess = -1215 }, { pressure_excess = 1277 } } }
+check("a low over the map: campaign weather heads for rain", B.matchDynamicWeather() == "low"
+  and DCC.War.weatherKindOf(war.state.weather.target) == "rain")
+check("...and holds that front", war.state.weather.nextFront == war.state.tick + DCC.config.world.weatherFrontTicks[2])
+env.mission.weather.cyclones[1].pressure_excess = 1300
+check("a high: heads for clear skies", B.matchDynamicWeather() == "high"
+  and DCC.War.weatherKindOf(war.state.weather.target) == "clear")
+env.mission.weather = nil
+war.state.weather = { kind = "clear", since = war.state.tick }
+
 print("Storm grounds AI attack sorties")
 local kp = B.nodePos.kutaisi
 local viper, vg = MOCK.spawnPlayer(BLUE, "F-16C_50", kp.x, kp.z, "[VKG] Morten")

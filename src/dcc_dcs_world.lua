@@ -457,10 +457,31 @@ end
 -- eyes see less in bad weather and at night
 B.visualFactor = function(air) return B.war:visualFactor(air) end
 
+-- v0.60: with DCS dynamic weather in the mission (world.dynamicWeather), the campaign's weather heads the
+-- same way as the sky: a high over the map (main pressure system above normal) clears it, a low brings
+-- cloud and rain. Its next front is then held for the longest front time, so the two stay together.
+function B.matchDynamicWeather()
+  local mw = env and env.mission and env.mission.weather
+  local cfg = DCC.config.world.dynamicWeather
+  if not (mw and cfg and mw.atmosphere_type == 1 and mw.cyclones and mw.cyclones[1]) then return nil end
+  local high = (tonumber(mw.cyclones[1].pressure_excess) or 0) > 0
+  local war = B.war
+  local w = war.state.weather or { kind = "clear", since = war.state.tick }
+  war.state.weather = w
+  w.sev = w.sev or DCC.War.WEATHER_SEV[w.kind] or 0
+  w.target = high and cfg.campaignTarget.high or cfg.campaignTarget.low
+  w.nextFront = war.state.tick + DCC.config.world.weatherFrontTicks[2]
+  U.log("dynamic weather: a %s over the map - campaign weather heading for %s", high and "high" or "low",
+    DCC.War.weatherKindOf(w.target))
+  return high and "high" or "low"
+end
+
 local baseInit = B.init
 function B.init(war, theater, catalog)
   baseInit(war, theater, catalog)
   B.escorts, B.farps, B.naval, B.fogNow = {}, {}, {}, nil
   B.updateNight()
   B.initNaval()
+  local s, err = pcall(B.matchDynamicWeather)
+  if not s then U.log("ERROR dynamic weather: %s", tostring(err)) end
 end

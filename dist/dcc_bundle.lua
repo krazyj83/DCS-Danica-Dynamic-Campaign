@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.59.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.60.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.59.0",
+  version         = "0.60.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -214,6 +214,19 @@ DCC.config = {
     -- direction per map (degrees FROM), varied by up to fromSpread; speeds in m/s at ground / 2000 m / 8000 m.
     missionWind = { from = { Caucasus = 250, Syria = 290, PersianGulf = 320, GermanyCW = 260 }, fromSpread = 40,
                     ground = { 2, 7 }, at2000 = { 6, 14 }, at8000 = { 12, 28 }, turbulence = { 3, 12 } },
+    -- v0.60: DCS dynamic weather (Mission Editor > Weather > Dynamic) in every built mission: pressure systems
+    -- that move during the mission, so wind, QNH and rain change across the map and through the day. Uses DCS's
+    -- older cloud system (few clouds, no cloud presets). false = static weather with missionWind above.
+    dynamicWeather = {
+      enabled  = true,
+      cyclones = { 2, 4 },                  -- pressure systems per mission (random in this range per build)
+      -- chance per build that the map gets a high (anticyclone: settled, light winds) instead of a low
+      -- (cyclone: wind, cloud and rain)
+      highChance = { Caucasus = 0.5, Syria = 0.65, PersianGulf = 0.8, GermanyCW = 0.35 },
+      -- the campaign's own weather (fog, column speed, eyes, storms) heads this way at mission start:
+      -- severity 0 clear - 0.33 overcast - 0.66 rain - 1 storm
+      campaignTarget = { high = 0.1, low = 0.6 },
+    },
   },
   jtac = { laserCode = 1688, searchKm = 6, standoffKm = 4 },
 
@@ -10786,12 +10799,33 @@ end
 -- eyes see less in bad weather and at night
 B.visualFactor = function(air) return B.war:visualFactor(air) end
 
+-- v0.60: with DCS dynamic weather in the mission (world.dynamicWeather), the campaign's weather heads the
+-- same way as the sky: a high over the map (main pressure system above normal) clears it, a low brings
+-- cloud and rain. Its next front is then held for the longest front time, so the two stay together.
+function B.matchDynamicWeather()
+  local mw = env and env.mission and env.mission.weather
+  local cfg = DCC.config.world.dynamicWeather
+  if not (mw and cfg and mw.atmosphere_type == 1 and mw.cyclones and mw.cyclones[1]) then return nil end
+  local high = (tonumber(mw.cyclones[1].pressure_excess) or 0) > 0
+  local war = B.war
+  local w = war.state.weather or { kind = "clear", since = war.state.tick }
+  war.state.weather = w
+  w.sev = w.sev or DCC.War.WEATHER_SEV[w.kind] or 0
+  w.target = high and cfg.campaignTarget.high or cfg.campaignTarget.low
+  w.nextFront = war.state.tick + DCC.config.world.weatherFrontTicks[2]
+  U.log("dynamic weather: a %s over the map - campaign weather heading for %s", high and "high" or "low",
+    DCC.War.weatherKindOf(w.target))
+  return high and "high" or "low"
+end
+
 local baseInit = B.init
 function B.init(war, theater, catalog)
   baseInit(war, theater, catalog)
   B.escorts, B.farps, B.naval, B.fogNow = {}, {}, {}, nil
   B.updateNight()
   B.initNaval()
+  local s, err = pcall(B.matchDynamicWeather)
+  if not s then U.log("ERROR dynamic weather: %s", tostring(err)) end
 end
 
 end

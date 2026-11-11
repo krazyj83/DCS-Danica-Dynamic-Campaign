@@ -1243,7 +1243,7 @@ Feedback:
 
 ### P-1006
 **Vind i missionen**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle fire · Siden v0.56 · Offline: –
+`Status: RETEST` · Spillere: 1 · Kort: alle fire · Siden v0.56 · Offline: –
 
 1. Tjek vinden i Mission Editor (Weather) eller i cockpittet / ATC på hvert kort.
 
@@ -1251,6 +1251,21 @@ Feedback:
 
 Feedback: v0.55, 3. nov: vinden var 0 knob.
 Rettet i v0.56.0: make_mission.py sætter vind ved jorden, 2000 m og 8000 m (`world.missionWind`).
+v0.60: med dynamisk vejr (standard) kommer vinden fra tryksystemerne og ændrer sig i løbet af missionen.
+
+### P-1007
+**Dynamisk vejr (DCS Weather > Dynamic)**
+`Status: IKKE TESTET` · Spillere: 1 · Kort: alle fire · Siden v0.60 · Offline: test_dcs_world
+
+1. Åbn missionen i Mission Editor → Weather: *Dynamic* er valgt med 2-4 trykcentre.
+2. På serveren: tjek dcs.log for "DCC: dynamic weather: a high/low over the map".
+3. Flyv 1-2 timer: notér vind og QNH (ATC eller 240.0 airfield information) ved start og senere.
+
+**Forvent:** Vind og QNH ændrer sig over tid og fra base til base. Et lavtryk giver skyer/regn og kampagnevejr mod
+regn (*Campaign status*); et højtryk klart vejr. Alle spillere ser samme vejr (notér, hvis to spillere ser forskellig
+vind eller skyer).
+
+Feedback:
 
 ## P-1100 · Nyt i v0.34
 

@@ -6,6 +6,19 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.60.0 — 2026-11-11
+
+**Added**
+- **DCS dynamic weather** in every built mission (`world.dynamicWeather`): 2–4 pressure systems that move while the
+  mission runs, so wind, QNH, cloud and rain change across the map and through the day. Each build rolls a high or
+  a low (`highChance` per map). At mission start the campaign's own weather heads the same way, so fog, column
+  speeds and the forecast match the sky. Uses DCS's older cloud system (no cloud presets); `enabled = false` goes
+  back to static weather with `world.missionWind`.
+- DCS test plan: new P-1007; P-1006 to RETEST.
+
+**Fixed**
+- make_mission.py builds its own pressure systems: pydcs's `dynamic_weather()` makes every system a high.
+
 ## 0.59.0 — 2026-11-11
 
 **Added**
