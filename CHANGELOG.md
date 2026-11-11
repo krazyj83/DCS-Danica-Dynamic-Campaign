@@ -6,6 +6,15 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.61.0 — 2026-11-11
+
+**Added**
+- **New weather every day:** make_mission.py builds each map in `world.dynamicWeather.variants` (4) weather
+  versions — `DCC_<map>.miz`, `_wx2`, `_wx3`, `_wx4`, highs and lows spread out by the map's `highChance`. The
+  server hook's daily restart loads the next version that is in `Missions\DCC\` (back to the first after the last).
+  Map rotation and admin restarts are unchanged. Hook version 0.61.
+- DCS test plan: S-108 to RETEST.
+
 ## 0.60.0 — 2026-11-11
 
 **Added**

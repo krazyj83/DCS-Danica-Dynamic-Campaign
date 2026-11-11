@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.60.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.61.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.60.0",
+  version         = "0.61.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -219,8 +219,10 @@ DCC.config = {
     -- older cloud system (few clouds, no cloud presets). false = static weather with missionWind above.
     dynamicWeather = {
       enabled  = true,
+      variants = 4,                         -- v0.61: weather versions per map (DCC_<map>.miz, _wx2 .. _wx4): the
+                                            -- daily restart loads the next one, so the sky changes every day
       cyclones = { 2, 4 },                  -- pressure systems per mission (random in this range per build)
-      -- chance per build that the map gets a high (anticyclone: settled, light winds) instead of a low
+      -- share of the variants (or chance per build with one variant) that gets a high (anticyclone: settled, light winds) instead of a low
       -- (cyclone: wind, cloud and rain)
       highChance = { Caucasus = 0.5, Syria = 0.65, PersianGulf = 0.8, GermanyCW = 0.35 },
       -- the campaign's own weather (fog, column speed, eyes, storms) heads this way at mission start:

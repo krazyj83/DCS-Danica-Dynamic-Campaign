@@ -286,6 +286,25 @@ do
   SRV.rt = SRV.rt + 700
   frames(10)
   check("next day: again", #SRV.loaded == nLoad + 2)
+  -- v0.61: the weather versions of the map
+  for _, v in ipairs({ "_wx2", "_wx3" }) do
+    local f = io.open(missionsDir .. "DCC_Caucasus" .. v .. ".miz", "w"); f:write("miz"); f:close()
+  end
+  local base = missionsDir .. "DCC_Caucasus.miz"
+  check("weather versions: the base mission goes to _wx2", HK.nextWeatherFile(base) == missionsDir .. "DCC_Caucasus_wx2.miz",
+    HK.nextWeatherFile(base))
+  check("..._wx2 to _wx3, the last back to the base", HK.nextWeatherFile(missionsDir .. "DCC_Caucasus_wx2.miz")
+    == missionsDir .. "DCC_Caucasus_wx3.miz" and HK.nextWeatherFile(missionsDir .. "DCC_Caucasus_wx3.miz") == base)
+  check("...a map without versions, or the test mission: the same file", HK.nextWeatherFile(missionsDir .. "DCC_Syria.miz")
+    == missionsDir .. "DCC_Syria.miz" and HK.nextWeatherFile(missionsDir .. "DCC_Caucasus_ArmouryTest.miz")
+    == missionsDir .. "DCC_Caucasus_ArmouryTest.miz")
+  SRV.file = base
+  fake.day = 17
+  SRV.rt = SRV.rt + 700
+  frames(10)
+  check("daily restart loads the next weather", SRV.loaded[#SRV.loaded] == missionsDir .. "DCC_Caucasus_wx2.miz"
+    and SRV.chat[#SRV.chat]:find("new weather", 1, true), SRV.loaded[#SRV.loaded])
+  for _, v in ipairs({ "_wx2", "_wx3" }) do os.remove(missionsDir .. "DCC_Caucasus" .. v .. ".miz") end
   HK.clock, HK.restart.enabled = realClock, false
 end
 
