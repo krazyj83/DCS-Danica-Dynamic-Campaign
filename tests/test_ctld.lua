@@ -33,7 +33,7 @@ ctld = { dontInitialize = true }
 local loaded, lerr = pcall(dofile, DCC_ROOT .. "/vendor/ctld/CTLD.lua")
 for _, f in ipairs({ "dcc_persist", "dcc_dcs", "dcc_dcs_supply", "dcc_dcs_ops", "dcc_dcs_intel", "dcc_dcs_radar",
                      "dcc_dcs_world", "dcc_dcs_jtac", "dcc_dcs_public", "dcc_dcs_air", "dcc_dcs_ground",
-                     "dcc_dcs_ctld", "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_dcs_ext2", "dcc_dcs_ext3", "dcc_dcs_ext4", "dcc_dcs_ext5", "dcc_dcs_armoury", "dcc_main" }) do
+                     "dcc_dcs_ctld", "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_dcs_ext2", "dcc_dcs_ext3", "dcc_dcs_ext4", "dcc_dcs_ext5", "dcc_dcs_armoury", "dcc_dcs_slots", "dcc_main" }) do
   dofile(DCC_ROOT .. "/src/" .. f .. ".lua")
 end
 
@@ -102,6 +102,13 @@ local suK, c0 = war.state.nodes.kutaisi.supply, countCrates()
 MOCK.click(p.gid, "Supply crate (")
 check("...a supply crate beside the helicopter, charged to the base", countCrates() == c0 + 1
   and war.state.nodes.kutaisi.supply < suK, countCrates() - c0)
+-- v0.58 (C-130 with two players): the crate menu belongs to the aircraft - a lost record is picked up again
+local hname = heli:getName()
+B.players[hname] = nil
+MOCK.click(p.gid, "Supply crate (")
+check("v0.58: crate menu after the campaign lost the record: crate beside it, record back",
+  countCrates() == c0 + 2 and B.players[hname] ~= nil, countCrates() - c0)
+p = B.players[hname]
 local fighter = MOCK.spawnPlayer(BLUE, "F-16C_50", kp.x + 400, kp.z, "Jet")
 MOCK.advance(1)
 local fp = B.players[fighter:getName()]

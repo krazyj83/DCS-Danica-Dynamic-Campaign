@@ -57,6 +57,7 @@ ENGINE = [
     "src/dcc_dcs_admin.lua",
     "src/dcc_dcs_srs.lua",
     "src/dcc_dcs_stats.lua",
+    "src/dcc_dcs_slots.lua",
     "src/dcc_main.lua",
 ]
 

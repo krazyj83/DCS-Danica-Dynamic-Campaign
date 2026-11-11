@@ -89,6 +89,7 @@ Kør disse efter hver ny version. De rører de vigtigste dele af motoren.
 | [P-707](#p-707) | FARPer fra start (v0.44) |
 | [P-310](#p-310) | Ingen AI-mod-AI-kamp langt fra spillere (v0.56) |
 | [S-308](#s-308) | Selvtjek ved missionsstart (v0.47) |
+| [P-110](#p-110) | Dynamic spawn på HQ: synlig og med missioner (v0.58) |
 
 ---
 
@@ -403,11 +404,12 @@ Feedback:
 
 ### P-103
 **Slot guard på fjendtlig base**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.2 · Offline: test_dcs_bridge
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.2 · Offline: test_dcs_bridge
 
 1. Spawn et fly på en base, din side ikke ejer (fx et fast slot på en base, der lige er erobret).
 
-**Forvent:** Du bliver fjernet med en besked.
+**Forvent:** Du bliver sendt til tilskuere (spectators) med grunden i chatten (v0.58: flyet blev slettet, og et
+dynamic spawn blev til et "spøgelse").
 
 Feedback:
 
@@ -424,11 +426,12 @@ Feedback:
 
 ### P-105
 **Cooldown efter to dødsfald**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.7 · Offline: test_dcs_airground
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.7 · Offline: test_dcs_airground
 
 1. Dø to gange inden for en time i et jetfly. Prøv at spawne et jetfly og derefter en helikopter.
 
-**Forvent:** Jetfly afvist i 15 minutter med besked. Helikopteren er tilladt.
+**Forvent:** Jetfly afvist i 15 minutter: du sendes til tilskuere med besked i chatten. Helikopteren er tilladt.
+(v0.58: virkede ikke på serveren før – dødsfald blev gemt under UCID, men slået op under navnet.)
 
 Feedback:
 
@@ -475,6 +478,46 @@ Feedback:
 **Forvent:** Begge spawner (to helipads).
 
 Feedback: v0.37: kun én helikopter kunne spawne på en FARP (én usynlig helipad).
+
+### P-110
+**Dynamic spawn på HQ: synlig og med missioner**
+`Status: RETEST` · Spillere: 2 · Kort: alle · Siden v0.58 · Offline: test_ext4
+
+1. Spiller A spawner et fly via dynamic spawn på HQ (Caucasus: Kutaisi) og åbner *F10 → Other → Missions*.
+2. Spiller B (anden base eller samme) kigger efter A på F10-kortet / ude på platformen.
+3. Gentag med en C-130J.
+
+**Forvent:** A har Missions-menuen (og *Supply crate* i C-130J), og B kan se A's fly. Hvis A bliver sendt til
+tilskuere, står grunden i chatten, og `dcs.log` har en linje "DCC: removed … from …". Notér i så fald linjen.
+
+Feedback: v0.57, 10. nov: fly spawnet på Kutaisi kunne ikke ses af andre spillere og havde ingen missioner.
+Rettet i v0.58.0: kampagnen slettede flyet, når en spiller ikke måtte flyve det (fjendtlig base, grounded, lukket
+bane, våben) – et slettet dynamic spawn bliver til et spøgelse. Spilleren sendes nu til tilskuere med besked, og
+hver fjernelse skrives i dcs.log. Spillere, der kommer ind i et fly efter dets birth, får nu også deres menuer.
+
+### P-111
+**C-130J med to spillere (multicrew)**
+`Status: RETEST` · Spillere: 2 · Kort: alle · Siden v0.58 · Offline: test_ext4, test_ctld
+
+1. Spiller A tager et C-130J. Spiller B går ind som besætning. B skifter sæde et par gange.
+2. Begge prøver *F10 → Other → Missions → Supply crate* på en egen base. A tager en mission.
+
+**Forvent:** Begge kan hente en kasse. A beholder sin mission og sine menuer, når B skifter sæde. `dcs.log` viser
+"DCC: crew change in …".
+
+Feedback: v0.57, 10. nov: to spillere i samme C-130 – den ene kunne ikke spawne en kasse, den anden kunne.
+Rettet i v0.58.0: et sædeskift fik kampagnen til at glemme piloten (menuer og mission væk). Et sædeskift med nogen
+om bord er nu kun et besætningsskift, og *Supply crate* henter en tabt registrering igen.
+
+### P-112
+**Skyde sig ud på jorden ved egen base**
+`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.58 · Offline: test_ext4
+
+1. Land på en egen base, stop, og skyd dig ud (eject) på jorden.
+
+**Forvent:** Ingen "MAYDAY" og ingen CSAR-mission på boardet. En udskydning i luften giver stadig CSAR.
+
+Feedback:
 
 ## P-200 · F10-menuer og missioner
 

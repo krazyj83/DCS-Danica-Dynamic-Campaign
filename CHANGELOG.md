@@ -6,6 +6,31 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.58.0 — 2026-11-11
+
+Beta test, 10 November.
+
+**Fixed**
+- **Aircraft spawned at Kutaisi were invisible to other players and had no missions:** when the campaign took a
+  player out of an aircraft (enemy-held base, grounded, runway closed, weapons not supplied) it destroyed the
+  aircraft — on a dynamic spawn that leaves the player flying a "ghost" the server no longer has. The player is now
+  sent to spectators with the reason in chat (`net.force_player_slot`); the aircraft is only destroyed if he is
+  still in it after 5 s. Every removal is written to `dcs.log` ("DCC: removed … from …: reason").
+- **Grounded after two losses never worked on a server:** the deaths were kept under the player's UCID but looked
+  up under his name.
+- **C-130J with two players — one could not get a supply crate:** a crew member changing seats made the campaign
+  forget the pilot (menus and mission gone). A seat change with someone still aboard is now only a crew change,
+  and the *Supply crate* menu picks a lost record up again.
+- **Dynamic spawns without a Missions menu:** a birth that comes before the player is in the aircraft is now
+  caught when he enters it (`S_EVENT_PLAYER_ENTER_UNIT`), and every 30 s the players DCS reports are compared with
+  the campaign's (`slots.sweepSec`).
+- **Ejecting on the ground at your own base** (a common way to leave a slot) no longer puts a downed pilot and a
+  CSAR mission on the board (`slots.groundEjectKm`).
+
+**Added**
+- `dcs.log` lines for every player entering, leaving or changing seats ("DCC: player … in …").
+- DCS test plan: new P-110, P-111, P-112 (P-110 in the smoke test); P-103 and P-105 to RETEST.
+
 ## 0.57.0 — 2026-11-05
 
 **Changed** (less multiplayer desync)

@@ -235,7 +235,7 @@ end
 for _, f in ipairs({ "dcc_persist", "dcc_dcs", "dcc_dcs_supply", "dcc_dcs_ops", "dcc_dcs_intel", "dcc_dcs_radar",
                      "dcc_dcs_world", "dcc_dcs_jtac", "dcc_dcs_public", "dcc_dcs_air", "dcc_dcs_ground",
                      "dcc_dcs_ext_air", "dcc_dcs_ext_ground", "dcc_dcs_ext2", "dcc_dcs_ext3", "dcc_dcs_ext4", "dcc_dcs_ext5",
-                     "dcc_dcs_armoury", "dcc_dcs_admin", "dcc_dcs_srs", "dcc_dcs_stats", "dcc_main" }) do
+                     "dcc_dcs_armoury", "dcc_dcs_admin", "dcc_dcs_srs", "dcc_dcs_stats", "dcc_dcs_slots", "dcc_main" }) do
   dofile(DCC_ROOT .. "/src/" .. f .. ".lua")
 end
 local errors = 0
@@ -803,6 +803,111 @@ check("...helicopters: open FARPs with their pads and types", hl[1] and hl[1]:fi
 local spawnMenu = false
 for _, it in ipairs(MOCK.menus) do if it.name == "Where can I spawn?" then spawnMenu = true end end
 check("...in F10 > Campaign", spawnMenu)
+
+print(" Player slots (v0.58)")
+-- a fake server player list (net is only there on a server)
+local seats, forced = {}, {}
+local function seat(pid, name, slot) seats[pid] = { id = pid, name = name, ucid = "ucid-" .. name, slot = slot } end
+net = {
+  get_player_list = function() local l = {}; for pid in pairs(seats) do l[#l + 1] = pid end; table.sort(l); return l end,
+  get_player_info = function(pid) return seats[pid] end,
+  send_chat_to = function() end,
+  force_player_slot = function(pid, side, slot)
+    forced[#forced + 1] = pid
+    if MOCK.forceWorks then
+      for _, g in pairs(MOCK.groups) do
+        for _, u in ipairs(g.units) do if u.player == seats[pid].name then u.player = nil end end
+      end
+      seats[pid].slot = ""
+    end
+    return true
+  end,
+}
+local function aircraft(gname, typeName, x, z, uid, heli)
+  MOCK.nextGroupId = MOCK.nextGroupId + 1
+  local g = setmetatable({ name = gname, exists = true, units = {}, route = {}, player = true,
+                          category = heli and 1 or 0, id = MOCK.nextGroupId }, MOCK.GroupMT)
+  local u = setmetatable({ name = gname .. "-1", type = typeName, x = x, z = z, alt = 0, alive = true, coal = BLUE,
+                           group = g, air = false, id = uid }, MOCK.UnitMT)
+  g.units[1] = u
+  MOCK.groups[gname] = g
+  return u, g
+end
+-- 1. a dynamic spawn whose birth comes before the player is in the aircraft
+seat(11, "Rode", "5001")
+local dyn, dg = aircraft("Kutaisi_F-16CM bl.50_1", "F-16C_50", kp.x + 800, kp.z, 5001)
+MOCK.fire({ id = world.event.S_EVENT_BIRTH, initiator = dyn })
+check("dynamic spawn: birth without a player name - not registered", B.players[dyn.name] == nil)
+dyn.player = "Rode"
+table.insert(MOCK.players[BLUE], dyn)
+MOCK.fire({ id = world.event.S_EVENT_PLAYER_ENTER_UNIT, initiator = dyn })
+check("...registered when he enters the aircraft: Missions menu", B.players[dyn.name] ~= nil
+  and #MOCK.menuItems(dg.id) > 0)
+check("...under his server key (UCID)", B.players[dyn.name] and B.players[dyn.name].key == "ucid-Rode")
+-- 2. the sweep: a player DCS has in an aircraft but the campaign lost
+B.clearPlayer(dyn.name, "left")
+MOCK.advance(31)
+check("sweep: a player in an aircraft the campaign lost gets his menus back", B.players[dyn.name] ~= nil
+  and #MOCK.menuItems(dg.id) > 0)
+dyn.alive = false
+MOCK.advance(31)
+check("sweep: a departed player is forgotten", B.players[dyn.name] == nil)
+-- 3. a player who may not fly here is sent to spectators, not destroyed (a destroyed dynamic spawn = ghost)
+MOCK.forceWorks = true
+seat(12, "Ghost", "5002")
+local gh = aircraft("Enemy_F-16CM_1", "F-16C_50", ep.x + 300, ep.z, 5002)
+gh.player = "Ghost"
+table.insert(MOCK.players[BLUE], gh)
+MOCK.fire({ id = world.event.S_EVENT_BIRTH, initiator = gh })
+check("slot guard: player sent to spectators", forced[#forced] == 12, #forced)
+check("...the aircraft is not destroyed under him", gh.alive and not gh.destroyed)
+check("...and not picked up again by the sweep", (function() MOCK.advance(31); return B.players[gh.name] == nil end)())
+MOCK.forceWorks = false
+seat(13, "Stuck", "5003")
+local st = aircraft("Enemy_F-16CM_2", "F-16C_50", ep.x + 600, ep.z, 5003)
+st.player = "Stuck"
+MOCK.fire({ id = world.event.S_EVENT_BIRTH, initiator = st })
+check("...still in it after slots.removeCheckSec: the aircraft goes", (function()
+  local before = st.alive
+  MOCK.advance(DCC.config.slots.removeCheckSec + 1)
+  return before and st.destroyed == true end)())
+-- 4. grounded after two losses: the deaths are found under the server key
+seat(14, "Twice", "5004")
+B.recordDeath("ucid-Twice"); B.recordDeath("ucid-Twice")
+local tw = aircraft("Kutaisi_FA-18_1", "FA-18C_hornet", kp.x + 900, kp.z, 5004)
+tw.player = "Twice"
+local nf = #forced
+MOCK.fire({ id = world.event.S_EVENT_BIRTH, initiator = tw })
+check("two losses within the hour: grounded in multiplayer too", #forced == nf + 1 and forced[#forced] == 14, #forced)
+-- 5. multicrew: a crew member changing seats does not take the pilot's menus and mission
+seat(15, "Rhino", "5005")
+seat(16, "Rook", "5005_2")
+local herc, hg2 = aircraft("Kutaisi_C-130J-30_1", "C-130J-30", kp.x + 1200, kp.z, 5005)
+herc.player = "Rhino"
+table.insert(MOCK.players[BLUE], herc)
+MOCK.fire({ id = world.event.S_EVENT_BIRTH, initiator = herc })
+local hp = B.players[herc.name]
+seats[16].slot = "5005_3"
+MOCK.fire({ id = world.event.S_EVENT_PLAYER_LEAVE_UNIT, initiator = herc })
+MOCK.advance(2)
+check("crew seat change: the pilot keeps his record and menus", hp ~= nil and B.players[herc.name] == hp
+  and #MOCK.menuItems(hg2.id) > 0)
+seats[15].slot, seats[16].slot, herc.player = "", "", nil
+MOCK.fire({ id = world.event.S_EVENT_PLAYER_LEAVE_UNIT, initiator = herc })
+MOCK.advance(2)
+check("...everyone out: the aircraft is forgotten", B.players[herc.name] == nil)
+-- 6. ejecting on the ground at an own base is leaving the slot, not a downed pilot
+seat(17, "Eject", "5006")
+local ej = aircraft("Kutaisi_F-16CM bl.50_9", "F-16C_50", kp.x + 400, kp.z, 5006)
+ej.player = "Eject"
+MOCK.fire({ id = world.event.S_EVENT_BIRTH, initiator = ej })
+local nd = 0
+for _ in pairs(war.state.downed) do nd = nd + 1 end
+MOCK.fire({ id = world.event.S_EVENT_EJECTION, initiator = ej })
+local nd2 = 0
+for _ in pairs(war.state.downed) do nd2 = nd2 + 1 end
+check("ejection on the ground at an own base: no downed pilot / CSAR", nd2 == nd, nd2 - nd)
+net, MOCK.forceWorks = nil, nil
 
 print(" A day")
 viper.air = false

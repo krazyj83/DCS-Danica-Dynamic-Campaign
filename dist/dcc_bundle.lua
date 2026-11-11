@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.57.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.58.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.57.0",
+  version         = "0.58.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -523,6 +523,16 @@ DCC.config = {
       -- they still arrive and resupply bases), and kept until convoyKm + convoyHysteresisKm
       convoyKm = 20, convoyHysteresisKm = 5,
     },
+  },
+
+  -- v0.58: player slots (dynamic spawns, multicrew) -------------------------------
+  slots = {
+    removeCheckSec = 5,     -- a player sent to spectators who is still in the aircraft after this: it is destroyed
+    sweepSec       = 30,    -- every so often, players DCS reports in an aircraft but the campaign does not know get
+                            -- their menus (a dynamic spawn whose birth came before the player, a crew seat change)
+    groundEjectKm  = 6,     -- an ejection on the ground this close to an own base is a way out of the slot, not a
+                            -- downed pilot: no CSAR mission
+    logPlayers     = true,  -- write every player entering and leaving an aircraft to dcs.log
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------
@@ -7328,6 +7338,59 @@ function B.datalinkOn(gname)
   return okE
 end
 
+-- ---------------------------------------------------------------------------
+-- Taking a player out of an aircraft they may not fly (enemy-held base,
+-- grounded, runway closed, weapons not supplied). v0.58: unit:destroy() on a
+-- dynamic-spawn aircraft left the player flying a "ghost" - gone on the
+-- server (other players could not see it, no F10 menus) but still in his
+-- cockpit. Now the player is moved to spectators (net.force_player_slot);
+-- the aircraft is only destroyed if that is not possible, or did not work
+-- within slots.removeCheckSec. Every removal is written to dcs.log.
+-- ---------------------------------------------------------------------------
+local function pcallR(fn, ...) local s, r = pcall(fn, ...); if s then return r end end
+
+function B.playerIdOf(name)
+  if not (net and net.get_player_list and name) then return nil end
+  for _, pid in ipairs(pcallR(net.get_player_list) or {}) do
+    local info = pcallR(net.get_player_info, pid)
+    if info and info.name == name then return pid end
+  end
+  return nil
+end
+
+function B.removePlayer(unit, reason, delay)
+  if not unit then return false end
+  local uname = pcallR(unit.getName, unit) or "?"
+  local name = pcallR(unit.getPlayerName, unit)
+  local id = pcallR(unit.getID, unit)
+  if id then pcall(trigger.action.outTextForUnit, id, reason, 20) end
+  U.log("removed %s from %s: %s", tostring(name), uname, tostring(reason))
+  B.removed = B.removed or {}
+  B.removed[uname] = timer.getTime()                 -- not adopted again while it is being removed
+  if B.clearPlayer then pcall(B.clearPlayer, uname, "left") end
+  local function kick()
+    local pid = B.playerIdOf(name)
+    if pid and net.force_player_slot then
+      if net.send_chat_to then pcall(net.send_chat_to, "DCC: " .. tostring(reason), pid) end
+      if pcall(net.force_player_slot, pid, 0, "") then
+        timer.scheduleFunction(function()                -- still sitting in it: remove the aircraft after all
+          local u = pcallR(Unit.getByName, uname)
+          if u and pcallR(u.isExist, u) and pcallR(u.getPlayerName, u) == name then pcall(u.destroy, u) end
+        end, nil, timer.getTime() + DCC.config.slots.removeCheckSec)
+        return
+      end
+    end
+    local u = pcallR(Unit.getByName, uname) or unit
+    if pcallR(u.isExist, u) then pcall(u.destroy, u) end
+  end
+  if delay and delay > 0 then
+    timer.scheduleFunction(function() pcall(kick) end, nil, timer.getTime() + delay)
+  else
+    kick()
+  end
+  return true
+end
+
 -- On (or within runwayClearM of) a runway, taxiway or apron (v0.37: platoons
 -- garrisoning an airbase stood and drove on the runway).
 local function isRunway(x, z, m)
@@ -8101,11 +8164,8 @@ function B.onBirth(unit)
   if not id then return end
   local side = (unit:getCoalition() == B.COAL.blue) and "blue" or "red"
   if B.war.state.nodes[id].side ~= side then
-    trigger.action.outTextForUnit(unit:getID(), string.format(
-      "%s is held by %s. Pick a slot at a base your side owns.", B.war:nodeName(id),
-      B.war.state.nodes[id].side:upper()), 20)
-    pcall(function() unit:destroy() end)
-    U.log("slot guard: removed %s at enemy-held %s", tostring(pname), id)
+    B.removePlayer(unit, string.format("%s is held by %s. Pick a slot at a base your side owns.",
+      B.war:nodeName(id), B.war.state.nodes[id].side:upper()))
   end
 end
 
@@ -8235,6 +8295,7 @@ local function playerKey(name)
   end
   return name
 end
+B.playerKey = playerKey
 
 function B.registerPlayer(u)
   local name = ok(u.getPlayerName, u)
@@ -11527,7 +11588,9 @@ local function keyOf(u)
   if not name then return nil end
   local p = B.players[ok(u.getName, u) or ""]
   if p then return p.key end
-  for _, pl in pairs(DCC.pilots.data.pilots) do if pl.name == name then return name end end
+  -- v0.58: the same key the deaths were recorded under (the UCID on a server - it was the name, so a
+  -- pilot was never grounded in multiplayer)
+  if B.playerKey then return B.playerKey(name) end
   return name
 end
 
@@ -11540,9 +11603,8 @@ function B.onBirth(unit)
   local key = keyOf(unit)
   local mins = key and B.groundedFor(key) or 0
   if mins > 0 then
-    trigger.action.outTextForUnit(unit:getID(), string.format(
-      "Grounded: two losses within the hour. Fast jets again in %d min - helicopters are fine.", mins), 20)
-    pcall(function() unit:destroy() end)
+    B.removePlayer(unit, string.format(
+      "Grounded: two losses within the hour. Fast jets again in %d min - helicopters are fine.", mins))
   end
 end
 
@@ -12909,7 +12971,8 @@ function B.armouryTakeoff(p, u)
   if not XC().armoury.enforce then return end
   say(p, string.format("RECALLED: %s cannot supply your weapons (only %s). Pick a slot again and re-arm.",
     war:nodeName(id), TIER_TEXT[tier]), 20)
-  timer.scheduleFunction(function() if alive(u) then ok(u.destroy, u) end end, nil, timer.getTime() + 2)
+  B.removePlayer(u, string.format("RECALLED: %s cannot supply your weapons (only %s).", war:nodeName(id),
+    TIER_TEXT[tier]), 2)
 end
 
 -- ===========================================================================
@@ -13298,11 +13361,7 @@ function B.onBirth(unit)
       reason = string.format("FARP spawns need the rank of %s. Spawn at an airbase.", need)
     end
   end
-  if reason then
-    trigger.action.outTextForUnit(unit:getID(), reason, 20)
-    B.clearPlayer(unit:getName(), "left")
-    ok(unit.destroy, unit)
-  end
+  if reason then B.removePlayer(unit, reason) end
 end
 
 local baseOpsTick = B.opsTick
@@ -17289,6 +17348,191 @@ function B.publicState()
   while #all > cfg.sorties do table.remove(all) end
   out.pilots, out.sorties = list, all
   return out
+end
+
+end
+
+-- >>> src/dcc_dcs_slots.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - DCS bridge: player slots (v0.58).
+-- Load after dcc_dcs_stats.lua, before dcc_main.lua.
+-- ----------------------------------------------------------------------------
+-- A player gets his campaign menus (missions, supply crate, support) when the
+-- campaign registers him at S_EVENT_BIRTH. That missed some players:
+--
+--   * Dynamic spawns: the birth can come before the player is in the
+--     aircraft (no player name yet) - he flew without a Missions menu.
+--     Now S_EVENT_PLAYER_ENTER_UNIT registers him too (slot guards first).
+--   * Multicrew (C-130J, CH-47F, AH-64D): a crew member changing seats sends
+--     S_EVENT_PLAYER_LEAVE_UNIT for the whole aircraft, and the pilot lost his
+--     menus and his mission. With the server's player list at hand, a leave
+--     while someone still sits in the aircraft is now only a crew change.
+--   * Anything else: every slots.sweepSec the players DCS reports are
+--     compared with the campaign's - missing ones are registered, departed
+--     ones forgotten (like CTLD's own sweep).
+--
+-- An ejection on the ground at an own base is how many players leave a slot:
+-- it no longer puts a downed pilot and a CSAR mission on the board.
+-- Every player entering and leaving is written to dcs.log (slots.logPlayers).
+-- ============================================================================
+
+DCC = DCC or {}
+local B = DCC.dcs
+local U = DCC.util
+
+local function SC() return DCC.config.slots end
+local function ok(fn, ...) local s, r = pcall(fn, ...); if s then return r end end
+local function alive(u) return u ~= nil and ok(u.isExist, u) == true end
+
+local function isAircraft(u)
+  local d = ok(u.getDesc, u)
+  return d ~= nil and (d.category == Unit.Category.AIRPLANE or d.category == Unit.Category.HELICOPTER)
+end
+
+local function recentlyRemoved(uname)
+  local t = B.removed and B.removed[uname]
+  return t ~= nil and timer.getTime() - t < 60
+end
+
+-- How many players the server has in this aircraft (pilot slot "<unit id>", crew seats "<unit id>_<n>").
+-- nil when the server's player list cannot be read.
+function B.seatsTaken(u)
+  if not (net and net.get_player_list and net.get_player_info) then return nil end
+  local id = ok(u.getID, u)
+  if not id then return nil end
+  id = tostring(id)
+  local n = 0
+  for _, pid in ipairs(ok(net.get_player_list) or {}) do
+    local info = ok(net.get_player_info, pid)
+    local slot = info and tostring(info.slot or "") or ""
+    if slot == id or slot:sub(1, #id + 1) == id .. "_" then n = n + 1 end
+  end
+  return n
+end
+
+-- A player in an aircraft the campaign does not know yet: slot guards as at birth, then menus.
+function B.adoptPlayer(u, why)
+  if not alive(u) or not ok(u.getPlayerName, u) or not isAircraft(u) then return nil end
+  local uname = ok(u.getName, u)
+  if not uname or recentlyRemoved(uname) then return nil end
+  if B.players[uname] then return B.players[uname] end
+  pcall(B.onBirth, u)
+  if not alive(u) or recentlyRemoved(uname) then return nil end
+  local s, p = pcall(B.registerPlayer, u)
+  if not s then U.log("ERROR adopting %s: %s", uname, tostring(p)); return nil end
+  if p and SC().logPlayers then U.log("player %s picked up in %s (%s)", tostring(p.name), uname, why or "?") end
+  return p
+end
+
+-- Compare DCS's players with the campaign's.
+function B.slotSweep()
+  local seen = {}
+  for _, c in ipairs({ coalition.side.RED, coalition.side.BLUE }) do
+    for _, u in ipairs(ok(coalition.getPlayers, c) or {}) do
+      local uname = ok(u.getName, u)
+      if uname then
+        seen[uname] = true
+        if not B.players[uname] then B.adoptPlayer(u, "sweep") end
+      end
+    end
+  end
+  for uname, p in pairs(B.players) do
+    if not p.ground and not seen[uname] then
+      local u = ok(Unit.getByName, uname)
+      if not alive(u) or not ok(u.getPlayerName, u) then
+        if SC().logPlayers then U.log("player %s gone from %s (sweep)", tostring(p.name), uname) end
+        B.clearPlayer(uname, "left")
+      end
+    end
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- Events
+-- ---------------------------------------------------------------------------
+local baseOpsEvent = B.onOpsEvent
+function B.onOpsEvent(e)
+  local ev, u = world.event, e.initiator
+  if e.id == ev.S_EVENT_PLAYER_LEAVE_UNIT and u then
+    local uname = ok(u.getName, u)
+    local p = uname and B.players[uname]
+    if p and not p.ground and B.seatsTaken(u) ~= nil then
+      -- decide a moment later, when the server's slots have settled: still someone aboard = a crew change
+      timer.scheduleFunction(function()
+        if B.players[uname] ~= p then return end
+        local uu = ok(Unit.getByName, uname)
+        local n = alive(uu) and B.seatsTaken(uu) or 0
+        if n and n > 0 and ok(uu.getPlayerName, uu) then
+          if SC().logPlayers then U.log("crew change in %s: %s keeps it (%d aboard)", uname, tostring(p.name), n) end
+          return
+        end
+        if SC().logPlayers then U.log("player %s left %s", tostring(p.name), uname) end
+        B.clearPlayer(uname, "left")
+      end, nil, timer.getTime() + 1)
+      return
+    end
+    if p and SC().logPlayers then U.log("player %s left %s", tostring(p.name), uname) end
+  end
+  baseOpsEvent(e)
+  if e.id == ev.S_EVENT_PLAYER_ENTER_UNIT and u then
+    local s, err = pcall(B.adoptPlayer, u, "enter")
+    if not s then U.log("ERROR player enter: %s", tostring(err)) end
+  end
+end
+
+local baseRegister = B.registerPlayer
+function B.registerPlayer(u)
+  local p = baseRegister(u)
+  if p and SC().logPlayers then
+    U.log("player %s in %s (%s, group %s) at %s", tostring(p.name), tostring(p.unit), tostring(p.type),
+      tostring(p.gid), tostring(p.home or "-"))
+  end
+  return p
+end
+
+-- An ejection on the ground at an own base: the player leaving his slot.
+local baseEject = B.onEjection
+function B.onEjection(u)
+  if u and ok(u.getPlayerName, u) and not ok(u.inAir, u) then
+    local pos = ok(u.getPoint, u)
+    local side = (ok(u.getCoalition, u) == B.COAL.blue) and "blue" or "red"
+    local id = pos and B.nearestNodeOf and B.nearestNodeOf(pos, side, SC().groundEjectKm * 1000)
+    if id then
+      if SC().logPlayers then U.log("player %s ejected on the ground at %s: no CSAR", tostring(ok(u.getPlayerName, u)), id) end
+      return
+    end
+  end
+  return baseEject(u)
+end
+
+-- The supply crate menu belongs to the aircraft: whoever in it clicks, a lost record is picked up again.
+if B.ctldSupplyCrate then
+  local baseCrate = B.ctldSupplyCrate
+  function B.ctldSupplyCrate(uname)
+    if not B.players[uname] then
+      local u = ok(Unit.getByName, uname)
+      if u then B.adoptPlayer(u, "crate menu") end
+    end
+    return baseCrate(uname)
+  end
+end
+
+local basePoll = B.opsPoll
+function B.opsPoll()
+  basePoll()
+  local now = timer.getTime()
+  if now - (B.slotSweepAt or -1e9) >= SC().sweepSec then
+    B.slotSweepAt = now
+    local s, err = pcall(B.slotSweep)
+    if not s then U.log("ERROR slot sweep: %s", tostring(err)) end
+  end
+end
+
+local baseInit = B.init
+function B.init(war, theater, catalog)
+  baseInit(war, theater, catalog)
+  B.removed, B.slotSweepAt = {}, nil
 end
 
 end

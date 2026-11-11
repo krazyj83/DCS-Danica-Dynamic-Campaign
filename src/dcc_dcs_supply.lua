@@ -250,11 +250,8 @@ function B.onBirth(unit)
   if not id then return end
   local side = (unit:getCoalition() == B.COAL.blue) and "blue" or "red"
   if B.war.state.nodes[id].side ~= side then
-    trigger.action.outTextForUnit(unit:getID(), string.format(
-      "%s is held by %s. Pick a slot at a base your side owns.", B.war:nodeName(id),
-      B.war.state.nodes[id].side:upper()), 20)
-    pcall(function() unit:destroy() end)
-    U.log("slot guard: removed %s at enemy-held %s", tostring(pname), id)
+    B.removePlayer(unit, string.format("%s is held by %s. Pick a slot at a base your side owns.",
+      B.war:nodeName(id), B.war.state.nodes[id].side:upper()))
   end
 end
 
