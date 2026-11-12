@@ -46,8 +46,8 @@ nothing to change in the missions.
 **Full access to the server PC:**
 
 1. **Server: allow saving** — see [step 1](#1-allow-the-campaign-to-save) below.
-2. **Copy the four missions** `dist/DCC_*.miz` to `Saved Games\DCS\Missions\DCC\` and put
-   `DCC_Caucasus.miz` in the server's mission list.
+2. **Copy the missions** `dist/DCC_*.miz` (the four maps and their weather versions `DCC_<map>_wx2..4.miz`) to
+   `Saved Games\DCS\Missions\DCC\` and put `DCC_Caucasus.miz` in the server's mission list.
 3. **Install the rotation hook**: copy `hooks/DCC_rotation_hook.lua` to
    `Saved Games\DCS\Scripts\Hooks\`, and untick *Pause without clients* in the server settings.
 4. **Start it as a multiplayer server** (also locally for testing: *Multiplayer → New server*).
@@ -262,6 +262,10 @@ on their map unless they have eyes on you.
   mission must have run 10 minutes first, so a restart never loops. Change it at the top of
   `hooks/DCC_rotation_hook.lua` (`restart.time`, `restart.zone = "local"` for the server's clock,
   `restart.enabled = false` to switch it off).
+- **New weather every day (v0.61):** each map comes in 4 weather versions (`DCC_<map>.miz`, `_wx2`, `_wx3`,
+  `_wx4`; highs and lows mixed, more highs over the Gulf, more lows over Germany). The daily restart loads the next
+  one that is in `Missions\DCC\`, so the sky changes every morning and comes round again every 4 days. Copy only
+  `DCC_<map>.miz` and the weather never changes. Number of versions: `world.dynamicWeather.variants`.
 
 ## SRS voice (v0.50)
 
@@ -379,7 +383,8 @@ wind, cloud, rain) — more highs over the Gulf, more lows over Germany (`world.
 mission start the campaign's own weather heads the same way (a high toward clear, a low toward rain), so fog,
 column speeds and the forecast match the sky. Dynamic weather uses DCS's older cloud system: fewer clouds and no
 cloud presets. Set `world.dynamicWeather.enabled = false` for static weather with the map's prevailing wind.
-The weather is fixed in the .miz, so the daily restart starts from the same sky until the mission is rebuilt. **Night** (20:00–06:00 mission time) halves what eyes can see and grounds AI attack sorties; fighters
+Each map has 4 weather versions, and the daily restart loads the next one (v0.61), so every morning brings a new
+sky. **Night** (20:00–06:00 mission time) halves what eyes can see and grounds AI attack sorties; fighters
 and AWACS still fly. The clock runs in real time from **12:00** when the mission starts.
 
 **The AI remembers where it is hurt.** Every column killed raises that road's *threat* for the side that
@@ -1035,7 +1040,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `ext.runwayLb` / `ground.bridgeLb` | 6000 lb, 2000 lb | Bombs (by weight, `ext.bombLb`) within 60 m of a runway's centre line / 40 m of a bridge that close the runway or bring the bridge down (v0.54) |
 | `ext5.fireControl.fireKm` | 15 km | AI ground groups only open fire (and battles are only fought by DCS) this close to a player (v0.56) |
 | `world.missionWind` | per map, 2–7 m/s | The missions' winds at ground / 2000 / 8000 m, from the map's prevailing direction (make_mission.py, v0.56); only with dynamic weather off |
-| `world.dynamicWeather` | on, 2–4 systems | DCS dynamic weather in the missions; `highChance` per map, `campaignTarget` where the campaign weather heads (v0.60) |
+| `world.dynamicWeather` | on, 4 versions, 2–4 systems | DCS dynamic weather in the missions; `highChance` per map, `campaignTarget` where the campaign weather heads (v0.60); `variants` weather versions per map, one per daily restart (v0.61) |
 | `ext5.airAssault` | 3 defenders, 60 km, 60 m, 45 min | AIRASSAULT targets (weakest enemy bases within reach) and the gunship escort's height, stand-off and time (v0.49) |
 | `public.pilots` / `sorties` / `sortiesPerPilot` | 100, 20, 5 | public.json for the web map: pilots listed, latest sorties, sorties kept per pilot (v0.51) |
 | `srs.*` | 238 / 239 / 240 AM, 15 min | SRS voice: AWACS, Command and airfield-information frequencies, voices, how often airfield information plays (v0.50) |

@@ -4,6 +4,7 @@
 -- INSTALL: copy this file to   Saved Games\DCS[.server]\Scripts\Hooks\
 --          copy the missions to Saved Games\DCS[.server]\Missions\DCC\
 --              DCC_Caucasus.miz, DCC_Syria.miz, DCC_PersianGulf.miz, DCC_GermanyCW.miz
+--              and their weather versions DCC_<map>_wx2.miz, _wx3, _wx4 (v0.61)
 --          put DCC_Caucasus.miz (or any of them) in the server's mission list.
 --
 -- Why a hook: a mission script cannot load another mission. Server hooks run
@@ -32,6 +33,8 @@
 -- saves the war and reloads the mission - a 24/7 DCS server builds up memory
 -- over the days. Players are warned 30, 10 and 1 minute before (chat and on
 -- screen). The war carries on from the save. restart.enabled = false: off.
+-- v0.61: it loads the map's next weather version (DCC_<map>_wx2.miz ...) when
+-- those files are in Missions\DCC\ too - a new sky every day.
 --
 -- SRS VOICE (v0.50): the mission queues what should be spoken (AWACS bogey
 -- dope, command news, airfield information); the hook collects it and plays
@@ -41,11 +44,12 @@
 -- ============================================================================
 
 local DCCR = {
-  version      = "0.50",
+  version      = "0.61",
   missionsDir  = lfs.writedir() .. "Missions\\DCC\\",
   stateFile    = lfs.writedir() .. "DCC\\rotation.json",
   adminFile    = lfs.writedir() .. "DCC\\admins.txt",   -- optional UCID list
   adminSlot    = "instructor",  -- DCS slot id of a Game Master starts with this
+  weatherVariantsMax = 9,       -- v0.61: DCC_<map>_wx2 .. _wx9 are looked for at the daily restart
   reloadDelay  = 15,            -- s between "-dcc restart" / "freshwar" and the reload
   reloadAt     = nil,
   announced    = false,
@@ -209,6 +213,25 @@ function DCCR.restartIn(utc)
   return (target - (t.hour * 60 + t.min)) % 1440, string.format("%04d-%02d-%02d", t.year, t.month, t.day)
 end
 
+-- v0.61: the weather versions of a map (make_mission.py builds DCC_<map>.miz, DCC_<map>_wx2.miz ...): the
+-- daily restart loads the next one that exists, so the sky changes every day. Other files: the same file.
+function DCCR.nextWeatherFile(file)
+  local base, n = file:match("^(.-DCC_%w+)_wx(%d+)%.miz$")
+  n = tonumber(n)
+  if not base then
+    base = file:match("^(.-DCC_%w+)%.miz$")
+    n = 1
+  end
+  if not base then return file end
+  local function variant(i) return i == 1 and (base .. ".miz") or string.format("%s_wx%d.miz", base, i) end
+  for step = 1, DCCR.weatherVariantsMax do
+    local i = (n - 1 + step) % DCCR.weatherVariantsMax + 1
+    if i == n then break end
+    if fileExists(variant(i)) then return variant(i) end
+  end
+  return file
+end
+
 function DCCR.dailyRestart(now)
   local R = DCCR.restart
   if not R.enabled then return false end
@@ -227,9 +250,10 @@ function DCCR.dailyRestart(now)
     pcall(net.dostring_in, "server", "if DCC and DCC.save then DCC.save() end")
     local okF, file = pcall(DCS.getMissionFilename)
     if okF and file then
-      say("daily restart: reloading " .. file)
-      pcall(net.send_chat, "[DCC] Daily restart now.", true)
-      net.load_mission(file)
+      local nextFile = DCCR.nextWeatherFile(file)
+      say("daily restart: loading " .. nextFile .. (nextFile ~= file and " (next weather)" or ""))
+      pcall(net.send_chat, "[DCC] Daily restart now" .. (nextFile ~= file and " - new weather." or "."), true)
+      net.load_mission(nextFile)
       return true
     end
   end

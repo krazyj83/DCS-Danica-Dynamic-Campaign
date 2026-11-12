@@ -190,7 +190,7 @@ Feedback:
 
 ### S-108
 **Daglig genstart kl. 04:00**
-`Status: IKKE TESTET` · Kort: alle · Siden v0.48 · Offline: test_rotation
+`Status: RETEST` · Kort: alle · Siden v0.48 · Offline: test_rotation
 
 1. Installer den nye `DCC_rotation_hook.lua`. Lad serveren køre over kl. 04:00 dansk tid (eller sæt `restart.time` i
    hooken til om 35 minutter for at teste nu, og husk at sætte den tilbage).
@@ -198,6 +198,9 @@ Feedback:
 
 **Forvent:** Advarsel i chat og på skærmen 30, 10 og 1 minut før. Kl. 04:00 genindlæses missionen; krigen fortsætter
 med den seneste stilling. Ingen ny genstart samme morgen. I `dcs.log`: `DCC-ROTATION ... daily restart`.
+v0.61: kopiér også `DCC_<kort>_wx2..4.miz` til `Missions\DCC\`. Ved genstarten indlæses næste vejrversion
+(`DCC_Caucasus_wx2.miz` efter `DCC_Caucasus.miz` osv.), chatten siger "new weather", og `dcs.log` viser
+"daily restart: loading ... (next weather)". Notér vejret (vind/skyer) før og efter.
 
 Feedback:
 

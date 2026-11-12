@@ -299,9 +299,24 @@ CTLD_DIR = os.path.join(ROOT, "vendor", "ctld")
 SCRIPTS_DIR = os.path.join(ROOT, "tools", "mission_scripts")
 
 
-def set_weather(m, theater_name, cfg, rng=None):
+def weather_plan(theater_name, cfg):
+    """v0.61: "high" / "low" for each weather variant of a map (DCC_<map>.miz, then _wx2, _wx3 ...): as many
+    highs as highChance asks for, spread out (not two highs in a row when it can be helped), so the daily
+    restarts walk through them."""
+    dw = cfg["world"].get("dynamicWeather") or {}
+    if not dw.get("enabled"):
+        return [None]
+    n = max(1, int(dw.get("variants", 1)))
+    highs = int(round(n * float(dw.get("highChance", {}).get(theater_name, 0.5))))
+    if n >= 2:
+        highs = min(n - 1, max(1, highs))     # with two or more, always at least one of each
+    return ["high" if (i + 1) * highs // n > i * highs // n else "low" for i in range(n)]
+
+
+def set_weather(m, theater_name, cfg, rng=None, kind=None):
     """v0.60: DCS dynamic weather (pressure systems that move during the mission) when
-    world.dynamicWeather.enabled, otherwise static weather with the map's prevailing wind (set_winds)."""
+    world.dynamicWeather.enabled, otherwise static weather with the map's prevailing wind (set_winds).
+    kind: "high" / "low" (a weather variant), None = rolled with highChance."""
     import random
     from dcs.weather import Weather
     dw = cfg["world"].get("dynamicWeather") or {}
@@ -311,7 +326,10 @@ def set_weather(m, theater_name, cfg, rng=None):
     rng = rng or random.Random()
     lo, hi = dw["cyclones"]
     n = rng.randint(int(lo), int(hi))
-    high = rng.random() < float(dw.get("highChance", {}).get(theater_name, 0.5))
+    if kind is None:
+        high = rng.random() < float(dw.get("highChance", {}).get(theater_name, 0.5))
+    else:
+        high = kind == "high"
     system = Weather.BaricSystem.AntiCyclone if high else Weather.BaricSystem.Cyclone
     # Our own pressure systems, laid out the way the Mission Editor's generator does (one near the map centre,
     # the rest ~950 km out, evenly spaced): pydcs's dynamic_weather() makes every system a high (its sign is
@@ -684,7 +702,9 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
         "F10 > Other > Campaign > Campaign status for the situation.")
 
     set_ai_skill(m)
-    set_weather(m, theater_name, load_config())
+    cfg = load_config()
+    plan = [None] if test else weather_plan(theater_name, cfg)
+    set_weather(m, theater_name, cfg, kind=plan[0])
     fix_radio_frequencies(m)
     assign_datalinks(m)
     dtc_files = build_dtcs(m, theater, theater_name)
@@ -709,12 +729,22 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
             radios.append(f"{what:<22} {f['blue']:.1f} {srs.get('modulation', 'AM')}  (BLUE)   "
                           f"{f['red']:.1f} {srs.get('modulation', 'AM')}  (RED)")
     knee_files = kneeboard.build(theater, theater_name, airports, tankers, radios)
-    with zipfile.ZipFile(out, "a", compression=zipfile.ZIP_DEFLATED) as z:
-        for path, text in dtc_files.items():
-            z.writestr(path, text)
-        for path, data in knee_files.items():
-            z.writestr(path, data)
+
+    def add_extras(path):
+        with zipfile.ZipFile(path, "a", compression=zipfile.ZIP_DEFLATED) as z:
+            for p, text in dtc_files.items():
+                z.writestr(p, text)
+            for p, data in knee_files.items():
+                z.writestr(p, data)
+    add_extras(out)
     print(f"  kneeboard: {len(knee_files)} pages")
+    # v0.61: the same mission with other weather - the daily restart loads the next one (server hook)
+    for i, kind in enumerate(plan[1:], start=2):
+        vout = out[:-4] + f"_wx{i}.miz"
+        set_weather(m, theater_name, cfg, kind=kind)
+        m.save(vout)
+        add_extras(vout)
+        print(f"  weather variant {i}: {os.path.basename(vout)}")
 
     print(f"Wrote {out}")
     for side in ("blue", "red"):
