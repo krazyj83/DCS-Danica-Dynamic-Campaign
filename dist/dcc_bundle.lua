@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.58.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.59.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.58.0",
+  version         = "0.59.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -533,6 +533,14 @@ DCC.config = {
     groundEjectKm  = 6,     -- an ejection on the ground this close to an own base is a way out of the slot, not a
                             -- downed pilot: no CSAR mission
     logPlayers     = true,  -- write every player entering and leaving an aircraft to dcs.log
+  },
+
+  -- v0.59: weapons stock pages (F10 > Support > Weapons stock here / Where is ...) ------------
+  stock = {
+    lowShare  = 0.25,       -- a family below this share of a full shelf is LOW (0 = OUT)
+    whereMax  = 6,          -- Where is ...: this many own bases, nearest first
+    onSpawn   = true,       -- the spawn message names what is low or out at the base
+    showSec   = 30,         -- how long the stock page stays on screen
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------
@@ -13290,7 +13298,7 @@ function B.buildSupportMenu(p)
   missionCommands.addCommandForGroup(p.gid, "Artillery on my map mark", root, B.callArtillery, p.unit)
   missionCommands.addCommandForGroup(p.gid, "CAS pair on my map mark", root, B.callCas, p.unit)
   missionCommands.addCommandForGroup(p.gid, "AWACS picture", root, B.picture, p.unit)
-  missionCommands.addCommandForGroup(p.gid, "Armoury at this base", root, B.showArmoury, p.unit)
+  missionCommands.addCommandForGroup(p.gid, "Weapons stock here", root, B.showArmoury, p.unit)
 end
 
 local baseRegister = B.registerPlayer
@@ -16584,6 +16592,7 @@ local function warehousesOf(id, side)
   end
   return out
 end
+B.warehousesOf = warehousesOf
 
 function B.restockArmoury()
   if not B.armWarehouseMode() or #B.arm.names == 0 then return end
@@ -17537,6 +17546,222 @@ end
 
 end
 
+-- >>> src/dcc_dcs_stock.lua
+do
+-- ============================================================================
+-- Danica Dynamic Campaign - DCS bridge: weapons stock pages (v0.59).
+-- Load after dcc_dcs_slots.lua, before dcc_main.lua.
+-- ----------------------------------------------------------------------------
+-- Players could not tell what a base had on its shelves. Now (warehouse
+-- armoury mode):
+--   F10 > Support > Weapons stock here   the base you are at (airbase and its
+--       FARP pads together): supply, then every weapon family with its count,
+--       LOW (below stock.lowShare of a full shelf) or OUT
+--   F10 > Support > Where is ... > <group> > <family>   your side's bases
+--       holding it, nearest first, with counts and distance
+--   the spawn message names what is low or out at your base
+-- Counts are read live from the DCS warehouses, so they are exactly what the
+-- re-arm menu offers. Families (AIM-120, Hellfire, Hydra 70 ...) are listed in
+-- the catalogue (weapons.families).
+-- ============================================================================
+
+DCC = DCC or {}
+local B = DCC.dcs
+local U = DCC.util
+
+local function SC() return DCC.config.stock end
+local function ok(fn, ...) local s, r = pcall(fn, ...); if s then return r end end
+
+local function families() return ((B.catalog or {}).weapons or {}).families or {} end
+
+-- Family index of a DCS weapon name (first match, within its DCS category), cached.
+B.famOf = {}
+function B.familyOf(name)
+  local c = B.famOf[name]
+  if c ~= nil then return c or nil end
+  local n = string.lower(name)
+  local cat, rest = n:match("^weapons%.([^%.]+)%.(.+)$")
+  local found = false
+  if cat then
+    for i, f in ipairs(families()) do
+      if f[3] == cat then
+        for _, pat in ipairs(f[4]) do
+          if rest:find(pat, 1, true) then found = i; break end
+        end
+      end
+      if found then break end
+    end
+  end
+  B.famOf[name] = found
+  return found or nil
+end
+
+-- The names of each family that the armoury uses.
+local function familyNames()
+  local out = {}
+  for _, name in ipairs(B.arm and B.arm.names or {}) do
+    local i = B.familyOf(name)
+    if i then out[i] = out[i] or {}; table.insert(out[i], name) end
+  end
+  return out
+end
+
+-- Stock of one base: [family] = { count, full }. full = what the last restock put on the shelf.
+function B.baseStock(id, side, only)
+  local out = {}
+  local whs = B.warehousesOf and B.warehousesOf(id, side) or {}
+  if #whs == 0 then return out, 0 end
+  local names = familyNames()
+  for i, list in pairs(names) do
+    if not only or only == i then
+      local f = { count = 0, full = 0 }
+      for k, w in ipairs(whs) do
+        for _, name in ipairs(list) do
+          local c = ok(w.getItemCount, w, name) or 0
+          local last = B.arm.last and B.arm.last[id .. "|" .. k .. "|" .. name]
+          f.count = f.count + c
+          f.full = f.full + (last or c)
+        end
+      end
+      out[i] = f
+    end
+  end
+  return out, #whs
+end
+
+local function state(f)
+  if f.full <= 0 and f.count <= 0 then return nil end
+  if f.count <= 0 then return "OUT" end
+  if f.count < SC().lowShare * f.full then return "LOW" end
+  return ""
+end
+
+-- "Low: HARM / anti-radar (4). Out: Hellfire." or nil when all is well.
+function B.stockShortText(id, side)
+  local stock = B.baseStock(id, side)
+  local low, out = {}, {}
+  for i, f in ipairs(families()) do
+    local s = stock[i] and state(stock[i])
+    if s == "LOW" then low[#low + 1] = string.format("%s (%d)", f[1], stock[i].count)
+    elseif s == "OUT" then out[#out + 1] = f[1] end
+  end
+  local parts = {}
+  if #low > 0 then parts[#parts + 1] = "Low: " .. table.concat(low, ", ") .. "." end
+  if #out > 0 then parts[#parts + 1] = "Out: " .. table.concat(out, ", ") .. "." end
+  return #parts > 0 and table.concat(parts, " ") or nil
+end
+
+function B.stockPage(id, side)
+  local war = B.war
+  local ns = war.state.nodes[id]
+  local stock, nw = B.baseStock(id, side)
+  local lines = { string.format("WEAPONS STOCK - %s (supply %d %%)", war:nodeName(id),
+    math.floor(100 * (ns.supply or 0) / math.max(1, war:supplyCap(id)) + 0.5)) }
+  if nw == 0 then
+    lines[#lines + 1] = "No warehouse here (no airfield or FARP)."
+    return table.concat(lines, "\n")
+  end
+  local groups, order = {}, {}
+  for i, f in ipairs(families()) do
+    local s = stock[i] and state(stock[i])
+    if s then
+      if not groups[f[2]] then groups[f[2]] = {}; order[#order + 1] = f[2] end
+      table.insert(groups[f[2]], string.format("%s %d%s", f[1], stock[i].count, s ~= "" and (" " .. s) or ""))
+    end
+  end
+  if #order == 0 then lines[#lines + 1] = "No weapons on the shelf." end
+  for _, g in ipairs(order) do lines[#lines + 1] = g .. ": " .. table.concat(groups[g], " | ") end
+  lines[#lines + 1] = "Pods, tanks and guns are always on the shelf. Shelves are topped up every 5 min while the"
+  lines[#lines + 1] = "base has supply - bring supply (convoy, airlift, crates) to keep them full."
+  return table.concat(lines, "\n")
+end
+
+local function playerBase(p, u)
+  local pos = ok(u.getPoint, u)
+  if not pos then return nil end
+  return B.nearestNodeOf(pos, p.side, 5000) or B.nearestNodeOf(pos, p.side)
+end
+
+-- F10 > Support > Weapons stock here (replaces the armoury line in warehouse mode)
+local baseShow = B.showArmoury
+function B.showArmoury(uname)
+  if not (B.armWarehouseMode and B.armWarehouseMode()) then return baseShow(uname) end
+  local p = B.players[uname]
+  local u = p and ok(Unit.getByName, uname)
+  local id = u and playerBase(p, u)
+  if id then trigger.action.outTextForGroup(p.gid, B.stockPage(id, p.side), SC().showSec) end
+end
+
+-- F10 > Support > Where is ... > family
+function B.whereIs(args)
+  local p = B.players[args.unit]
+  local u = p and ok(Unit.getByName, args.unit)
+  if not u then return end
+  local pos = u:getPoint()
+  local war, rows = B.war, {}
+  for _, id in ipairs(war.T.order) do
+    if war.state.nodes[id].side == p.side and B.nodePos[id] then
+      local stock, nw = B.baseStock(id, p.side, args.fam)
+      local f = stock[args.fam]
+      if nw > 0 and f and f.count > 0 then
+        local np = B.nodePos[id]
+        local d = math.sqrt((np.x - pos.x) ^ 2 + (np.z - pos.z) ^ 2) / 1000
+        rows[#rows + 1] = { id = id, d = d, f = f }
+      end
+    end
+  end
+  table.sort(rows, function(a, b) return a.d < b.d end)
+  local fam = families()[args.fam]
+  local lines = { string.format("WHERE IS %s (%s bases, nearest first)", fam[1], p.side:upper()) }
+  for i = 1, math.min(#rows, SC().whereMax) do
+    local r = rows[i]
+    local s = state(r.f)
+    lines[#lines + 1] = string.format("%s, %d km: %d%s", war:nodeName(r.id), math.floor(r.d + 0.5), r.f.count,
+      (s and s ~= "") and (" " .. s) or "")
+  end
+  if #rows == 0 then lines[#lines + 1] = "Not on the shelf at any of your bases." end
+  trigger.action.outTextForGroup(p.gid, table.concat(lines, "\n"), SC().showSec)
+end
+
+local baseSupport = B.buildSupportMenu
+function B.buildSupportMenu(p)
+  baseSupport(p)
+  if not (p.gid and p.supportMenu and B.armWarehouseMode and B.armWarehouseMode()) then return end
+  local fams = families()
+  if #fams == 0 then return end
+  local where = missionCommands.addSubMenuForGroup(p.gid, "Where is ...", p.supportMenu)
+  local subs, n = {}, {}
+  for i, f in ipairs(fams) do
+    local g = f[2]
+    if not subs[g] then subs[g] = missionCommands.addSubMenuForGroup(p.gid, g, where); n[g] = 0 end
+    n[g] = n[g] + 1
+    if n[g] <= 10 then
+      missionCommands.addCommandForGroup(p.gid, f[1], subs[g], B.whereIs, { unit = p.unit, fam = i })
+    end
+  end
+end
+
+-- the spawn message: what is low or out here
+local baseText = B.armouryText
+function B.armouryText(id)
+  local t = baseText(id)
+  if SC().onSpawn and B.armWarehouseMode and B.armWarehouseMode() then
+    local side = B.war.state.nodes[id].side
+    local short = (side == "blue" or side == "red") and B.stockShortText(id, side)
+    t = t .. "\n" .. (short or "Every weapon family is well stocked.") ..
+      " F10 > Support > Weapons stock here / Where is ..."
+  end
+  return t
+end
+
+local baseInit = B.init
+function B.init(war, theater, catalog)
+  baseInit(war, theater, catalog)
+  B.famOf = {}
+end
+
+end
+
 -- >>> src/dcc_main.lua
 do
 -- ============================================================================
@@ -18111,6 +18336,37 @@ DCC_CATALOGS.modern = {
       "weapons.containers.KINGAL", "weapons.containers.SKY_SHADOW", "weapons.containers.TANGAZH", "weapons.containers.L005",
       "weapons.containers.U22", "weapons.containers.F-15E_AAQ-13_LANTIRN", "weapons.containers.F-15E_AAQ-14_LANTIRN", "weapons.containers.AN_AAQ_33",
       "weapons.containers.WMD7", "weapons.containers.KG-600",
+    },
+    -- v0.59: weapon families for F10 > Support > Weapons stock / Where is ... : { label, group, DCS category,
+    -- name patterns (lower case) }. A weapon counts in the first family it matches; groups become submenus
+    -- (at most 9 families each).
+    families = {
+      { "AIM-120", "Air-to-air", "missiles", { "aim_120" } },
+      { "AIM-7", "Air-to-air", "missiles", { "aim_7" } },
+      { "AIM-9", "Air-to-air", "missiles", { "aim_9", "aim-9" } },
+      { "AIM-54", "Air-to-air", "missiles", { "aim_54" } },
+      { "R-27 / R-77", "Air-to-air", "missiles", { "r_27", "r_77" } },
+      { "R-73 / R-60", "Air-to-air", "missiles", { "r_73", "r_60", "r_3s", "r_13" } },
+      { "SD-10 / PL", "Air-to-air", "missiles", { "sd-10", "pl-5", "pl-8", "pl_" } },
+      { "Stinger / Mistral", "Air-to-air", "missiles", { "fim_92", "mistral", "stinger", "igla" } },
+      { "AGM-65 Maverick", "Air-to-ground", "missiles", { "agm_65" } },
+      { "HARM / anti-radar", "Air-to-ground", "missiles", { "agm_88", "kh-58", "x_58", "kh-25mp", "x_25mp", "kh-31p", "x_31p" } },
+      { "Hellfire", "Air-to-ground", "missiles", { "agm_114" } },
+      { "APKWS", "Air-to-ground", "missiles", { "agr_20" } },
+      { "Anti-ship", "Air-to-ground", "missiles", { "agm_84", "c_802", "kh-31a", "x_31a", "kh-35", "x_35" } },
+      { "JSOW / stand-off", "Air-to-ground", "missiles", { "agm_154", "ls_6", "c_705", "agm_62", "bk90" } },
+      { "Kh-25 / Kh-29", "Air-to-ground", "missiles", { "kh-25ml", "x_25ml", "kh-29", "x_29", "c_701" } },
+      { "Vikhr / Ataka / HOT", "Air-to-ground", "missiles", { "vikhr", "9m127", "9m114", "9m120", "hot3" } },
+      { "Laser / TV bombs", "Bombs", "bombs", { "gbu_10", "gbu_12", "gbu_16", "gbu_24", "kab_500l", "kab_1500l", "kab_500kr" } },
+      { "GPS bombs (JDAM)", "Bombs", "bombs", { "gbu_31", "gbu_32", "gbu_38", "gbu_54", "kab_500s", "ls_6" } },
+      { "Mk-80 series", "Bombs", "bombs", { "mk_82", "mk_83", "mk_84" } },
+      { "Cluster", "Bombs", "bombs", { "cbu_", "mk_20", "rbk_" } },
+      { "FAB / BetAB", "Bombs", "bombs", { "fab_", "betab", "ofab" } },
+      { "Hydra 70", "Rockets", "nurs", { "hydra" } },
+      { "Zuni", "Rockets", "nurs", { "zuni" } },
+      { "S-8", "Rockets", "nurs", { "s-8", "c_8" } },
+      { "S-13 / S-24 / S-25", "Rockets", "nurs", { "s-13", "c_13", "s-24", "c_24", "s-25", "c_25" } },
+      { "S-5", "Rockets", "nurs", { "s_5", "c_5" } },
     },
   },
 

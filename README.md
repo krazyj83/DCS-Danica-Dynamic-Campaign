@@ -446,7 +446,25 @@ base's supply (`ext.armoury.tiers = false`); only a dry FARP has empty shelves. 
 
 Bases start the war at 50 % supply (at least 50 SU, v0.38), so everything is on the shelf until the enemy cuts the supply lines.
 
-You are told the base's armoury when you spawn (and **F10 → Support → Armoury at this base**).
+You are told the base's armoury when you spawn, with what is **low or out** (v0.59).
+
+**Weapons stock pages (v0.59).** The counts are read live from the DCS warehouses, so they are exactly what the
+re-arm menu offers:
+
+* **F10 → Support → Weapons stock here** — the base you are at (airfield and its FARP pads together): supply, then
+  every weapon family with its count, **LOW** (under a quarter of a full shelf) or **OUT**.
+* **F10 → Support → Where is … → Air-to-air / Air-to-ground / Bombs / Rockets → family** — your side's bases that
+  have it, nearest first, with count and distance.
+
+```
+WEAPONS STOCK - Kutaisi (supply 82 %)
+Air-to-air: AIM-120 200 | AIM-7 400 | AIM-9 500 | R-27 / R-77 500 | R-73 / R-60 400
+Air-to-ground: AGM-65 Maverick 600 | HARM / anti-radar 10 LOW | Hellfire 0 OUT | APKWS 200
+Bombs: Laser / TV bombs 700 | GPS bombs (JDAM) 500 | Mk-80 series 600 | Cluster 400
+Rockets: Hydra 70 400 | S-8 400
+```
+
+The families (AIM-120, Hellfire, Hydra 70 …) are listed in the catalogue (`weapons.families`).
 
 The missions have **limited munitions**: the engine stocks every airbase's and FARP's shelf by its
 supply, so **the re-arm menu only offers what the base has** ("NOT AVAILABLE" otherwise). Shelves are
@@ -478,7 +496,8 @@ and ignores the map rotation, so the real war is not touched):
 | Artillery on my map mark | Captain | Your nearest artillery battery within 35 km fires 6 rounds (10 SU from its base; every 10 min per side; v0.57: was 12) |
 | CAS pair on my map mark | Major | An AI attack pair flies to the mark (20 SU, from the air pool; every 20 min per side) |
 | AWACS picture | Colonel | The 5 nearest enemy aircraft your side's sensors hold, as bearing / range / altitude |
-| Armoury at this base | anyone | What the base can arm you with |
+| Weapons stock here | anyone | Every weapon family on the base's shelves, with LOW / OUT (v0.59; was *Armoury at this base*) |
+| Where is … | anyone | Your side's nearest bases holding a weapon family (v0.59) |
 | Illumination on my map mark | anyone | 4 flares over the mark, one every 5 min (v0.57), from an own base within 30 km (2 SU; every 5 min per side) |
 
 Ranks come from your score (Captain 100, Major 300, Lt Col 700, Colonel 1500). **Anyone** may spawn helicopters
@@ -997,6 +1016,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `ext4.ground` | 60 km, 5 km, 5 min | Ground missions: board range, presence distance and time for credit |
 | `ext4.ground.artyKm` / `dangerCloseM` / `artyRank` | 6 km, 300 m, none | Fire support for ground players |
 | `ext.armoury.tiers` | false | false: every weapon always on the shelf (v0.37); true: tiers follow base supply |
+| `stock.lowShare` / `whereMax` | 0.25, 6 | Weapons stock pages: LOW below this share of a full shelf; bases listed by *Where is …* (v0.59) |
 | `supply.startSU` | 50 | Every base starts the war with at least this much supply (depots 150) (v0.38) |
 | `supply.airMinStock` | 2 | Never fewer of any own type at an own airbase (v0.38) |
 | `world.farpPads` | 2 | Helipads per FARP (must match `FARP_PADS` in make_mission.py) (v0.38) |
@@ -1130,6 +1150,7 @@ src/
   dcc_dcs_srs.lua     DCS bridge: SRS voice queue - bogey dope, command news, airfield information (v0.50)
   dcc_dcs_stats.lua   DCS bridge: sortie history and pilot stats for the web map's pilot pages (v0.51)
   dcc_dcs_slots.lua   DCS bridge: player slots - dynamic spawns, multicrew, spectators instead of destroy (v0.58)
+  dcc_dcs_stock.lua   DCS bridge: weapons stock pages - Weapons stock here, Where is ... (v0.59)
   dcc_dcs_ext2.lua    DCS bridge: HVA hunts and escort, packages, aces, shell impacts, ambushes, pick-ups, heavy crates, search parties
   dcc_dcs_ext3.lua    DCS bridge: landings, cargo ships, carrier air wing, SCUD launchers, pop-ups, night illumination
   dcc_dcs_ext4.lua    DCS bridge: Combined Arms and ground players (missions, fire support), QRA scramble, repair kit, performance guard

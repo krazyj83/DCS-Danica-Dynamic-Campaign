@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.58.0",
+  version         = "0.59.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -529,6 +529,14 @@ DCC.config = {
     groundEjectKm  = 6,     -- an ejection on the ground this close to an own base is a way out of the slot, not a
                             -- downed pilot: no CSAR mission
     logPlayers     = true,  -- write every player entering and leaving an aircraft to dcs.log
+  },
+
+  -- v0.59: weapons stock pages (F10 > Support > Weapons stock here / Where is ...) ------------
+  stock = {
+    lowShare  = 0.25,       -- a family below this share of a full shelf is LOW (0 = OUT)
+    whereMax  = 6,          -- Where is ...: this many own bases, nearest first
+    onSpawn   = true,       -- the spawn message names what is low or out at the base
+    showSec   = 30,         -- how long the stock page stays on screen
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------
