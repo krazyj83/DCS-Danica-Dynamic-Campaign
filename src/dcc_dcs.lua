@@ -84,6 +84,59 @@ function B.datalinkOn(gname)
   return okE
 end
 
+-- ---------------------------------------------------------------------------
+-- Taking a player out of an aircraft they may not fly (enemy-held base,
+-- grounded, runway closed, weapons not supplied). v0.58: unit:destroy() on a
+-- dynamic-spawn aircraft left the player flying a "ghost" - gone on the
+-- server (other players could not see it, no F10 menus) but still in his
+-- cockpit. Now the player is moved to spectators (net.force_player_slot);
+-- the aircraft is only destroyed if that is not possible, or did not work
+-- within slots.removeCheckSec. Every removal is written to dcs.log.
+-- ---------------------------------------------------------------------------
+local function pcallR(fn, ...) local s, r = pcall(fn, ...); if s then return r end end
+
+function B.playerIdOf(name)
+  if not (net and net.get_player_list and name) then return nil end
+  for _, pid in ipairs(pcallR(net.get_player_list) or {}) do
+    local info = pcallR(net.get_player_info, pid)
+    if info and info.name == name then return pid end
+  end
+  return nil
+end
+
+function B.removePlayer(unit, reason, delay)
+  if not unit then return false end
+  local uname = pcallR(unit.getName, unit) or "?"
+  local name = pcallR(unit.getPlayerName, unit)
+  local id = pcallR(unit.getID, unit)
+  if id then pcall(trigger.action.outTextForUnit, id, reason, 20) end
+  U.log("removed %s from %s: %s", tostring(name), uname, tostring(reason))
+  B.removed = B.removed or {}
+  B.removed[uname] = timer.getTime()                 -- not adopted again while it is being removed
+  if B.clearPlayer then pcall(B.clearPlayer, uname, "left") end
+  local function kick()
+    local pid = B.playerIdOf(name)
+    if pid and net.force_player_slot then
+      if net.send_chat_to then pcall(net.send_chat_to, "DCC: " .. tostring(reason), pid) end
+      if pcall(net.force_player_slot, pid, 0, "") then
+        timer.scheduleFunction(function()                -- still sitting in it: remove the aircraft after all
+          local u = pcallR(Unit.getByName, uname)
+          if u and pcallR(u.isExist, u) and pcallR(u.getPlayerName, u) == name then pcall(u.destroy, u) end
+        end, nil, timer.getTime() + DCC.config.slots.removeCheckSec)
+        return
+      end
+    end
+    local u = pcallR(Unit.getByName, uname) or unit
+    if pcallR(u.isExist, u) then pcall(u.destroy, u) end
+  end
+  if delay and delay > 0 then
+    timer.scheduleFunction(function() pcall(kick) end, nil, timer.getTime() + delay)
+  else
+    kick()
+  end
+  return true
+end
+
 -- On (or within runwayClearM of) a runway, taxiway or apron (v0.37: platoons
 -- garrisoning an airbase stood and drove on the runway).
 local function isRunway(x, z, m)

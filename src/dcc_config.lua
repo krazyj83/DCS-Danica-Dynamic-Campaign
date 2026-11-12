@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.57.0",
+  version         = "0.58.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -519,6 +519,16 @@ DCC.config = {
       -- they still arrive and resupply bases), and kept until convoyKm + convoyHysteresisKm
       convoyKm = 20, convoyHysteresisKm = 5,
     },
+  },
+
+  -- v0.58: player slots (dynamic spawns, multicrew) -------------------------------
+  slots = {
+    removeCheckSec = 5,     -- a player sent to spectators who is still in the aircraft after this: it is destroyed
+    sweepSec       = 30,    -- every so often, players DCS reports in an aircraft but the campaign does not know get
+                            -- their menus (a dynamic spawn whose birth came before the player, a crew seat change)
+    groundEjectKm  = 6,     -- an ejection on the ground this close to an own base is a way out of the slot, not a
+                            -- downed pilot: no CSAR mission
+    logPlayers     = true,  -- write every player entering and leaving an aircraft to dcs.log
   },
 
   -- Drawing (F10 map) -----------------------------------------------------------

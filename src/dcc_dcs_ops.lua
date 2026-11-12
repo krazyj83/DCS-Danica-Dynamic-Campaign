@@ -99,6 +99,7 @@ local function playerKey(name)
   end
   return name
 end
+B.playerKey = playerKey
 
 function B.registerPlayer(u)
   local name = ok(u.getPlayerName, u)

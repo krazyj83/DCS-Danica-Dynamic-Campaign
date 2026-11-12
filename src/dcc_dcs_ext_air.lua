@@ -117,7 +117,8 @@ function B.armouryTakeoff(p, u)
   if not XC().armoury.enforce then return end
   say(p, string.format("RECALLED: %s cannot supply your weapons (only %s). Pick a slot again and re-arm.",
     war:nodeName(id), TIER_TEXT[tier]), 20)
-  timer.scheduleFunction(function() if alive(u) then ok(u.destroy, u) end end, nil, timer.getTime() + 2)
+  B.removePlayer(u, string.format("RECALLED: %s cannot supply your weapons (only %s).", war:nodeName(id),
+    TIER_TEXT[tier]), 2)
 end
 
 -- ===========================================================================
@@ -506,11 +507,7 @@ function B.onBirth(unit)
       reason = string.format("FARP spawns need the rank of %s. Spawn at an airbase.", need)
     end
   end
-  if reason then
-    trigger.action.outTextForUnit(unit:getID(), reason, 20)
-    B.clearPlayer(unit:getName(), "left")
-    ok(unit.destroy, unit)
-  end
+  if reason then B.removePlayer(unit, reason) end
 end
 
 local baseOpsTick = B.opsTick

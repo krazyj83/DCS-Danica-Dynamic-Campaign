@@ -426,7 +426,9 @@ local function keyOf(u)
   if not name then return nil end
   local p = B.players[ok(u.getName, u) or ""]
   if p then return p.key end
-  for _, pl in pairs(DCC.pilots.data.pilots) do if pl.name == name then return name end end
+  -- v0.58: the same key the deaths were recorded under (the UCID on a server - it was the name, so a
+  -- pilot was never grounded in multiplayer)
+  if B.playerKey then return B.playerKey(name) end
   return name
 end
 
@@ -439,9 +441,8 @@ function B.onBirth(unit)
   local key = keyOf(unit)
   local mins = key and B.groundedFor(key) or 0
   if mins > 0 then
-    trigger.action.outTextForUnit(unit:getID(), string.format(
-      "Grounded: two losses within the hour. Fast jets again in %d min - helicopters are fine.", mins), 20)
-    pcall(function() unit:destroy() end)
+    B.removePlayer(unit, string.format(
+      "Grounded: two losses within the hour. Fast jets again in %d min - helicopters are fine.", mins))
   end
 end
 
