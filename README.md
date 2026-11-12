@@ -369,8 +369,17 @@ trend in Campaign status. Every effect follows the weather smoothly:
 | Storm | 60 % speed | slower | 40 % | **none offered** | **grounded** |
 
 In DCS the weather shows as **fog** that rolls in and lifts over each 5-minute step (light haze before rain,
-4 km in rain, 1.5 km in a storm; DCS 2.9.10+). Clouds and rain themselves cannot be changed while a mission
-runs. **Night** (20:00–06:00 mission time) halves what eyes can see and grounds AI attack sorties; fighters
+4 km in rain, 1.5 km in a storm; DCS 2.9.10+). Clouds and rain themselves cannot be changed by a script while a
+mission runs.
+
+**DCS dynamic weather (v0.60).** Every built mission uses the Mission Editor's *dynamic* weather: 2–4 pressure
+systems over and around the map that move while the mission runs, so wind, QNH, cloud and rain change across the
+map and through the day. Each build rolls a **high** (anticyclone: settled, light winds) or a **low** (cyclone:
+wind, cloud, rain) — more highs over the Gulf, more lows over Germany (`world.dynamicWeather.highChance`). At
+mission start the campaign's own weather heads the same way (a high toward clear, a low toward rain), so fog,
+column speeds and the forecast match the sky. Dynamic weather uses DCS's older cloud system: fewer clouds and no
+cloud presets. Set `world.dynamicWeather.enabled = false` for static weather with the map's prevailing wind.
+The weather is fixed in the .miz, so the daily restart starts from the same sky until the mission is rebuilt. **Night** (20:00–06:00 mission time) halves what eyes can see and grounds AI attack sorties; fighters
 and AWACS still fly. The clock runs in real time from **12:00** when the mission starts.
 
 **The AI remembers where it is hurt.** Every column killed raises that road's *threat* for the side that
@@ -1025,7 +1034,8 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `world.farpAtStart` | true | Every held town starts as a stocked FARP (v0.44) |
 | `ext.runwayLb` / `ground.bridgeLb` | 6000 lb, 2000 lb | Bombs (by weight, `ext.bombLb`) within 60 m of a runway's centre line / 40 m of a bridge that close the runway or bring the bridge down (v0.54) |
 | `ext5.fireControl.fireKm` | 15 km | AI ground groups only open fire (and battles are only fought by DCS) this close to a player (v0.56) |
-| `world.missionWind` | per map, 2–7 m/s | The missions' winds at ground / 2000 / 8000 m, from the map's prevailing direction (make_mission.py, v0.56) |
+| `world.missionWind` | per map, 2–7 m/s | The missions' winds at ground / 2000 / 8000 m, from the map's prevailing direction (make_mission.py, v0.56); only with dynamic weather off |
+| `world.dynamicWeather` | on, 2–4 systems | DCS dynamic weather in the missions; `highChance` per map, `campaignTarget` where the campaign weather heads (v0.60) |
 | `ext5.airAssault` | 3 defenders, 60 km, 60 m, 45 min | AIRASSAULT targets (weakest enemy bases within reach) and the gunship escort's height, stand-off and time (v0.49) |
 | `public.pilots` / `sorties` / `sortiesPerPilot` | 100, 20, 5 | public.json for the web map: pilots listed, latest sorties, sorties kept per pilot (v0.51) |
 | `srs.*` | 238 / 239 / 240 AM, 15 min | SRS voice: AWACS, Command and airfield-information frequencies, voices, how often airfield information plays (v0.50) |

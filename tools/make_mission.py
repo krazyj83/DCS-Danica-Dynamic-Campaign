@@ -299,6 +299,47 @@ CTLD_DIR = os.path.join(ROOT, "vendor", "ctld")
 SCRIPTS_DIR = os.path.join(ROOT, "tools", "mission_scripts")
 
 
+def set_weather(m, theater_name, cfg, rng=None):
+    """v0.60: DCS dynamic weather (pressure systems that move during the mission) when
+    world.dynamicWeather.enabled, otherwise static weather with the map's prevailing wind (set_winds)."""
+    import random
+    from dcs.weather import Weather
+    dw = cfg["world"].get("dynamicWeather") or {}
+    if not dw.get("enabled"):
+        set_winds(m, theater_name, cfg)
+        return "static"
+    rng = rng or random.Random()
+    lo, hi = dw["cyclones"]
+    n = rng.randint(int(lo), int(hi))
+    high = rng.random() < float(dw.get("highChance", {}).get(theater_name, 0.5))
+    system = Weather.BaricSystem.AntiCyclone if high else Weather.BaricSystem.Cyclone
+    # Our own pressure systems, laid out the way the Mission Editor's generator does (one near the map centre,
+    # the rest ~950 km out, evenly spaced): pydcs's dynamic_weather() makes every system a high (its sign is
+    # outside the pressure offset), so a "cyclone" came out as an anticyclone.
+    import math
+    from dcs.weather import Cyclone
+    center = m.terrain.bounds.center()
+    w = m.weather
+    w.atmosphere_type, w.type_weather, w.cyclones = 1, system.value, []
+    start, step = 2 * math.pi * rng.random(), (2 * math.pi / (n - 1) if n > 1 else 0)
+    for i in range(n):
+        main = i == 0
+        sign = (1 if high else -1) if main else rng.choice((1, -1))
+        ang = start + step * max(0, i - 1) + step / 4 * rng.gauss(0, 1)
+        dist = (150000 * 0.22 * abs(rng.gauss(0, 1))) if main else (950000 + 150000 * rng.gauss(0, 1))
+        c = Cyclone()
+        c.centerX = center.x + math.cos(ang) * dist
+        c.centerZ = center.y + math.sin(ang) * dist
+        c.ellipticity = 1 + 0.25 * rng.gauss(0, 1)
+        c.pressure_excess = sign * math.floor(1200 + 500 * (0.22 if main else 1) * abs(rng.gauss(0, 1)))
+        c.rotation = (math.pi / 3) * rng.gauss(0, 1)
+        c.pressure_spread = (900000 + 150000 * (0.22 if main else 1) * rng.gauss(0, 1)) * (1.3 if sign > 0 else 1)
+        w.cyclones.append(c)
+    w.turbulence_at_ground = rng.randrange(0, 12) if high else rng.randrange(20, 50)
+    print(f"  weather: dynamic, {'high (anticyclone)' if high else 'low (cyclone)'}, {n} pressure systems")
+    return system.name
+
+
 AI_SKILL = dunit.Skill.Excellent   # v0.41: every AI unit in the mission is Ace (the engine's own spawns: config aiSkill)
 
 
@@ -643,7 +684,7 @@ def build(theater_name, era, out, bundle, use_ctld=True, armoury="warehouse", te
         "F10 > Other > Campaign > Campaign status for the situation.")
 
     set_ai_skill(m)
-    set_winds(m, theater_name, load_config())
+    set_weather(m, theater_name, load_config())
     fix_radio_frequencies(m)
     assign_datalinks(m)
     dtc_files = build_dtcs(m, theater, theater_name)
