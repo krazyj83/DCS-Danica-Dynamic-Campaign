@@ -791,6 +791,7 @@ søgeradaren og alle 3 launchere er væk. Skudte launchere kommer ikke igen, fø
 
 Feedback: v0.55, 3. nov: SA-11 meldt ødelagt, da kun søgeradaren var skudt ned; stillingen kom for hurtigt igen.
 Rettet i v0.56.0: SA-11-launcherne har egen radar: stillingen er først ude, når søgeradaren og alle 3 launchere er væk. En ramt stilling respawnes ikke længere med det samme med alle launchere; dræbte launchere forbliver døde til reparationen (Hawk: radarer døde = undertrykt i 2 t).
+v0.62.0: reparation efter 4 t (var 2 t), genopbygning efter 8 t (var 6 t). Tjek at stillingen ikke er tilbage før.
 
 ### P-402
 **SAM tænder sent uden EWR**

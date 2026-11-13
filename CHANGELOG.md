@@ -6,6 +6,13 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.62.0 — 2026-11-13
+
+**Changed**
+- SAM sites stay down longer: a site with its radars knocked out is repaired after **4 h** (was 2 h), a destroyed
+  site is rebuilt after **8 h** (was 6 h) — `ops.samRepairTicks` 48, `ops.samRebuildTicks` 96. Costs unchanged.
+- DCS test plan: P-401 note (still RETEST).
+
 ## 0.61.0 — 2026-11-11
 
 **Added**

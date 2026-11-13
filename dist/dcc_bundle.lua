@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.61.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.62.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.61.0",
+  version         = "0.62.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -91,8 +91,8 @@ DCC.config = {
   -- Operations (phase 3): what players can hit or help.
   ops = {
     samAt            = { airbase = true, depot = true }, -- node classes with an air-defence site
-    samRepairTicks   = 24,  samRepairCost  = 10,  -- radar knocked out: back after 2 h for 10 SU
-    samRebuildTicks  = 72,  samRebuildCost = 60,  -- site destroyed: rebuilt after 6 h for 60 SU
+    samRepairTicks   = 48,  samRepairCost  = 10,  -- radar knocked out: back after 4 h for 10 SU (v0.62: was 2 h)
+    samRebuildTicks  = 96,  samRebuildCost = 60,  -- site destroyed: rebuilt after 8 h for 60 SU (v0.62: was 6 h)
     samLiveRadiusKm  = 80,    -- SAM sites spawn when a player is this close
     infraPerNode     = { airbase = 4, depot = 6 }, -- strike targets per node
     infraSupplyHit   = 25,    -- SU burned with each destroyed building
