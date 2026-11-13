@@ -60,7 +60,9 @@ check("SAM suppressed in the save", war.state.nodes[target].sam.status == "suppr
 check("pilot credited", credited[#credited] == "ucid1:SEAD")
 war.state.nodes[target].supply = 200
 for _ = 1, 25 do war:tick() end
-check("suppressed SAM repaired after ~2 h for supply", war.state.nodes[target].sam.status == "up")
+check("v0.62: suppressed SAM still down after 2 h", war.state.nodes[target].sam.status == "suppressed")
+for _ = 1, 24 do war:tick() end
+check("suppressed SAM repaired after ~4 h for supply", war.state.nodes[target].sam.status == "up")
 war:samHit(target, "destroyed")
 check("destroyed SAM saved", war.state.nodes[target].sam.status == "destroyed")
 

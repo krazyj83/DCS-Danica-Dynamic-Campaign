@@ -92,7 +92,7 @@ building, MEDEVAC, prisoners — the moment they spawn, so a rear base always ha
 | **CAS** | A2G | A base under attack (ours or theirs) | The battle goes your side's way | Who holds the base; every kill is permanent |
 | **BAI** | A2G | Enemy convoy or column on a road | It is destroyed | Its cargo or platoons never arrive |
 | **STRIKE** | A2G | Fuel, ammo and warehouse buildings at an enemy depot/airbase | A building is destroyed | Each one burns 25 SU and cuts the base's output (all gone = 30 %); one rebuilt every 3 h |
-| **SEAD/DEAD** | SEAD | Enemy SAM site (Hawk / SA-11) | Hawk: radars or whole site killed. **SA-11: search radar and all 3 launchers** (each launcher has its own radar, v0.56) | Radars: site offline ~2 h. Radars + launchers: destroyed, rebuilt in ~6 h for 60 SU. Launchers you kill stay dead until then (v0.56) |
+| **SEAD/DEAD** | SEAD | Enemy SAM site (Hawk / SA-11) | Hawk: radars or whole site killed. **SA-11: search radar and all 3 launchers** (each launcher has its own radar, v0.56) | Radars: site offline ~4 h. Radars + launchers: destroyed, rebuilt in ~8 h for 60 SU (v0.62). Launchers you kill stay dead until then (v0.56) |
 | **EWR** | A2G | Enemy early-warning radar | It is destroyed | That side loses its long-range air picture there (6 h, 40 SU) |
 | **CAP** | A2A | Your main-effort area | 20 min on station, or an air kill there | 1 h of air superiority: enemy AI attack sorties stay away |
 | **ESCORT** | A2A (supply helicopters: anyone) | Your airlift transport or supply helicopters | They land with you mostly within 15 km | Cargo delivered |
@@ -633,7 +633,7 @@ scrambled in time gets **+10 points** (pilot record field `qra`). Helicopters ar
 loaded). Set it down (or unpack it) within **3 km of a friendly base** and it repairs one thing **at once**,
 in this order: a destroyed **strike building** (fuel store / supply building) → the **air defence**
 (suppressed or destroyed SAM) → a destroyed **early-warning radar**. With nothing broken the kit stays on
-the ground for later. Without it the base repairs itself slowly (a building every 3 h, SAM 2–6 h, EWR 6 h,
+the ground for later. Without it the base repairs itself slowly (a building every 3 h, SAM 4–8 h, EWR 6 h,
 each for supply).
 
 **Fire control (v0.56, against desync).** Every shell two AI groups trade is sent to every client, and many AI
