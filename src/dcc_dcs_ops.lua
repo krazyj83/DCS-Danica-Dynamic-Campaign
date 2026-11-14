@@ -251,7 +251,7 @@ B.FIREPOWER = {
     .. "four Mk-82), each within 40 m of the bridge. Rockets and missiles do not count.",
   RUNWAY = "6000 lb of bombs in total close it, each within 60 m of the centre line (e.g. three Mk-84 / GBU-31, six "
     .. "Mk-83 or twelve Mk-82). Rockets and missiles do not count.",
-  STRIKE = "Fuel tanks: one 500 lb bomb or a Maverick / Kh-25 each. Warehouses and ammo depots: a 1000-2000 lb bomb, "
+  STRIKE = "Fuel tanks: one 500 lb bomb or a Maverick / Kh-25 each. Warehouses: a 1000-2000 lb bomb, "
     .. "or 2-3 x 500 lb each. Every building destroyed counts.",
   INDUSTRY = "Workshops, tech combine, fuel and chemical tanks: 1-2 x 500 lb bombs or one 1000 lb bomb each.",
   FORT = "Sandbag positions: one 500 lb bomb or a few rockets each. The concrete bunker: a 2000 lb bomb or a "
@@ -678,8 +678,8 @@ function B.reconcileStatics()
           local sp = spotNear(id, k, 1900 + (k % 2) * 250)
           local name = string.format("DCC_INF_%s_%d_%d", id, k, B.war.state.tick)
           local s = pcall(coalition.addStaticObject, B.countryId(ns.side),
-            { name = name, type = spec.type, category = spec.category, shape_name = spec.shape,   -- v0.56: DCS needs the
-              x = sp.x, y = sp.z, heading = 0, dead = false })                                -- ammo depot's shape
+            { name = name, type = spec.type, category = spec.category, shape_name = spec.shape,   -- a catalogue entry may
+              x = sp.x, y = sp.z, heading = 0, dead = false })                                -- name its shape
           if s then rec.names[k] = name end
         end
       end

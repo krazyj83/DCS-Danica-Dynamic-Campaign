@@ -252,10 +252,13 @@ print("Off the runway (v0.37)")
 -- 9-player test: tanks stood and drove on the runway. A 3 km x 60 m runway through Kutaisi's centre:
 local kc = DCC.dcs.nodePos.kutaisi
 local realSurface = land.getSurfaceType
+local surfaceCalls = 0
 land.getSurfaceType = function(p)
+  surfaceCalls = surfaceCalls + 1
   if math.abs(p.x - kc.x) <= 1500 and math.abs(p.y - kc.z) <= 30 then return land.SurfaceType.RUNWAY end
   return realSurface(p)
 end
+DCC.dcs.landCache, DCC.dcs.landCacheN = {}, 0           -- the terrain changed under the test
 local onRunway = function(x, z) return math.abs(x - kc.x) <= 1500 and math.abs(z - kc.z) <= 30 + DCC.config.runwayClearM end
 coalition.addGroup(80, Group.Category.GROUND, { name = "TEST_RWY", units = {
   { name = "TEST_RWY_1", type = "M-1 Abrams", x = kc.x, y = kc.z }, { name = "TEST_RWY_2", type = "M-1 Abrams", x = kc.x + 200, y = kc.z + 10 } },
@@ -272,6 +275,18 @@ end
 check("...garrison spots at an airbase are never on the runway", allOff)
 local sx, sz = DCC.dcs.landNear(kc.x, kc.z)
 check("...statics (CTLD crates on an apron) are not moved", sx == kc.x and sz == kc.z)
+-- v0.65 (beta 13 Nov: DCC_SAM_senaki moved 6 times an evening, every respawn searched and logged again)
+local logged, realInfo = 0, env.info
+env.info = function(m) if tostring(m):find("TEST_RWY: ", 1, true) then logged = logged + 1 end return realInfo(m) end
+local calls0 = surfaceCalls
+MOCK.groups.TEST_RWY = nil
+coalition.addGroup(80, Group.Category.GROUND, { name = "TEST_RWY", units = {
+  { name = "TEST_RWY_1", type = "M-1 Abrams", x = kc.x, y = kc.z }, { name = "TEST_RWY_2", type = "M-1 Abrams", x = kc.x + 200, y = kc.z + 10 } },
+  route = { points = { { x = kc.x, y = kc.z }, { x = kc.x - 600, y = kc.z } } } })
+check("v0.65: a respawn goes straight to the remembered good spot", surfaceCalls - calls0 == 0
+  and not onRunway(MOCK.groups.TEST_RWY.units[1].x, MOCK.groups.TEST_RWY.units[1].z), surfaceCalls - calls0)
+env.info = realInfo
+check("...and dcs.log has the move once, not on every respawn", logged == 0, logged)
 land.getSurfaceType = realSurface
 
 print(string.format("\n%d passed, %d failed", passed, failed))

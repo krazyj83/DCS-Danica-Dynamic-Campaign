@@ -869,12 +869,14 @@ Feedback:
 **Strike-bygninger**
 `Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.3 · Offline: test_dcs_ops
 
-1. Tag en STRIKE-mission og ødelæg en brændstof-, ammo- eller lagerbygning.
+1. Tag en STRIKE-mission og ødelæg en brændstof- eller lagerbygning.
 
 **Forvent:** Bygningerne står nær flyvepladsen, ikke på den. Beskeden *"… destroyed (1 of N)"*. Basen mister 25 SU.
 
 Feedback: v0.55, 3. nov: "unknown static shape_name ... .Ammunition depot" i dcs.log - ammo-depotet kom aldrig frem.
 Rettet i v0.56.0: ammo-depotet spawnes med sin shape (SkladC).
+v0.62, 13. nov: stadig "Can't open model .Ammunition depot" i dcs.log.
+Rettet i v0.65.0: ammo-depotet er erstattet af lagerbygninger (Warehouse), som DCS kan vise. Tjek at alle 6 mål ses.
 
 ### P-410
 **AI på Ace**

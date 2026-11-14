@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.64.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.65.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.64.0",
+  version         = "0.65.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -281,6 +281,7 @@ DCC.config = {
   aiEcm            = "never", -- v0.42: AI aircraft jamming (ECM pods): "never", "lock" (only when locked),
                               --   "detected", "always"; nil = DCS default. Jamming strobes swamped the F-16s.
   runwayClearM     = 60,    -- ground units and their waypoints stay this far off runways, taxiways, aprons (v0.37)
+  landCacheMax     = 4000,  -- good spots remembered for respawns (v0.65); the memory is cleared when this full
 
   -- Persistence ---------------------------------------------------------------
   saveFolder       = "DCC", -- under Saved Games\DCS\ (lfs.writedir())
@@ -7429,18 +7430,30 @@ end
 B.isRunway = isRunway
 
 -- The nearest good spot: dry land, and (avoidRunway) clear of runways and aprons.
+-- v0.65: remembered per spot, so a site whose spot is bad (Senaki's SAM on a runway, beta 13 Nov: moved 6 times an
+-- evening) goes straight to its good spot on every respawn instead of searching again.
+B.landCache, B.landCacheN = {}, 0
 function B.landNear(x, z, avoidRunway)
+  local key = string.format("%d:%d:%s", math.floor(x + 0.5), math.floor(z + 0.5), avoidRunway and "r" or "")
+  local c = B.landCache[key]
+  if c then return c[1], c[2] end
   local m = DCC.config.runwayClearM or 60
   local function bad(px, pz) return isWater(px, pz) or (avoidRunway and isRunway(px, pz, m)) end
-  if not bad(x, z) then return x, z end
-  for r = 50, 6000, 50 do
-    for k = 0, 15 do
-      local a = k * math.pi / 8
-      local nx, nz = x + r * math.cos(a), z + r * math.sin(a)
-      if not bad(nx, nz) then return nx, nz end
+  local rx, rz = x, z
+  if bad(x, z) then
+    local found = false
+    for r = 50, 6000, 50 do
+      for k = 0, 15 do
+        local a = k * math.pi / 8
+        local nx, nz = x + r * math.cos(a), z + r * math.sin(a)
+        if not bad(nx, nz) then rx, rz, found = nx, nz, true; break end
+      end
+      if found then break end
     end
   end
-  return x, z
+  if B.landCacheN >= (DCC.config.landCacheMax or 4000) then B.landCache, B.landCacheN = {}, 0 end
+  B.landCache[key], B.landCacheN = { rx, rz }, B.landCacheN + 1
+  return rx, rz
 end
 
 function B.dryGroundData(data)
@@ -7469,7 +7482,12 @@ if coalition and coalition.addGroup and not coalition.dccDry then
     end
     if Group and category == Group.Category.GROUND and type(data) == "table" then
       local okD, n = pcall(B.dryGroundData, data)
-      if okD and n > 0 and DCC.util then DCC.util.log("%s: %d units moved out of the water / off a runway", tostring(data.name), n) end
+      -- written once per group (v0.65: the same groups filled dcs.log on every respawn)
+      B.dryLogged = B.dryLogged or {}
+      if okD and n > 0 and DCC.util and not B.dryLogged[tostring(data.name)] then
+        B.dryLogged[tostring(data.name)] = true
+        DCC.util.log("%s: %d units moved out of the water / off a runway", tostring(data.name), n)
+      end
     end
     local g = rawAddGroup(country, category, data)
     -- Aircraft spawned by script have no EPLRS (the Mission Editor switches it on for
@@ -8470,7 +8488,7 @@ B.FIREPOWER = {
     .. "four Mk-82), each within 40 m of the bridge. Rockets and missiles do not count.",
   RUNWAY = "6000 lb of bombs in total close it, each within 60 m of the centre line (e.g. three Mk-84 / GBU-31, six "
     .. "Mk-83 or twelve Mk-82). Rockets and missiles do not count.",
-  STRIKE = "Fuel tanks: one 500 lb bomb or a Maverick / Kh-25 each. Warehouses and ammo depots: a 1000-2000 lb bomb, "
+  STRIKE = "Fuel tanks: one 500 lb bomb or a Maverick / Kh-25 each. Warehouses: a 1000-2000 lb bomb, "
     .. "or 2-3 x 500 lb each. Every building destroyed counts.",
   INDUSTRY = "Workshops, tech combine, fuel and chemical tanks: 1-2 x 500 lb bombs or one 1000 lb bomb each.",
   FORT = "Sandbag positions: one 500 lb bomb or a few rockets each. The concrete bunker: a 2000 lb bomb or a "
@@ -8897,8 +8915,8 @@ function B.reconcileStatics()
           local sp = spotNear(id, k, 1900 + (k % 2) * 250)
           local name = string.format("DCC_INF_%s_%d_%d", id, k, B.war.state.tick)
           local s = pcall(coalition.addStaticObject, B.countryId(ns.side),
-            { name = name, type = spec.type, category = spec.category, shape_name = spec.shape,   -- v0.56: DCS needs the
-              x = sp.x, y = sp.z, heading = 0, dead = false })                                -- ammo depot's shape
+            { name = name, type = spec.type, category = spec.category, shape_name = spec.shape,   -- a catalogue entry may
+              x = sp.x, y = sp.z, heading = 0, dead = false })                                -- name its shape
           if s then rec.names[k] = name end
         end
       end
@@ -18496,13 +18514,14 @@ DCC_CATALOGS.modern = {
 
   -- Strike targets at depots and airbases (static objects), in build order.
   -- The first is always the fuel store.
+  -- v0.65: no ".Ammunition depot" - DCS cannot load its model ("Can't open model"), so it never showed up
   infra = {
     { type = "Fuel tank",          category = "Fortifications" },
-    { type = ".Ammunition depot",  category = "Warehouses", shape = "SkladC" },
+    { type = "Warehouse",          category = "Warehouses" },
     { type = "Warehouse",          category = "Warehouses" },
     { type = "Tank",               category = "Warehouses" },
     { type = "Warehouse",          category = "Warehouses" },
-    { type = ".Ammunition depot",  category = "Warehouses", shape = "SkladC" },
+    { type = "Warehouse",          category = "Warehouses" },
   },
 
   -- Ambush team that hits an escorted convoy (helicopter convoy escort).

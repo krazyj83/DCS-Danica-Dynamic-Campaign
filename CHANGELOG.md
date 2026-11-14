@@ -6,6 +6,18 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.65.0 — 2026-11-14
+
+Beta test, 13 November (dcs.log review).
+
+**Fixed**
+- **Two of the six strike targets never showed up:** DCS cannot load the ".Ammunition depot" model ("Can't open
+  model" in dcs.log, also after v0.56's shape fix). They are warehouses now (`catalogs/modern.lua` infra).
+- **The same sites were moved off runways on every respawn:** a spot that is on a runway or in the water is now
+  searched once and remembered, so Senaki's SAM site and Kobuleti's point defence go straight to their good spots
+  (`landCacheMax`). dcs.log has "moved out of the water / off a runway" once per group, not on every respawn.
+- DCS test plan: P-409 to RETEST.
+
 ## 0.64.0 — 2026-11-14
 
 **Changed**

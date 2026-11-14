@@ -152,18 +152,30 @@ end
 B.isRunway = isRunway
 
 -- The nearest good spot: dry land, and (avoidRunway) clear of runways and aprons.
+-- v0.65: remembered per spot, so a site whose spot is bad (Senaki's SAM on a runway, beta 13 Nov: moved 6 times an
+-- evening) goes straight to its good spot on every respawn instead of searching again.
+B.landCache, B.landCacheN = {}, 0
 function B.landNear(x, z, avoidRunway)
+  local key = string.format("%d:%d:%s", math.floor(x + 0.5), math.floor(z + 0.5), avoidRunway and "r" or "")
+  local c = B.landCache[key]
+  if c then return c[1], c[2] end
   local m = DCC.config.runwayClearM or 60
   local function bad(px, pz) return isWater(px, pz) or (avoidRunway and isRunway(px, pz, m)) end
-  if not bad(x, z) then return x, z end
-  for r = 50, 6000, 50 do
-    for k = 0, 15 do
-      local a = k * math.pi / 8
-      local nx, nz = x + r * math.cos(a), z + r * math.sin(a)
-      if not bad(nx, nz) then return nx, nz end
+  local rx, rz = x, z
+  if bad(x, z) then
+    local found = false
+    for r = 50, 6000, 50 do
+      for k = 0, 15 do
+        local a = k * math.pi / 8
+        local nx, nz = x + r * math.cos(a), z + r * math.sin(a)
+        if not bad(nx, nz) then rx, rz, found = nx, nz, true; break end
+      end
+      if found then break end
     end
   end
-  return x, z
+  if B.landCacheN >= (DCC.config.landCacheMax or 4000) then B.landCache, B.landCacheN = {}, 0 end
+  B.landCache[key], B.landCacheN = { rx, rz }, B.landCacheN + 1
+  return rx, rz
 end
 
 function B.dryGroundData(data)
@@ -192,7 +204,12 @@ if coalition and coalition.addGroup and not coalition.dccDry then
     end
     if Group and category == Group.Category.GROUND and type(data) == "table" then
       local okD, n = pcall(B.dryGroundData, data)
-      if okD and n > 0 and DCC.util then DCC.util.log("%s: %d units moved out of the water / off a runway", tostring(data.name), n) end
+      -- written once per group (v0.65: the same groups filled dcs.log on every respawn)
+      B.dryLogged = B.dryLogged or {}
+      if okD and n > 0 and DCC.util and not B.dryLogged[tostring(data.name)] then
+        B.dryLogged[tostring(data.name)] = true
+        DCC.util.log("%s: %d units moved out of the water / off a runway", tostring(data.name), n)
+      end
     end
     local g = rawAddGroup(country, category, data)
     -- Aircraft spawned by script have no EPLRS (the Mission Editor switches it on for

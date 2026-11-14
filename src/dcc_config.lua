@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.64.0",
+  version         = "0.65.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -277,6 +277,7 @@ DCC.config = {
   aiEcm            = "never", -- v0.42: AI aircraft jamming (ECM pods): "never", "lock" (only when locked),
                               --   "detected", "always"; nil = DCS default. Jamming strobes swamped the F-16s.
   runwayClearM     = 60,    -- ground units and their waypoints stay this far off runways, taxiways, aprons (v0.37)
+  landCacheMax     = 4000,  -- good spots remembered for respawns (v0.65); the memory is cleared when this full
 
   -- Persistence ---------------------------------------------------------------
   saveFolder       = "DCC", -- under Saved Games\DCS\ (lfs.writedir())
