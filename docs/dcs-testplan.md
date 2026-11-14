@@ -899,6 +899,17 @@ Feedback: v0.40: AI'en var sat til Rookie.
 
 Feedback: v0.41: radar-jammere forstyrrede F-16'ernes datalink.
 
+### P-412
+**Mere RED CAP**
+`Status: IKKE TESTET` · Spillere: 1 (BLUE) · Kort: alle · Siden v0.66 · Offline: test_dcs_airground
+
+1. Flyv BLUE mod fronten i 30-60 minutter. Hold øje med AWACS / datalink og F10-kortet.
+
+**Forvent:** Ud over RED's CAP over deres hovedindsats står et RED jagerpar på CAP over den RED frontbase, der er
+nærmest BLUE-spillerne. Skydes det ned eller flyver hjem, kommer et nyt (så længe RED har jagere i puljen).
+
+Feedback: v0.65, 14. nov: spillerne savnede RED CAP.
+
 ## P-500 · Fog of war og efterretning
 
 ### P-501

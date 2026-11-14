@@ -349,6 +349,55 @@ function B.planAir()
       end
     end
   end
+  B.planExtraCap()
+end
+
+-- ===========================================================================
+-- 4b. Extra CAP (v0.66): over the own front-line base nearest the enemy's players
+-- ===========================================================================
+function B.extraCapNode(side)
+  local war = B.war
+  local enemy = otherSide(side)
+  local foes = {}
+  for _, u in ipairs(ok(coalition.getPlayers, B.COAL[enemy]) or {}) do
+    local p = alive(u) and ok(u.getPoint, u)
+    if p then foes[#foes + 1] = p end
+  end
+  if #foes == 0 then return nil end
+  local covered = {}
+  for _, s in pairs(B.sorties) do if s.side == side and s.node then covered[s.node] = true end end
+  local best, bestD
+  for _, id in ipairs(war.T.order) do
+    local ns, pos = war.state.nodes[id], B.nodePos[id]
+    if ns.side == side and pos and not covered[id] then
+      local front = false
+      for nb in pairs(war.T.nodes[id].nb or {}) do if war.state.nodes[nb].side == enemy then front = true end end
+      if front then
+        for _, f in ipairs(foes) do
+          local d = (f.x - pos.x) ^ 2 + (f.z - pos.z) ^ 2
+          if not bestD or d < bestD then best, bestD = id, d end
+        end
+      end
+    end
+  end
+  return best
+end
+
+function B.planExtraCap()
+  local war = B.war
+  for _, side in ipairs(SIDES) do
+    local want = (AC().extraCap or {})[side] or 0
+    local have = 0
+    for _, s in pairs(B.sorties) do if s.side == side and s.kind == "XCAP" then have = have + 1 end end
+    while have < want do
+      local id = B.extraCapNode(side)
+      if not id then break end
+      local g = B.spawnSortie(side, "fighter", "CAP", B.nodePos[id], { node = id })
+      if not (g and B.sorties[g]) then break end
+      B.sorties[g].kind = "XCAP"
+      have = have + 1
+    end
+  end
 end
 
 -- ===========================================================================
