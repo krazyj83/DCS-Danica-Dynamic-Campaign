@@ -84,6 +84,8 @@ check("...but RED keeps its MiG-29s and JF-17s", soc:getItemCount("MiG-29A") > 0
 print("Slot guard")
 local sochi = B.nodePos.sochi
 local intruder = MOCK.playerBirth(2, sochi.x + 300, sochi.z)
+check("v0.68: not removed inside the birth event (crashed the server)", intruder.destroyed ~= true)
+MOCK.advance(DCC.config.slots.removeDelaySec + 1)
 check("BLUE player at RED Sochi removed", intruder.destroyed == true)
 local ok = MOCK.playerBirth(2, B.nodePos.batumi.x + 300, B.nodePos.batumi.z)
 check("BLUE player at BLUE Batumi kept", ok.destroyed ~= true)

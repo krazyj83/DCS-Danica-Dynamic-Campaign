@@ -499,6 +499,11 @@ Rettet i v0.58.0: kampagnen slettede flyet, når en spiller ikke måtte flyve de
 bane, våben) – et slettet dynamic spawn bliver til et spøgelse. Spilleren sendes nu til tilskuere med besked, og
 hver fjernelse skrives i dcs.log. Spillere, der kommer ind i et fly efter dets birth, får nu også deres menuer.
 
+v0.67, 14. nov: RHINO tog en C-130J på Kutaisi med lukket bane – beskeden kom, og serveren crashede (ACCESS_VIOLATION).
+Rettet i v0.68.0: spilleren blev sendt til tilskuere inde i DCS's birth-event for et dynamic spawn, hvilket crasher
+DCS. Det sker nu 3 s senere. En base med lukket bane viser ingen fly i dynamic spawn-listen, så man slet ikke kan
+spawne dér (helikoptere kan stadig). Test: lukket bane → ingen fly i listen; spawn helikopter dér → OK.
+
 ### P-111
 **C-130J med to spillere (multicrew)**
 `Status: RETEST` · Spillere: 2 · Kort: alle · Siden v0.58 · Offline: test_ext4, test_ctld

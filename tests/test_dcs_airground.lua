@@ -222,6 +222,7 @@ print("Pilot cooldown")
 local p = B.players[viper:getName()]
 B.recordDeath(p.key); B.recordDeath(p.key)
 local jet = MOCK.spawnPlayer(BLUE, "F-16C_50", kp.x, kp.z, "Morten")
+MOCK.advance((DCC.config.slots and DCC.config.slots.removeDelaySec or 3) + 1)
 check("two deaths in an hour: grounded from fast jets", jet.destroyed == true)
 local helo = MOCK.spawnPlayer(BLUE, "UH-1H", kp.x, kp.z, "Morten", true)
 check("helicopters are fine", not helo.destroyed)

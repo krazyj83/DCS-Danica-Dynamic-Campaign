@@ -115,6 +115,9 @@ function B.removePlayer(unit, reason, delay)
   B.removed[uname] = timer.getTime()                 -- not adopted again while it is being removed
   if B.clearPlayer then pcall(B.clearPlayer, uname, "left") end
   local function kick()
+    -- he may have left by himself meanwhile (and be in another aircraft): then nothing to do
+    local cur = pcallR(Unit.getByName, uname)
+    if not (cur and pcallR(cur.isExist, cur) and pcallR(cur.getPlayerName, cur) == name) then return end
     local pid = B.playerIdOf(name)
     if pid and net.force_player_slot then
       if net.send_chat_to then pcall(net.send_chat_to, "DCC: " .. tostring(reason), pid) end
@@ -129,11 +132,10 @@ function B.removePlayer(unit, reason, delay)
     local u = pcallR(Unit.getByName, uname) or unit
     if pcallR(u.isExist, u) then pcall(u.destroy, u) end
   end
-  if delay and delay > 0 then
-    timer.scheduleFunction(function() pcall(kick) end, nil, timer.getTime() + delay)
-  else
-    kick()
-  end
+  -- v0.68: always later, never inside the event that found the reason - net.force_player_slot inside S_EVENT_BIRTH
+  -- of a dynamic spawn crashed DCS (ACCESS_VIOLATION, 14 Nov, C-130J at Kutaisi with the runway closed)
+  delay = math.max(delay or 0, (DCC.config.slots and DCC.config.slots.removeDelaySec) or 3)
+  timer.scheduleFunction(function() pcall(kick) end, nil, timer.getTime() + delay)
   return true
 end
 

@@ -194,7 +194,7 @@ Points in the report are those scored in that war only.
 | **Layered air defence** | A SAM site only lights up at 60 km when its side's early-warning radar or AWACS is tracking you; on its own it waits until 25 km. Every site has point defence (Avenger / Tor) that stays on when the main radar goes dark. Kill the EWRs first. | EWR, SEAD |
 | **Credit on landing** | Mission points are logged when you land at a friendly base or your carrier. Die or eject on the way home and they are lost (the damage to the enemy still counts). | — |
 | **Cooldown** | Two deaths within an hour ground a pilot from fast jets for 15 min. Helicopters are always allowed. | — |
-| **Leaving a slot you may not fly** | Spawning at an enemy-held base, while grounded, at a closed runway, or taking off with weapons the base cannot supply sends you back to spectators with the reason in chat (v0.58: the aircraft was destroyed, which left dynamic-spawn pilots in a "ghost" no one else could see). Ejecting on the ground at your own base just leaves the slot — no CSAR. | — |
+| **Leaving a slot you may not fly** | Spawning at an enemy-held base, while grounded, at a closed runway, or taking off with weapons the base cannot supply sends you back to spectators with the reason in chat, a few seconds later (v0.58: the aircraft was destroyed, which left dynamic-spawn pilots in a "ghost" no one else could see; v0.68: doing it at once crashed the server). A base with a **closed runway shows no planes** in the dynamic spawn list until it reopens — helicopters still spawn there. Ejecting on the ground at your own base just leaves the slot — no CSAR. | — |
 | **Multicrew** | Crew members (C-130J, CH-47F, AH-64D) can change seats without the pilot losing his menus or mission; any player in the aircraft can use its *Supply crate* menu. | — |
 | **HVA hunts** | About every 90 min (players on) enemy fighters go after your tanker or AWACS — your side is warned. A lost tanker or AWACS is not replaced for 2 h. | **HVAESCORT** |
 | **Aces get hunted** | 3 air kills in one sortie and the enemy vectors a fighter pair onto you (at most every 30 min). | Survive it |
@@ -1018,6 +1018,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `liveRadiusKm` | 25 | How close a player must be for units to spawn (v0.57: was 40) |
 | `maxLivePlatoons` | 60 | Hard cap on spawned platoons (~250 vehicles; v0.57: was 120) — lower it if the server struggles |
 | `ext5.fireControl.idleKm` / `convoyKm` | 50 km, 20 km | Idle AI off with no player this close; columns and convoys spawned only this close (v0.57) |
+| `slots.removeDelaySec` | 3 s | A player who may not fly an aircraft is sent to spectators this long after spawning, never inside DCS's birth event (v0.68) |
 | `slots.sweepSec` / `removeCheckSec` / `groundEjectKm` | 30 s, 5 s, 6 km | Players DCS has in an aircraft but the campaign missed get their menus within this; a player sent to spectators still in the aircraft after this loses it; no CSAR for an ejection on the ground this close to an own base (v0.58) |
 | `battleLossRate` | 0.15 | How fast dice battles bleed; higher = faster wars |
 | `warClockDays` | 7 | A war ends after this many days of server time; most ground gained wins. 0 = no clock |
