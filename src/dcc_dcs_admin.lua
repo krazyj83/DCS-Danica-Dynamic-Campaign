@@ -76,7 +76,7 @@ function B.selfCheck()
   end
 
   -- FARP pads, and the open FARPs stocked
-  local pads, padsMissing, open, empty = 0, 0, 0, {}
+  local pads, padsMissing, open, empty, dry = 0, 0, 0, {}, {}
   for _, id in ipairs(war.T.order) do
     if war:canHaveFarp(id) then
       for _, side in ipairs({ "blue", "red" }) do
@@ -90,7 +90,10 @@ function B.selfCheck()
           end
         end
       end
-      if war:farpAt(id) then open = open + 1 end
+      if war:farpAt(id) then
+        if war:farpDry(id) then dry[#dry + 1] = war:nodeName(id) .. " (" .. war.state.nodes[id].side:upper() .. ")"
+        else open = open + 1 end
+      end
     end
   end
   if padsMissing > 0 then warn("%d of %d FARP pads missing in the mission (rebuild it with make_mission.py)",
@@ -98,6 +101,8 @@ function B.selfCheck()
   else okL("all %d FARP pads found", pads) end
   if #empty > 0 then warn("open FARPs without helicopters: %s", table.concat(empty, ", "))
   else okL("%d FARPs open and stocked", open) end
+  -- v0.63: a dry FARP has no helicopter slots - it was counted as stocked
+  if #dry > 0 then warn("%d FARPs DRY - no helicopter slots until supply crates come: %s", #dry, table.concat(dry, ", ")) end
 
   -- armoury
   if B.armWarehouseMode and B.armWarehouseMode() then

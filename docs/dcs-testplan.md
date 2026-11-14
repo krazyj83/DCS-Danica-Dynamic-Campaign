@@ -1009,6 +1009,11 @@ Feedback:
 Feedback: v0.36, 9 spillere: ingen mulighed for at lave forsyningskasser.
 Rettet i v0.37.0: CTLD's *Supply*-kategori lå dybt i *Request Equipment* og på side 2. Nu ligger *Supply crate*
 direkte i *F10 → Missions* for alle CTLD-transporttyper.
+v0.62, 13. nov: RHINO kastede 6 kasser med faldskærm fra C-130J ved Khashuri; beskeden kom, men F10-kortet blev ikke
+opdateret.
+Rettet i v0.63.0: kortet og basens våbenhylder opdateres få sekunder efter en levering (ikke først ved næste 5-min
+tick). Beskeden siger, om det gik til FARP'en eller basen, med nye tal. En kasse, CTLD mistede positionen på
+(placeret ved 0,0), findes nu via sin DCS-position i stedet for at forsvinde. Test også med faldskærmsdrop.
 
 ### P-702
 **FARP af 3 kasser**
@@ -1076,6 +1081,11 @@ Rettet i v0.44.0: en FARP åbnede først, når spillere havde bygget den, så en
 egen by som FARP med 10 helikoptere, 50 våben og 1000 t brændstof per pad.
 v0.45.0: FARPerne har kun helikoptervåben (`world.farpWeaponMatch`).
 v0.46.0: ingen rang kræves for at spawne på en FARP (var Lieutenant Colonel).
+v0.62, 13. nov: Khashuri viste 0 slots i dynamic spawn.
+Rettet i v0.63.0: FARP'en var med stor sandsynlighed tør (den bruger 0,25 SU pr. 5 min, fuld til tør på ~13 timers
+spilletid), og en tør FARP har ingen helikoptere. Selvtjekket kaldte den "open and stocked" – nu advarer det
+"FARPs DRY - no helicopter slots …" med byernes navne. Kasser til en tør FARP åbner slottene få sekunder efter
+leveringen (var først ved næste 5-min tick). Tjek F10-kortet: "FARP (DRY)" ved byen.
 
 ### P-708
 **AIRASSAULT med gunship-eskorte**

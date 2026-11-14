@@ -145,6 +145,31 @@ check("...towards a FARP at the town", (war.state.nodes[dest].farpSU or 0) > far
 check("...and the crate is used up", cm:getCrateByName(crate.crateName) == nil)
 check("counted as a helicopter delivery (completes LOGISTICS)", war.state.stats.delivered.blue >= DCC.config.ctld.supplyCrateSU)
 
+print("Supply delivery: message, map and shelves at once (v0.63)")
+-- beta 13 Nov: RHINO's airdrop at Khashuri - "delivered", but the F10 map showed the old numbers for up to 5 min,
+-- the message did not say where the supply went, and one crate CTLD placed at 0,0 was lost without a word
+local draws, rd = 0, B.draw
+B.draw = function(...) draws = draws + 1; return rd(...) end
+local c2 = cm:spawnCrate(supplyDesc, { x = kp.x + 140, y = 0, z = kp.z }, BLUE, heli:getName(), "menu_ctld")
+local c3 = cm:spawnCrate(supplyDesc, { x = kp.x + 160, y = 0, z = kp.z }, BLUE, heli:getName(), "menu_ctld")
+B.ctldCrateDown(c2, { x = dp.x + 300, y = 0, z = dp.z })
+local msg = MOCK.texts[#MOCK.texts]
+check("the message says where the supply went", msg:find("Supply crate delivered to " .. war:nodeName(dest) .. ":", 1, true)
+  ~= nil and (msg:find("FARP", 1, true) or msg:find("to the base", 1, true) or msg:find("supply full", 1, true)) ~= nil, msg)
+B.ctldCrateDown(c3, { x = dp.x + 320, y = 0, z = dp.z })
+MOCK.advance(3)
+check("the F10 map is redrawn within seconds, once for the whole drop", draws == 1, draws)
+local c4 = cm:spawnCrate(supplyDesc, { x = dp.x + 400, y = 0, z = dp.z }, BLUE, nil, "crate_spawn")
+local sup4 = war.state.nodes[dest].supply
+local farp4 = war:farpStock(dest)
+c4.position = { x = 6, y = -3, z = 0 }                    -- what CTLD reported for crate 1
+check("a crate CTLD places at 0,0 is found where it really is", B.ctldCrateDown(c4, c4.position) == true
+  and (war.state.nodes[dest].supply > sup4 or war:farpStock(dest) > farp4 or msg ~= MOCK.texts[#MOCK.texts]))
+local lost = { crateName = "nowhere", descriptor = supplyDesc, coalition = BLUE, position = { x = 6, y = -3, z = 0 } }
+check("...and one with no position at all is reported lost", B.ctldCrateDown(lost, lost.position) == false
+  and MOCK.texts[#MOCK.texts]:find("lost in the drop", 1, true) ~= nil, MOCK.texts[#MOCK.texts])
+B.draw = rd
+
 print("Troops: pick up, reinforce")
 heli.x, heli.z = kp.x + 100, kp.z
 local std = tm:_findTemplate("Standard Group")
@@ -396,6 +421,10 @@ local townSU = war.state.nodes[town].supply
 B.ctldCrateDown(sc, sc.position)
 check("a supply crate at the FARP fills the FARP, not the town", war:farpStock(town) == DCC.config.ctld.supplyCrateSU
   and math.abs(war.state.nodes[town].supply - townSU) < 0.01)
+MOCK.advance(3)
+local heliN2 = 0
+if fwh then for t, n in pairs(fwh.items or {}) do if not t:find("^weapons") then heliN2 = heliN2 + n end end end
+check("v0.63: ...and its helicopter slots open within seconds (beta: Khashuri 0 slots)", fwh == nil or heliN2 > 0, heliN2)
 war:missionsTick()
 check("...and completes the FARPSUP mission", war.state.missions[sup.id].status == "done")
 B.reconcileFarps()

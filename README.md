@@ -412,7 +412,7 @@ the VEAF team), started and configured by the engine. Every helicopter type CTLD
 | --- | --- |
 | Every own base is a CTLD **pickup and logistic zone** (1.5 km round an airbase, 600 m round a town, and 300 m round the town's own **FARP pads**, v0.56) | Captured base: its zones change sides |
 | **Request a crate** at a base — supply crates also straight from **F10 → Missions → Supply crate (10 SU)** (v0.37) | The base pays **10 SU per crate**; a dry base says no |
-| **Supply crate** unloaded (or para-dropped) within 3 km of an own base | **+10 SU** there, completes LOGISTICS, builds towards a FARP |
+| **Supply crate** unloaded (or para-dropped) within 3 km of an own base | **+10 SU** there (a town's FARP first, until it is full), completes LOGISTICS, builds towards a FARP. The message says where it went — e.g. *Supply crate delivered to Khashuri: FARP full (40/40), +10 SU to the base (85/120)* — and the F10 map and the base's shelves update at once (v0.63) |
 | **Load troops** at a base | **1 platoon per 10 soldiers** leaves the garrison (never the last one) |
 | Troops unloaded at an own base | They join that garrison |
 | Troops unloaded at an **enemy** base | **Air assault**: they attack it at once |
