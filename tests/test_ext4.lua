@@ -780,6 +780,17 @@ check("self-check: airbases, HQ stock, GPS and templates OK", sct:find("OK   all
   and sct:find("OK   AI templates found", 1, true) ~= nil, sct)
 check("...this test has no FARP pads and no hook: both warned", sct:find("WARN %d+ of %d+ FARP pads missing") ~= nil
   and sct:find("WARN server hook not seen", 1, true) ~= nil and scw >= 2, scw)
+-- v0.63: a dry FARP has no helicopter slots; the self-check called it "open and stocked" (beta: Khashuri, 0 slots)
+local dryT
+for _, id in ipairs(war.T.order) do if war:farpAt(id) then dryT = id; break end end
+if dryT then
+  local st0 = war.state.nodes[dryT].farp.stock
+  war.state.nodes[dryT].farp.stock = 0
+  local dl = table.concat((B.selfCheck()), "\n")
+  check("self-check warns about dry FARPs", dl:find("FARPs DRY - no helicopter slots", 1, true) ~= nil
+    and dl:find(war:nodeName(dryT), 1, true) ~= nil, dl)
+  war.state.nodes[dryT].farp.stock = st0
+end
 env.mission.forcedOptions = { unrestrictedSATNAV = false }
 env.mission.coalitions = { blue = { 80 } }
 check("...no GPS: warned (F-16 datalink)", table.concat((B.selfCheck()), "\n"):find("WARN no GPS", 1, true) ~= nil)

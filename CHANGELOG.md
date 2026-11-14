@@ -6,6 +6,26 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.63.0 — 2026-11-14
+
+Beta test, 13 November (RHINO's C-130J airdrop at Khashuri).
+
+**Fixed**
+- **A delivered supply crate did not show on the F10 map:** the map and the base's weapon shelves were only updated
+  at the next 5 min tick. Now both update a couple of seconds after a delivery (once for a whole drop).
+- **The delivery message did not say where the supply went:** it now says whether it filled the FARP or went to the
+  base, with the new totals ("FARP full (40/40), +10 SU to the base (85/120)").
+- **A para-dropped crate could be lost:** when CTLD lost track of a parachute it could place the crate at the map's
+  origin, and it was silently not delivered. The crate's own DCS position is used then; a crate with no position at
+  all is reported lost. Every delivery is written to `dcs.log`.
+- **Khashuri FARP showed 0 helicopter slots:** a dry FARP (it runs down 0.25 SU every 5 min, full to dry in ~13 h of
+  play) has no helicopters, but the self-check called it "open and stocked". It now warns "FARPs DRY - no helicopter
+  slots" with the towns. Supply crates at a dry FARP open its slots a few seconds after delivery (was the next tick).
+
+**Changed**
+- `B.restockArmoury(only)` can restock a single base.
+- DCS test plan: P-701 and P-707 notes (still RETEST).
+
 ## 0.62.0 — 2026-11-13
 
 **Changed**

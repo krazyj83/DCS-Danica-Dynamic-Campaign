@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.62.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.63.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.62.0",
+  version         = "0.63.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -12411,18 +12411,89 @@ end
 
 local function isSupply(desc) return type(desc) == "table" and desc.dccSupply == true end
 
+-- v0.63: where a crate really is. CTLD's record can be empty after a parachute drop (a crate "at" the map's
+-- origin was lost), so a position near 0,0 is not taken: then the crate's own DCS object is asked.
+local function validPos(p) return type(p) == "table" and p.x and p.z and (math.abs(p.x) > 1000 or math.abs(p.z) > 1000) end
+function B.crateRealPos(crate, pos)
+  if validPos(pos) then return pos end
+  local so = crate and crate.crateName and ok(StaticObject.getByName, crate.crateName)
+  local sp = so and ok(so.getPoint, so)
+  if validPos(sp) then return sp end
+  if crate and validPos(crate.position) then return crate.position end
+  return nil
+end
+
+-- v0.63: after a delivery the F10 map, the FARP's helicopter slots and that base's shelves are brought up to date
+-- at once (not at the next 5 min tick); several crates in one drop are handled together.
+function B.afterDelivery(node)
+  B.deliveredNodes = B.deliveredNodes or {}
+  B.deliveredNodes[node] = true
+  if B.deliveryPending then return end
+  B.deliveryPending = true
+  timer.scheduleFunction(function()
+    B.deliveryPending = false
+    local nodes = B.deliveredNodes
+    B.deliveredNodes = {}
+    -- a dry FARP that got supply opens its helicopter slots now (beta 13 Nov: Khashuri had 0 slots)
+    if B.reconcileFarps then
+      local s, e = pcall(B.reconcileFarps)
+      if not s then U.log("ERROR FARP slots after delivery: %s", tostring(e)) end
+    end
+    if B.restockArmoury then
+      for id in pairs(nodes) do
+        local s, e = pcall(B.restockArmoury, id)
+        if not s then U.log("ERROR restock after delivery: %s", tostring(e)) end
+      end
+    end
+    local s, e = pcall(B.draw)
+    if not s then U.log("ERROR redraw after delivery: %s", tostring(e)) end
+  end, nil, timer.getTime() + 2)
+end
+
+-- What a delivery did, in words: "FARP +10 SU (30/40)" / "FARP full (40/40), +10 SU to the town (85/120)".
+local function deliveryText(war, node, farpBefore, supBefore)
+  local ns = war.state.nodes[node]
+  local parts = {}
+  if war:farpAt(node) then
+    local st, max = war:farpStock(node), DCC.config.world.farpStock
+    local put = st - farpBefore
+    if put > 0.01 then parts[#parts + 1] = string.format("FARP +%d SU (%d/%d)", math.floor(put + 0.5), math.floor(st + 0.5), max)
+    else parts[#parts + 1] = string.format("FARP full (%d/%d)", math.floor(st + 0.5), max) end
+  end
+  local d = (ns.supply or 0) - supBefore
+  local cap = math.floor(war:supplyCap(node) + 0.5)
+  if d > 0.01 then
+    parts[#parts + 1] = string.format("+%d SU to the base (%d/%d)", math.floor(d + 0.5), math.floor(ns.supply + 0.5), cap)
+  elseif not war:farpAt(node) or #parts == 0 or parts[1]:find("full", 1, true) then
+    parts[#parts + 1] = string.format("base supply full (%d/%d)", math.floor((ns.supply or 0) + 0.5), cap)
+  end
+  return table.concat(parts, ", ")
+end
+
 -- A supply crate on the ground near an own base: delivered.
 function B.ctldCrateDown(crate, pos)
-  if not (crate and isSupply(crate.descriptor) and pos) then return false end
+  if not (crate and isSupply(crate.descriptor)) then return false end
   local side = sideOf(crate.coalition)
   if not side then return false end
+  pos = B.crateRealPos(crate, pos)
+  if not pos then
+    U.log("supply crate %s landed with no position - not delivered", tostring(crate.crateName))
+    trigger.action.outTextForCoalition(coalOf(side), "A supply crate was lost in the drop (no landing point).", 10)
+    return false
+  end
   local node = B.nearestNodeOf(pos, side, CC().dropKm * 1000)
   if not node then return false end
-  B.war:deliverCrate(side, node, CC().supplyCrateSU)
+  local war = B.war
+  local ns = war.state.nodes[node]
+  local farpBefore, supBefore = war:farpStock(node), ns.supply or 0
+  war:deliverCrate(side, node, CC().supplyCrateSU)
   local mgr = CTLDCrateManager.getInstance()
   ok(mgr.destroyCrate, mgr, crate.crateName)
-  trigger.action.outTextForCoalition(coalOf(side), string.format("Supply crate delivered to %s (+%d SU).",
-    B.war:nodeName(node), CC().supplyCrateSU), 10)
+  local what = deliveryText(war, node, farpBefore, supBefore)
+  trigger.action.outTextForCoalition(coalOf(side), string.format("Supply crate delivered to %s: %s.",
+    war:nodeName(node), what), 10)
+  U.log("supply crate %s delivered to %s: %s", tostring(crate.crateName), node, what)
+  B.afterDelivery(node)
   return true
 end
 
@@ -16630,13 +16701,14 @@ local function warehousesOf(id, side)
 end
 B.warehousesOf = warehousesOf
 
-function B.restockArmoury()
+-- only: one base (v0.63: right after a supply delivery); nil = all
+function B.restockArmoury(only)
   if not B.armWarehouseMode() or #B.arm.names == 0 then return end
   local war, cfg = B.war, AC()
   B.arm.last = B.arm.last or {}
   for _, id in ipairs(war.T.order) do
     local ns = war.state.nodes[id]
-    local whs = (ns.side == "blue" or ns.side == "red") and warehousesOf(id, ns.side) or {}
+    local whs = (not only or only == id) and (ns.side == "blue" or ns.side == "red") and warehousesOf(id, ns.side) or {}
     if #whs > 0 then
       local tier = war:armouryTier(id)
       local big = war.T.nodes[id].depot and (cfg.depotStock or 1) or 1
@@ -16886,7 +16958,7 @@ function B.selfCheck()
   end
 
   -- FARP pads, and the open FARPs stocked
-  local pads, padsMissing, open, empty = 0, 0, 0, {}
+  local pads, padsMissing, open, empty, dry = 0, 0, 0, {}, {}
   for _, id in ipairs(war.T.order) do
     if war:canHaveFarp(id) then
       for _, side in ipairs({ "blue", "red" }) do
@@ -16900,7 +16972,10 @@ function B.selfCheck()
           end
         end
       end
-      if war:farpAt(id) then open = open + 1 end
+      if war:farpAt(id) then
+        if war:farpDry(id) then dry[#dry + 1] = war:nodeName(id) .. " (" .. war.state.nodes[id].side:upper() .. ")"
+        else open = open + 1 end
+      end
     end
   end
   if padsMissing > 0 then warn("%d of %d FARP pads missing in the mission (rebuild it with make_mission.py)",
@@ -16908,6 +16983,8 @@ function B.selfCheck()
   else okL("all %d FARP pads found", pads) end
   if #empty > 0 then warn("open FARPs without helicopters: %s", table.concat(empty, ", "))
   else okL("%d FARPs open and stocked", open) end
+  -- v0.63: a dry FARP has no helicopter slots - it was counted as stocked
+  if #dry > 0 then warn("%d FARPs DRY - no helicopter slots until supply crates come: %s", #dry, table.concat(dry, ", ")) end
 
   -- armoury
   if B.armWarehouseMode and B.armWarehouseMode() then

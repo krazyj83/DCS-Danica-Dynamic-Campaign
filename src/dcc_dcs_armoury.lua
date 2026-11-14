@@ -186,13 +186,14 @@ local function warehousesOf(id, side)
 end
 B.warehousesOf = warehousesOf
 
-function B.restockArmoury()
+-- only: one base (v0.63: right after a supply delivery); nil = all
+function B.restockArmoury(only)
   if not B.armWarehouseMode() or #B.arm.names == 0 then return end
   local war, cfg = B.war, AC()
   B.arm.last = B.arm.last or {}
   for _, id in ipairs(war.T.order) do
     local ns = war.state.nodes[id]
-    local whs = (ns.side == "blue" or ns.side == "red") and warehousesOf(id, ns.side) or {}
+    local whs = (not only or only == id) and (ns.side == "blue" or ns.side == "red") and warehousesOf(id, ns.side) or {}
     if #whs > 0 then
       local tier = war:armouryTier(id)
       local big = war.T.nodes[id].depot and (cfg.depotStock or 1) or 1
