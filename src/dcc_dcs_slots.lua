@@ -75,7 +75,7 @@ function B.slotSweep()
   for _, c in ipairs({ coalition.side.RED, coalition.side.BLUE }) do
     for _, u in ipairs(ok(coalition.getPlayers, c) or {}) do
       local uname = ok(u.getName, u)
-      if uname then
+      if uname and ok(u.getPlayerName, u) then
         seen[uname] = true
         if not B.players[uname] then B.adoptPlayer(u, "sweep") end
       end
@@ -127,6 +127,8 @@ end
 
 local baseRegister = B.registerPlayer
 function B.registerPlayer(u)
+  -- v0.68: a player being taken out (now a few seconds later, not inside the birth event) gets no menus
+  if recentlyRemoved(ok(u.getName, u) or "") then return nil end
   local p = baseRegister(u)
   if p and SC().logPlayers then
     U.log("player %s in %s (%s, group %s) at %s", tostring(p.name), tostring(p.unit), tostring(p.type),
@@ -173,8 +175,83 @@ function B.opsPoll()
   end
 end
 
+-- ---------------------------------------------------------------------------
+-- v0.68: a closed runway shows no aircraft in DCS's dynamic spawn list, so nobody can spawn a plane there and
+-- has to be taken out again (taking a player out of a dynamic spawn crashed the server, 14 Nov). Only the DCS
+-- warehouse shows 0 - the campaign keeps its numbers, and the planes come back when the runway opens.
+-- ---------------------------------------------------------------------------
+local function heliSet()
+  local set = {}
+  for _, side in ipairs({ "blue", "red" }) do
+    local air = B.war.cat.aircraft and B.war.cat.aircraft[side]
+    for _, t in ipairs(air and air.helicopters or {}) do set[t] = true end
+  end
+  return set
+end
+
+function B.closedRunways()
+  local war, out = B.war, {}
+  if not war.runwayClosed then return out end
+  for id in pairs(B.airbases or {}) do if war:runwayClosed(id) then out[id] = true end end
+  return out
+end
+
+local function airbaseWarehouse(id)
+  local ab = B.airbases[id] and ok(Airbase.getByName, B.airbases[id])
+  return ab and ok(ab.getWarehouse, ab)
+end
+
+local baseWrite = B.writeWarehouses
+function B.writeWarehouses()
+  baseWrite()
+  local helis = heliSet()
+  for id in pairs(B.closedRunways()) do
+    local ns, w = B.war.state.nodes[id], airbaseWarehouse(id)
+    if w and ns.air then
+      for t in pairs(ns.air) do if not helis[t] then pcall(w.setItem, w, t, 0) end end
+    end
+  end
+end
+
+local baseRead = B.readWarehouses
+function B.readWarehouses()
+  local closed, keep = B.closedRunways(), {}
+  local helis = heliSet()
+  for id in pairs(closed) do
+    local ns = B.war.state.nodes[id]
+    keep[id] = {}
+    for t, n in pairs(ns.air or {}) do if not helis[t] then keep[id][t] = n end end
+  end
+  baseRead()
+  for id, types in pairs(keep) do                       -- DCS shows 0 here: keep the campaign's numbers, plus landings
+    for t, n in pairs(types) do B.war:setAircraft(id, t, n + (B.war.state.nodes[id].air[t] or 0)) end
+  end
+end
+
+-- A runway closing or opening between ticks (bombs, repair): the warehouses follow within slots.sweepSec.
+function B.runwayWatch()
+  local now, key = B.closedRunways(), {}
+  for id in pairs(now) do key[#key + 1] = id end
+  table.sort(key)
+  key = table.concat(key, ",")
+  if key ~= B.runwayKey then
+    if B.runwayKey ~= nil then
+      local s, err = pcall(B.writeWarehouses)
+      if not s then U.log("ERROR warehouses after runway change: %s", tostring(err)) end
+    end
+    B.runwayKey = key
+  end
+end
+
+local basePoll2 = B.opsPoll
+function B.opsPoll()
+  basePoll2()
+  local s, err = pcall(B.runwayWatch)
+  if not s then U.log("ERROR runway watch: %s", tostring(err)) end
+end
+
 local baseInit = B.init
 function B.init(war, theater, catalog)
   baseInit(war, theater, catalog)
-  B.removed, B.slotSweepAt = {}, nil
+  B.removed, B.slotSweepAt, B.runwayKey = {}, nil, nil
 end

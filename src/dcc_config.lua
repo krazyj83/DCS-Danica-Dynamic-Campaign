@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.67.0",
+  version         = "0.68.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -546,6 +546,8 @@ DCC.config = {
 
   -- v0.58: player slots (dynamic spawns, multicrew) -------------------------------
   slots = {
+    removeDelaySec = 3,     -- v0.68: a player is sent to spectators this long after the reason is found - never inside
+                            -- DCS's birth event (doing it there crashed the server, 14 Nov)
     removeCheckSec = 5,     -- a player sent to spectators who is still in the aircraft after this: it is destroyed
     sweepSec       = 30,    -- every so often, players DCS reports in an aircraft but the campaign does not know get
                             -- their menus (a dynamic spawn whose birth came before the player, a crew seat change)

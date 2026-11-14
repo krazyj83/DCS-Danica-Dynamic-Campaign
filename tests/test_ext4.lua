@@ -869,8 +869,12 @@ seat(12, "Ghost", "5002")
 local gh = aircraft("Enemy_F-16CM_1", "F-16C_50", ep.x + 300, ep.z, 5002)
 gh.player = "Ghost"
 table.insert(MOCK.players[BLUE], gh)
+local nf0 = #forced
 MOCK.fire({ id = world.event.S_EVENT_BIRTH, initiator = gh })
-check("slot guard: player sent to spectators", forced[#forced] == 12, #forced)
+-- v0.68: never inside the birth event (net.force_player_slot there crashed the server, 14 Nov)
+check("v0.68: not sent to spectators inside the birth event", #forced == nf0 and not gh.destroyed, #forced - nf0)
+MOCK.advance(DCC.config.slots.removeDelaySec + 1)
+check("slot guard: player sent to spectators a moment later", forced[#forced] == 12, #forced)
 check("...the aircraft is not destroyed under him", gh.alive and not gh.destroyed)
 check("...and not picked up again by the sweep", (function() MOCK.advance(31); return B.players[gh.name] == nil end)())
 MOCK.forceWorks = false
@@ -880,7 +884,7 @@ st.player = "Stuck"
 MOCK.fire({ id = world.event.S_EVENT_BIRTH, initiator = st })
 check("...still in it after slots.removeCheckSec: the aircraft goes", (function()
   local before = st.alive
-  MOCK.advance(DCC.config.slots.removeCheckSec + 1)
+  MOCK.advance(DCC.config.slots.removeDelaySec + DCC.config.slots.removeCheckSec + 1)
   return before and st.destroyed == true end)())
 -- 4. grounded after two losses: the deaths are found under the server key
 seat(14, "Twice", "5004")
@@ -889,6 +893,7 @@ local tw = aircraft("Kutaisi_FA-18_1", "FA-18C_hornet", kp.x + 900, kp.z, 5004)
 tw.player = "Twice"
 local nf = #forced
 MOCK.fire({ id = world.event.S_EVENT_BIRTH, initiator = tw })
+MOCK.advance(DCC.config.slots.removeDelaySec + 1)
 check("two losses within the hour: grounded in multiplayer too", #forced == nf + 1 and forced[#forced] == 14, #forced)
 -- 5. multicrew: a crew member changing seats does not take the pilot's menus and mission
 seat(15, "Rhino", "5005")
@@ -918,6 +923,27 @@ MOCK.fire({ id = world.event.S_EVENT_EJECTION, initiator = ej })
 local nd2 = 0
 for _ in pairs(war.state.downed) do nd2 = nd2 + 1 end
 check("ejection on the ground at an own base: no downed pilot / CSAR", nd2 == nd, nd2 - nd)
+-- 7. v0.68: a closed runway shows no planes in DCS's dynamic spawn list (taking a player out crashed the server)
+do
+  local kid = "kutaisi"
+  local ns = war.state.nodes[kid]
+  local wh = Airbase.getByName(B.airbases[kid]):getWarehouse()
+  ns.air = ns.air or {}
+  ns.air["F-16C_50"], ns.air["UH-1H"] = 10, 5
+  B.writeWarehouses()
+  check("v0.68: runway open - planes in the DCS warehouse", wh:getItemCount("F-16C_50") == 10)
+  war.state.runways = war.state.runways or {}
+  war.state.runways[kid] = { closedUntil = war.state.tick + 20 }
+  MOCK.advance(31)
+  check("runway closed: no planes to spawn within slots.sweepSec, helicopters still there",
+    wh:getItemCount("F-16C_50") == 0 and wh:getItemCount("UH-1H") == 5, wh:getItemCount("F-16C_50"))
+  wh:setItem("F-16C_50", 1)                             -- one landed meanwhile
+  B.readWarehouses()
+  check("...the campaign keeps its planes (and counts the one that landed)", ns.air["F-16C_50"] == 11, ns.air["F-16C_50"])
+  war.state.runways[kid] = nil
+  MOCK.advance(31)
+  check("runway open again: the planes are back", wh:getItemCount("F-16C_50") == 11, wh:getItemCount("F-16C_50"))
+end
 net, MOCK.forceWorks = nil, nil
 
 print(" A day")

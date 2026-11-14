@@ -276,6 +276,7 @@ dropMk(bpos.x - 10, bpos.z, "Mk_83")
 check("...2000 lb in total: down, road closed", war:roadClosed("kutaisi", "zestaponi"))
 war.bridges = savedBridges
 local mig = MOCK.spawnPlayer(RED, "MiG-29S", sochiAb.p.x, sochiAb.p.z, "Ivan")
+MOCK.advance(DCC.config.slots.removeDelaySec + 1)
 check("a jet cannot spawn at a closed airfield", mig.alive == false)
 local hind = MOCK.spawnPlayer(RED, "Mi-24P", sochiAb.p.x + 30, sochiAb.p.z, "Olga", true)
 check("a helicopter can", hind.alive ~= false)

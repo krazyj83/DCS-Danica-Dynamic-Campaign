@@ -6,6 +6,20 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.68.0 — 2026-11-14
+
+Server crash, 14 November (RHINO, C-130J at Kutaisi with the runway closed).
+
+**Fixed**
+- **Server crash when a player was taken out of a dynamic spawn:** v0.58 sent the player to spectators
+  (`net.force_player_slot`) inside DCS's birth event, which crashed DCS (ACCESS_VIOLATION right after "release unit").
+  It now happens `slots.removeDelaySec` (3 s) later, only if he is still in that aircraft, and the campaign gives
+  him no menus meanwhile.
+- **A closed runway still offered planes to spawn:** its DCS warehouse now shows 0 planes while it is closed, so
+  the dynamic spawn list has none (helicopters still spawn); the campaign keeps its numbers and they come back
+  when the runway reopens. A runway closing between ticks is picked up within 30 s.
+- DCS test plan: P-110 note (still RETEST).
+
 ## 0.67.0 — 2026-11-14
 
 **Added**
