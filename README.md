@@ -91,7 +91,7 @@ building, MEDEVAC, prisoners — the moment they spawn, so a rear base always ha
 | --- | --- | --- | --- | --- |
 | **CAS** | A2G | A base under attack (ours or theirs) | The battle goes your side's way | Who holds the base; every kill is permanent |
 | **BAI** | A2G | Enemy convoy or column on a road | It is destroyed | Its cargo or platoons never arrive |
-| **STRIKE** | A2G | Fuel, ammo and warehouse buildings at an enemy depot/airbase | A building is destroyed | Each one burns 25 SU and cuts the base's output (all gone = 30 %); one rebuilt every 3 h |
+| **STRIKE** | A2G | Fuel tanks and warehouses at an enemy depot/airbase | A building is destroyed | Each one burns 25 SU and cuts the base's output (all gone = 30 %); one rebuilt every 3 h |
 | **SEAD/DEAD** | SEAD | Enemy SAM site (Hawk / SA-11) | Hawk: radars or whole site killed. **SA-11: search radar and all 3 launchers** (each launcher has its own radar, v0.56) | Radars: site offline ~4 h. Radars + launchers: destroyed, rebuilt in ~8 h for 60 SU (v0.62). Launchers you kill stay dead until then (v0.56) |
 | **EWR** | A2G | Enemy early-warning radar | It is destroyed | That side loses its long-range air picture there (6 h, 40 SU) |
 | **CAP** | A2A | Your main-effort area | 20 min on station, or an air kill there | 1 h of air superiority: enemy AI attack sorties stay away |
@@ -132,7 +132,7 @@ damage, so those are rules of thumb, not guarantees.
 | **Bridge** (BRIDGE, fixed-wing only since v0.55) | **2000 lb of bombs in total** on the span, each within 40 m of the bridge: one Mk-84 / GBU-10 / GBU-31, two Mk-83 or four Mk-82. Rockets and missiles do not count. A downed bridge closes its road for 6 h. |
 | **Runway** (RUNWAY) | **6000 lb of bombs in total**, each within **60 m of the centre line**: three Mk-84 / GBU-31, six Mk-83 or twelve Mk-82. Rockets and missiles do not count. Closed for 4 h. |
 | **Fuel tanks** (STRIKE) | One 500 lb bomb or a Maverick / Kh-25 each |
-| **Warehouses, ammo depots** (STRIKE) | A 1000–2000 lb bomb, or 2–3 × 500 lb each |
+| **Warehouses** (STRIKE) | A 1000–2000 lb bomb, or 2–3 × 500 lb each |
 | **Factory, power plant, refinery** (INDUSTRY) | 1–2 × 500 lb or one 1000 lb bomb per building; 2 of the 3 complete it |
 | **Fortifications** (FORT) | Sandbag positions: one 500 lb bomb or a few rockets. The concrete bunker: a 2000 lb bomb or a penetrator (GBU-31(V)3/B) |
 | **SAM site** (SEAD/DEAD) | Radar: one HARM / Kh-58 / Kh-31P hit (or a Maverick / 500 lb bomb). Launchers: a Maverick, 500 lb bomb or cluster bomb each |
@@ -794,7 +794,7 @@ Spectators see only the front line and who owns each base.
 | **Warehouse** | Each airbase's DCS warehouse holds the owner's player aircraft (dynamic spawn, 20 of each type) and 100 of every weapon. Players take aircraft out and bring them back; lost ones are replaced one an hour, paid for in supply — only at a supplied base. |
 | **Mission board** | Player missions generated from the live war for each side. Each points at something real in the save; its effect happens in the model itself. |
 | **SAM site** | Airbases and depots have an air-defence site (BLUE Hawk, RED SA-11), spawned when a player is within 80 km. Up → suppressed (radar dead) → destroyed. Captured sites are destroyed; the new owner builds its own. |
-| **Structures** | Fuel, ammo and warehouse buildings at depots (6) and airbases (4) — strike targets that cut output and supply when destroyed. |
+| **Structures** | Fuel tanks and warehouses at depots (6) and airbases (4) — strike targets that cut output and supply when destroyed. |
 | **Air pool** | Each side's AI fighters and attack aircraft as numbers; sorties draw from it, losses are permanent, depots buy replacements. |
 | **Contact** | Something one side has detected: key, kind, where, how (visual / sensor / ELINT / recon), how precise, when. Saved; ages from fresh to stale to forgotten. |
 | **EWR / AWACS** | Each side's radars as model state: EWR sites per node (up / destroyed), the AWACS pool and whether one is on station. |

@@ -459,5 +459,10 @@ MOCK.advance(24 * 3600)
 check("no script errors in phase 3 loops", errors == 0, errors)
 
 DCC.util.log = realLog
+-- v0.65 (beta 13 Nov: "Can't open model .Ammunition depot" - two of six strike targets never showed up)
+local badInfra = 0
+for _, spec in ipairs(DCC_CATALOGS.modern.infra) do if spec.type:find("Ammunition depot", 1, true) then badInfra = badInfra + 1 end end
+check("v0.65: no strike target uses the ammo depot model DCS cannot load", badInfra == 0, badInfra)
+
 print(string.format("\n%d passed, %d failed", passed, failed))
 DCC_EXIT_CODE = failed == 0 and 0 or 1

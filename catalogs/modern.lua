@@ -348,13 +348,14 @@ DCC_CATALOGS.modern = {
 
   -- Strike targets at depots and airbases (static objects), in build order.
   -- The first is always the fuel store.
+  -- v0.65: no ".Ammunition depot" - DCS cannot load its model ("Can't open model"), so it never showed up
   infra = {
     { type = "Fuel tank",          category = "Fortifications" },
-    { type = ".Ammunition depot",  category = "Warehouses", shape = "SkladC" },
+    { type = "Warehouse",          category = "Warehouses" },
     { type = "Warehouse",          category = "Warehouses" },
     { type = "Tank",               category = "Warehouses" },
     { type = "Warehouse",          category = "Warehouses" },
-    { type = ".Ammunition depot",  category = "Warehouses", shape = "SkladC" },
+    { type = "Warehouse",          category = "Warehouses" },
   },
 
   -- Ambush team that hits an escorted convoy (helicopter convoy escort).
