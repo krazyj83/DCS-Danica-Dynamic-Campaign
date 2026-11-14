@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.65.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.66.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.65.0",
+  version         = "0.66.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -243,6 +243,9 @@ DCC.config = {
     airAssaultKm      = 70,     -- helicopter assault range
     airAssaultMaxDefenders = 2, -- only bases this weak are targets
     forwardCap        = true,   -- CAP over the own base the enemy is about to attack
+    -- v0.66: more CAPs on top of those two: over the own front-line base nearest the enemy's players (beta: too
+    -- little RED CAP). Each is a fighter pair from the side's pool; 0 = none.
+    extraCap          = { blue = 0, red = 1 },
     creditOnLanding   = true,   -- mission points count once the pilot lands at a friendly base
     cooldownDeaths    = 2,      -- pilot deaths...
     cooldownWindowMin = 60,     -- ...within this many minutes...
@@ -11571,6 +11574,55 @@ function B.planAir()
             "Command: fighters to cover %s - the enemy is massing for an attack there.", war:nodeName(target)), 10)
         end
       end
+    end
+  end
+  B.planExtraCap()
+end
+
+-- ===========================================================================
+-- 4b. Extra CAP (v0.66): over the own front-line base nearest the enemy's players
+-- ===========================================================================
+function B.extraCapNode(side)
+  local war = B.war
+  local enemy = otherSide(side)
+  local foes = {}
+  for _, u in ipairs(ok(coalition.getPlayers, B.COAL[enemy]) or {}) do
+    local p = alive(u) and ok(u.getPoint, u)
+    if p then foes[#foes + 1] = p end
+  end
+  if #foes == 0 then return nil end
+  local covered = {}
+  for _, s in pairs(B.sorties) do if s.side == side and s.node then covered[s.node] = true end end
+  local best, bestD
+  for _, id in ipairs(war.T.order) do
+    local ns, pos = war.state.nodes[id], B.nodePos[id]
+    if ns.side == side and pos and not covered[id] then
+      local front = false
+      for nb in pairs(war.T.nodes[id].nb or {}) do if war.state.nodes[nb].side == enemy then front = true end end
+      if front then
+        for _, f in ipairs(foes) do
+          local d = (f.x - pos.x) ^ 2 + (f.z - pos.z) ^ 2
+          if not bestD or d < bestD then best, bestD = id, d end
+        end
+      end
+    end
+  end
+  return best
+end
+
+function B.planExtraCap()
+  local war = B.war
+  for _, side in ipairs(SIDES) do
+    local want = (AC().extraCap or {})[side] or 0
+    local have = 0
+    for _, s in pairs(B.sorties) do if s.side == side and s.kind == "XCAP" then have = have + 1 end end
+    while have < want do
+      local id = B.extraCapNode(side)
+      if not id then break end
+      local g = B.spawnSortie(side, "fighter", "CAP", B.nodePos[id], { node = id })
+      if not (g and B.sorties[g]) then break end
+      B.sorties[g].kind = "XCAP"
+      have = have + 1
     end
   end
 end

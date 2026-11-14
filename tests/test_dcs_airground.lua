@@ -144,6 +144,38 @@ B.planAir()
 local fwd
 for _, s in pairs(B.sorties) do if s.side == "blue" and s.kind == "FWDCAP" then fwd = s end end
 check("BLUE covers the base RED is massing against", fwd ~= nil)
+-- v0.66 (beta: too little RED CAP): one more RED CAP over its front-line base nearest the BLUE players
+local xcap
+for _, s in pairs(B.sorties) do if s.side == "red" and s.kind == "XCAP" then xcap = s end end
+local front = false
+if xcap then
+  for nb in pairs(war.T.nodes[xcap.node].nb) do if war.state.nodes[nb].side == "blue" then front = true end end
+end
+check("v0.66: an extra RED CAP over a front-line base", xcap ~= nil and war.state.nodes[xcap.node].side == "red" and front,
+  xcap and xcap.node)
+local vp, best, bd = viper:getPoint(), nil, nil
+local otherCover = {}
+for _, s in pairs(B.sorties) do if s.side == "red" and s.kind ~= "XCAP" and s.node then otherCover[s.node] = true end end
+for _, id in ipairs(war.T.order) do
+  local ns = war.state.nodes[id]
+  local fr = false
+  for nb in pairs(war.T.nodes[id].nb) do if war.state.nodes[nb].side == "blue" then fr = true end end
+  local pos = B.nodePos[id]
+  if ns.side == "red" and fr and pos and not otherCover[id] then
+    local d = (pos.x - vp.x) ^ 2 + (pos.z - vp.z) ^ 2
+    if not bd or d < bd then best, bd = id, d end
+  end
+end
+check("...the one nearest the BLUE players", xcap ~= nil and xcap.node == best, tostring(xcap and xcap.node) .. " vs " .. tostring(best))
+local nx = 0
+for _, s in pairs(B.sorties) do if s.side == "red" and s.kind == "XCAP" then nx = nx + 1 end end
+B.planAir()
+local nx2 = 0
+for _, s in pairs(B.sorties) do if s.side == "red" and s.kind == "XCAP" then nx2 = nx2 + 1 end end
+check("...only air.extraCap of them at once", nx2 == nx and nx == DCC.config.air.extraCap.red, nx2)
+local bx = 0
+for _, s in pairs(B.sorties) do if s.side == "blue" and s.kind == "XCAP" then bx = bx + 1 end end
+check("...none extra for BLUE (extraCap.blue = 0)", bx == 0, bx)
 
 print("Pilot cooldown")
 local p = B.players[viper:getName()]

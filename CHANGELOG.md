@@ -6,6 +6,14 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.66.0 — 2026-11-14
+
+**Added**
+- **More RED CAP** (beta: players missed RED fighters): on top of its main-effort CAP and forward CAP, RED keeps one
+  more fighter pair on CAP over its front-line base nearest the BLUE players, replaced when it leaves or is shot
+  down (`air.extraCap = { blue = 0, red = 1 }`). It draws on RED's fighter pool.
+- DCS test plan: new P-412.
+
 ## 0.65.0 — 2026-11-14
 
 Beta test, 13 November (dcs.log review).

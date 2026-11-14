@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.65.0",
+  version         = "0.66.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -239,6 +239,9 @@ DCC.config = {
     airAssaultKm      = 70,     -- helicopter assault range
     airAssaultMaxDefenders = 2, -- only bases this weak are targets
     forwardCap        = true,   -- CAP over the own base the enemy is about to attack
+    -- v0.66: more CAPs on top of those two: over the own front-line base nearest the enemy's players (beta: too
+    -- little RED CAP). Each is a fighter pair from the side's pool; 0 = none.
+    extraCap          = { blue = 0, red = 1 },
     creditOnLanding   = true,   -- mission points count once the pilot lands at a friendly base
     cooldownDeaths    = 2,      -- pilot deaths...
     cooldownWindowMin = 60,     -- ...within this many minutes...
