@@ -558,7 +558,7 @@ Fuel and ammo trucks arrive, it shows on everyone's map, and your side's helicop
 (**10 of each type** per pad, dynamic spawn; **2 helipads per FARP**, so two helicopters can spawn at once;
 **50 of each helicopter weapon** and **1000 t fuel**, v0.44). Since v0.45 a FARP's shelf has only helicopter
 weapons — Hellfire K/L, APKWS, Hydra, Stinger, door guns (M240 / M134 / M60), Vikhr, Shturm / Ataka, HOT, Mistral,
-S-5 / S-8 / S-13 and their launchers; jet weapons stay at the airbases (`world.farpWeaponMatch`). **A FARP holds its own stock** (40 SU) and uses it up in about 13 hours;
+S-5 / S-8 / S-13 and their launchers; jet weapons stay at the airbases (`world.farpWeaponMatch`). **A FARP holds its own stock** (40 SU) and uses it up in 48 hours of play (v0.64; was ~13 h);
 below half a **FARPSUP** mission asks for crates (a FARP kit refills it completely). A **dry** FARP stays
 yours but has no spawns and empty shelves until someone brings supply. A captured town loses its FARP —
 FARP towns are captured like any other base. Behind the scenes each town has two invisible FARPs in the
