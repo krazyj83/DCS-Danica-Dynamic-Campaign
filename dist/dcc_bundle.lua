@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.63.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.64.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.63.0",
+  version         = "0.64.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -188,7 +188,7 @@ DCC.config = {
     threatDecayTicks = 36,    -- threat halves every 3 h
     farpBuildSU    = 30,      -- crates (10 SU each) to turn a town into a FARP
     farpStock      = 40,      -- SU a FARP holds itself (a FARP kit or 4 crates fills it)
-    farpUsePerTick = 0.25,    -- ...used per tick (5 min): full to dry in ~13 h
+    farpUsePerTick = 40 / 576, -- ...used per tick (5 min): full to dry in 48 h of play (v0.64: was 0.25, ~13 h)
     farpLowShare   = 0.5,     -- below this a FARPSUP mission is posted
     farpHelos      = 10,      -- helicopters of each own type a FARP can spawn (v0.44: was 20)
     farpWeapons    = 50,      -- v0.44: of each helicopter weapon on a FARP's shelf (airbases: ext.armoury.stock)

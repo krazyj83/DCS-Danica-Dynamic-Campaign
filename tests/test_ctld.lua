@@ -400,8 +400,10 @@ check("a Mi-8 can lift one too", cm:spawnCrate(farpDesc, { x = kpos.x + 140, y =
 
 print("FARP resupply")
 check("a new FARP is full", war:farpStock(town) == DCC.config.world.farpStock)
-for _ = 1, 170 do war:farpTick() end
-check("...and runs dry in ~13 h", war:farpDry(town))
+for _ = 1, 570 do war:farpTick() end
+check("v0.64: ...still open after 47.5 h", not war:farpDry(town))
+for _ = 1, 7 do war:farpTick() end
+check("...and runs dry in 48 h", war:farpDry(town))
 war:missionsTick()
 local sup
 for _, m in pairs(war.state.missions) do if m.type == "FARPSUP" and m.target == town and m.status == "open" then sup = m end end

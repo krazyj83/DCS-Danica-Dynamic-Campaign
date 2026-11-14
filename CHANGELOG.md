@@ -6,6 +6,13 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.64.0 — 2026-11-14
+
+**Changed**
+- **FARPs last 48 hours:** a full FARP (40 SU) now runs dry in 48 h of play (`world.farpUsePerTick` 40/576 per 5 min
+  tick; was 0.25, ~13 h). FARPs that are dry already stay dry until supply crates or a FARP kit come.
+- DCS test plan: P-707 note (still RETEST).
+
 ## 0.63.0 — 2026-11-14
 
 Beta test, 13 November (RHINO's C-130J airdrop at Khashuri).

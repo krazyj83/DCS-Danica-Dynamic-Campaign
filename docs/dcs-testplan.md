@@ -1086,6 +1086,7 @@ Rettet i v0.63.0: FARP'en var med stor sandsynlighed tør (den bruger 0,25 SU pr
 spilletid), og en tør FARP har ingen helikoptere. Selvtjekket kaldte den "open and stocked" – nu advarer det
 "FARPs DRY - no helicopter slots …" med byernes navne. Kasser til en tør FARP åbner slottene få sekunder efter
 leveringen (var først ved næste 5-min tick). Tjek F10-kortet: "FARP (DRY)" ved byen.
+v0.64.0: en FARP løber nu tør på 48 timers spilletid (var ~13 t).
 
 ### P-708
 **AIRASSAULT med gunship-eskorte**
