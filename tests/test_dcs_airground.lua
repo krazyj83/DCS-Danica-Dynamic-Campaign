@@ -176,6 +176,47 @@ check("...only air.extraCap of them at once", nx2 == nx and nx == DCC.config.air
 local bx = 0
 for _, s in pairs(B.sorties) do if s.side == "blue" and s.kind == "XCAP" then bx = bx + 1 end end
 check("...none extra for BLUE (extraCap.blue = 0)", bx == 0, bx)
+-- v0.67: two more RED pairs over other sectors of the front
+local scaps, capPos = {}, {}
+for _, s in pairs(B.sorties) do
+  if s.side == "red" and s.kind == "SCAP" then scaps[#scaps + 1] = s end
+  if s.side == "red" and s.node and (s.kind == "CAP" or s.kind == "FWDCAP" or s.kind == "XCAP" or s.kind == "SCAP") then
+    capPos[#capPos + 1] = { node = s.node, p = B.nodePos[s.node] }
+  end
+end
+local dbg = {}
+for _, c in ipairs(capPos) do dbg[#dbg + 1] = c.node end
+check("v0.67: RED flies air.sectorCap sector CAPs (fewer only when the front has no other sector left)",
+  #scaps == DCC.config.air.sectorCap.red or (#scaps >= 1 and B.sectorCapNode("red") == nil), table.concat(dbg, ","))
+local spreadOk = true
+for _, sc in ipairs(scaps) do
+  local fr = false
+  for nb in pairs(war.T.nodes[sc.node].nb) do if war.state.nodes[nb].side == "blue" then fr = true end end
+  if not fr or war.state.nodes[sc.node].side ~= "red" then spreadOk = false end
+  for _, c in ipairs(capPos) do
+    if c.node ~= sc.node then
+      local p0 = B.nodePos[sc.node]
+      if math.sqrt((p0.x - c.p.x) ^ 2 + (p0.z - c.p.z) ^ 2) < DCC.config.air.sectorCapKm * 1000 then spreadOk = false end
+    end
+  end
+end
+check("...each over a RED front-line base at least sectorCapKm from every other RED CAP", spreadOk)
+B.planAir()
+local ns2 = 0
+for _, s in pairs(B.sorties) do if s.side == "red" and s.kind == "SCAP" then ns2 = ns2 + 1 end end
+check("...and no more than that", ns2 == #scaps, ns2)
+do  -- a front with room: both pairs, in different sectors
+  local saved = B.sorties
+  B.sorties = {}
+  B.planSectorCap()
+  local nodes = {}
+  for _, s in pairs(B.sorties) do if s.side == "red" and s.kind == "SCAP" then nodes[#nodes + 1] = s.node end end
+  local far = #nodes == 2 and math.sqrt((B.nodePos[nodes[1]].x - B.nodePos[nodes[2]].x) ^ 2
+    + (B.nodePos[nodes[1]].z - B.nodePos[nodes[2]].z) ^ 2) >= DCC.config.air.sectorCapKm * 1000
+  check("...with room on the front: both pairs, in different sectors", far, table.concat(nodes, ","))
+  for g, s in pairs(B.sorties) do saved[g] = s end
+  B.sorties = saved
+end
 
 print("Pilot cooldown")
 local p = B.players[viper:getName()]

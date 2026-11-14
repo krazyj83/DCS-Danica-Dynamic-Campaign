@@ -398,6 +398,53 @@ function B.planExtraCap()
       have = have + 1
     end
   end
+  B.planSectorCap()
+end
+
+-- ===========================================================================
+-- 4c. Sector CAP (v0.67): pairs over other sectors of the front
+-- ===========================================================================
+local CAPKIND = { CAP = true, FWDCAP = true, XCAP = true, SCAP = true }
+
+local function frontLine(war, id, side)
+  for nb in pairs(war.T.nodes[id].nb or {}) do if war.state.nodes[nb].side == otherSide(side) then return true end end
+  return false
+end
+
+-- The front-line base furthest from every other CAP of side (at least sectorCapKm), or nil.
+function B.sectorCapNode(side)
+  local war = B.war
+  local caps = {}
+  for _, s in pairs(B.sorties) do
+    if s.side == side and CAPKIND[s.kind] and s.node and B.nodePos[s.node] then caps[#caps + 1] = B.nodePos[s.node] end
+  end
+  local minM = AC().sectorCapKm * 1000
+  local best, bestD
+  for _, id in ipairs(war.T.order) do
+    local pos = B.nodePos[id]
+    if war.state.nodes[id].side == side and pos and frontLine(war, id, side) then
+      local d = math.huge
+      for _, c in ipairs(caps) do d = math.min(d, math.sqrt((c.x - pos.x) ^ 2 + (c.z - pos.z) ^ 2)) end
+      if d >= minM and (not bestD or d > bestD) then best, bestD = id, d end
+    end
+  end
+  return best
+end
+
+function B.planSectorCap()
+  for _, side in ipairs(SIDES) do
+    local want = (AC().sectorCap or {})[side] or 0
+    local have = 0
+    for _, s in pairs(B.sorties) do if s.side == side and s.kind == "SCAP" then have = have + 1 end end
+    while have < want do
+      local id = B.sectorCapNode(side)
+      if not id then break end
+      local g = B.spawnSortie(side, "fighter", "CAP", B.nodePos[id], { node = id })
+      if not (g and B.sorties[g]) then break end
+      B.sorties[g].kind = "SCAP"
+      have = have + 1
+    end
+  end
 end
 
 -- ===========================================================================

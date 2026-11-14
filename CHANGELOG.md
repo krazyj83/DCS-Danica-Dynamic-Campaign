@@ -6,6 +6,15 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.67.0 — 2026-11-14
+
+**Added**
+- **RED sector CAP:** two more RED fighter pairs on CAP over front-line bases in other sectors of the front, each at
+  least 40 km from every other RED CAP and as far apart as the front allows (`air.sectorCap = { blue = 0, red = 2 }`,
+  `air.sectorCapKm = 40`). Replaced when they leave or are shot down; they draw on RED's fighter pool. With the main-
+  effort, forward and extra CAP, RED can now have up to five pairs up.
+- DCS test plan: P-412 note.
+
 ## 0.66.0 — 2026-11-14
 
 **Added**
