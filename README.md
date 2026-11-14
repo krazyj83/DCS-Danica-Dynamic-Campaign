@@ -190,6 +190,7 @@ Points in the report are those scored in that war only.
 | **Recon drones** | MQ-9 / Wing Loong over the base a side is attacking; it spots ground units within 8 km for its side's map. | Shoot it down to blind them |
 | **Forward CAP** | The AI covers its own base the enemy is massing against. | — |
 | **Extra CAP** (v0.66) | RED keeps one more fighter pair on CAP over its front-line base nearest the BLUE players (`air.extraCap`, per side; BLUE 0). It draws on RED's fighter pool like every AI sortie. | **CAP** / **SWEEP** |
+| **Sector CAP** (v0.67) | Two more RED fighter pairs on CAP over front-line bases in other sectors — each at least 40 km from every other RED CAP, as far apart as the front allows (`air.sectorCap`, `air.sectorCapKm`). A short front may have room for only one. | **CAP** / **SWEEP** |
 | **Layered air defence** | A SAM site only lights up at 60 km when its side's early-warning radar or AWACS is tracking you; on its own it waits until 25 km. Every site has point defence (Avenger / Tor) that stays on when the main radar goes dark. Kill the EWRs first. | EWR, SEAD |
 | **Credit on landing** | Mission points are logged when you land at a friendly base or your carrier. Die or eject on the way home and they are lost (the damage to the enemy still counts). | — |
 | **Cooldown** | Two deaths within an hour ground a pilot from fast jets for 15 min. Helicopters are always allowed. | — |
@@ -1042,6 +1043,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `ext5.fireControl.fireKm` | 15 km | AI ground groups only open fire (and battles are only fought by DCS) this close to a player (v0.56) |
 | `world.missionWind` | per map, 2–7 m/s | The missions' winds at ground / 2000 / 8000 m, from the map's prevailing direction (make_mission.py, v0.56); only with dynamic weather off |
 | `air.extraCap` | BLUE 0, RED 1 | Extra AI CAPs per side over the front-line base nearest the enemy players (v0.66) |
+| `air.sectorCap` / `sectorCapKm` | BLUE 0, RED 2; 40 km | AI CAPs per side over other sectors of the front, at least this far from every other CAP of that side (v0.67) |
 | `world.dynamicWeather` | on, 4 versions, 2–4 systems | DCS dynamic weather in the missions; `highChance` per map, `campaignTarget` where the campaign weather heads (v0.60); `variants` weather versions per map, one per daily restart (v0.61) |
 | `ext5.airAssault` | 3 defenders, 60 km, 60 m, 45 min | AIRASSAULT targets (weakest enemy bases within reach) and the gunship escort's height, stand-off and time (v0.49) |
 | `public.pilots` / `sorties` / `sortiesPerPilot` | 100, 20, 5 | public.json for the web map: pilots listed, latest sorties, sorties kept per pilot (v0.51) |

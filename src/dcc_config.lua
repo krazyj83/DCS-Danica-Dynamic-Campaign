@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.66.0",
+  version         = "0.67.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -242,6 +242,10 @@ DCC.config = {
     -- v0.66: more CAPs on top of those two: over the own front-line base nearest the enemy's players (beta: too
     -- little RED CAP). Each is a fighter pair from the side's pool; 0 = none.
     extraCap          = { blue = 0, red = 1 },
+    -- v0.67: and fighter pairs on CAP over other sectors of the front: front-line bases at least sectorCapKm from
+    -- every other CAP of that side, as far apart as possible
+    sectorCap         = { blue = 0, red = 2 },
+    sectorCapKm       = 40,
     creditOnLanding   = true,   -- mission points count once the pilot lands at a friendly base
     cooldownDeaths    = 2,      -- pilot deaths...
     cooldownWindowMin = 60,     -- ...within this many minutes...

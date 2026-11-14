@@ -909,6 +909,8 @@ Feedback: v0.41: radar-jammere forstyrrede F-16'ernes datalink.
 nærmest BLUE-spillerne. Skydes det ned eller flyver hjem, kommer et nyt (så længe RED har jagere i puljen).
 
 Feedback: v0.65, 14. nov: spillerne savnede RED CAP.
+v0.67.0: plus 2 RED jagerpar over andre dele af fronten (mindst 40 km fra al anden RED CAP). Tjek F10/AWACS: RED CAP
+flere steder langs fronten.
 
 ## P-500 · Fog of war og efterretning
 
