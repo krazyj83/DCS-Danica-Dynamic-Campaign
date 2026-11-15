@@ -349,11 +349,13 @@ def set_weather(m, theater_name, cfg, rng=None, kind=None):
         c.centerX = center.x + math.cos(ang) * dist
         c.centerZ = center.y + math.sin(ang) * dist
         c.ellipticity = 1 + 0.25 * rng.gauss(0, 1)
-        c.pressure_excess = sign * math.floor(1200 + 500 * (0.22 if main else 1) * abs(rng.gauss(0, 1)))
+        scale = float(dw.get("pressureScale", 1))           # v0.70: weaker systems = lighter winds
+        c.pressure_excess = sign * math.floor((1200 + 500 * (0.22 if main else 1) * abs(rng.gauss(0, 1))) * scale)
         c.rotation = (math.pi / 3) * rng.gauss(0, 1)
         c.pressure_spread = (900000 + 150000 * (0.22 if main else 1) * rng.gauss(0, 1)) * (1.3 if sign > 0 else 1)
         w.cyclones.append(c)
-    w.turbulence_at_ground = rng.randrange(0, 12) if high else rng.randrange(20, 50)
+    tb = (dw.get("turbulence") or {}).get("high" if high else "low") or ([0, 12] if high else [20, 50])
+    w.turbulence_at_ground = rng.randint(int(tb[0]), int(tb[1]))
     print(f"  weather: dynamic, {'high (anticyclone)' if high else 'low (cyclone)'}, {n} pressure systems")
     return system.name
 

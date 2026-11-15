@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.69.0",
+  version         = "0.70.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -209,7 +209,8 @@ DCC.config = {
     -- v0.56: the missions' winds (make_mission.py; DCS cannot change wind while a mission runs). Prevailing
     -- direction per map (degrees FROM), varied by up to fromSpread; speeds in m/s at ground / 2000 m / 8000 m.
     missionWind = { from = { Caucasus = 250, Syria = 290, PersianGulf = 320, GermanyCW = 260 }, fromSpread = 40,
-                    ground = { 2, 7 }, at2000 = { 6, 14 }, at8000 = { 12, 28 }, turbulence = { 3, 12 } },
+                    -- v0.70: calmer (players: too strong; was ground 2-7, 2000 m 6-14, 8000 m 12-28, turbulence 3-12)
+                    ground = { 1, 4 }, at2000 = { 3, 9 }, at8000 = { 8, 18 }, turbulence = { 0, 5 } },
     -- v0.60: DCS dynamic weather (Mission Editor > Weather > Dynamic) in every built mission: pressure systems
     -- that move during the mission, so wind, QNH and rain change across the map and through the day. Uses DCS's
     -- older cloud system (few clouds, no cloud presets). false = static weather with missionWind above.
@@ -224,6 +225,11 @@ DCC.config = {
       -- the campaign's own weather (fog, column speed, eyes, storms) heads this way at mission start:
       -- severity 0 clear - 0.33 overcast - 0.66 rain - 1 storm
       campaignTarget = { high = 0.1, low = 0.6 },
+      -- v0.70 (players: wind too strong): the pressure systems' strength - wind grows with the pressure
+      -- difference, so 0.5 is roughly half the wind (was 1: 1200-1700 Pa above/below normal); and gusts at the
+      -- ground (DCS turbulence units) under a high and under a low (was 0-12 and 20-50)
+      pressureScale = 0.5,
+      turbulence = { high = { 0, 6 }, low = { 5, 18 } },
     },
   },
   jtac = { laserCode = 1688, searchKm = 6, standoffKm = 4 },

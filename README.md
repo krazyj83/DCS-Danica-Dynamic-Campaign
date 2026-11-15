@@ -1047,6 +1047,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `air.extraCap` | BLUE 0, RED 1 | Extra AI CAPs per side over the front-line base nearest the enemy players (v0.66) |
 | `air.sectorCap` / `sectorCapKm` | BLUE 0, RED 2; 40 km | AI CAPs per side over other sectors of the front, at least this far from every other CAP of that side (v0.67) |
 | `world.dynamicWeather` | on, 4 versions, 2–4 systems | DCS dynamic weather in the missions; `highChance` per map, `campaignTarget` where the campaign weather heads (v0.60); `variants` weather versions per map, one per daily restart (v0.61) |
+| `world.dynamicWeather.pressureScale` / `turbulence` | 0.5; high 0–6, low 5–18 | Strength of the pressure systems (wind grows with it; v0.70 halved it — players found the wind too strong) and ground gusts under a high / a low |
 | `ext5.airAssault` | 3 defenders, 60 km, 60 m, 45 min | AIRASSAULT targets (weakest enemy bases within reach) and the gunship escort's height, stand-off and time (v0.49) |
 | `public.pilots` / `sorties` / `sortiesPerPilot` | 100, 20, 5 | public.json for the web map: pilots listed, latest sorties, sorties kept per pilot (v0.51) |
 | `srs.*` | 238 / 239 / 240 AM, 15 min | SRS voice: AWACS, Command and airfield-information frequencies, voices, how often airfield information plays (v0.50) |
