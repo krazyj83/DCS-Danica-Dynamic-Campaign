@@ -1304,7 +1304,7 @@ v0.60: med dynamisk vejr (standard) kommer vinden fra tryksystemerne og ændrer 
 
 ### P-1007
 **Dynamisk vejr (DCS Weather > Dynamic)**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle fire · Siden v0.60 · Offline: test_dcs_world
+`Status: RETEST` · Spillere: 1 · Kort: alle fire · Siden v0.60 · Offline: test_dcs_world
 
 1. Åbn missionen i Mission Editor → Weather: *Dynamic* er valgt med 2-4 trykcentre.
 2. På serveren: tjek dcs.log for "DCC: dynamic weather: a high/low over the map".
@@ -1317,6 +1317,9 @@ vind eller skyer).
 Feedback:
 
 ## P-1100 · Nyt i v0.34
+v0.69, 15. nov: spillerne syntes vinden var for kraftig.
+v0.70.0: tryksystemerne er halvt så stærke (`pressureScale` 0,5) og vindstødene ved jorden lavere. Notér vind ved jorden
+og i 2000 m på 2-3 baser (ATC / 240.0 airfield information), helst på både højtryks- og lavtryksdage.
 
 ### P-1101
 **Bogey dope og debrief**

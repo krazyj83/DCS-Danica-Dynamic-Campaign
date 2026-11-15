@@ -6,6 +6,15 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.70.0 — 2026-11-15
+
+**Changed**
+- **Calmer wind** (players: too strong). The dynamic weather's pressure systems are half as strong
+  (`world.dynamicWeather.pressureScale = 0.5`; wind grows with the pressure difference), and ground gusts are lower:
+  0–6 under a high, 5–18 under a low (`turbulence`; were 0–12 and 20–50). The static fallback (`missionWind`, only
+  with dynamic weather off) is calmer too: ground 1–4, 2000 m 3–9, 8000 m 8–18 m/s, turbulence 0–5.
+- DCS test plan: P-1007 to RETEST.
+
 ## 0.69.0 — 2026-11-15
 
 Many new players, high losses.
