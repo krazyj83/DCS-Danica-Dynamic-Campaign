@@ -91,6 +91,7 @@ Kør disse efter hver ny version. De rører de vigtigste dele af motoren.
 | [S-308](#s-308) | Selvtjek ved missionsstart (v0.47) |
 | [P-110](#p-110) | Dynamic spawn på HQ: synlig og med missioner (v0.58) |
 | [P-113](#p-113) | Våbenlager pr. base (v0.59) |
+| [P-114](#p-114) | Rookie-periode og loss-log (v0.69) |
 
 ---
 
@@ -541,6 +542,19 @@ Feedback:
 ved 0. Spawn-beskeden nævner det, der er lavt eller tomt. *Where is …* viser dine nærmeste baser med antal og afstand.
 
 Feedback: v0.58, 11. nov: svært for spillerne at vide, hvor meget af hver våbentype der er på hver base.
+
+### P-114
+**Nye piloter: blødere AI og rookie-periode**
+`Status: IKKE TESTET` · Spillere: 1 (ny pilot) · Kort: alle · Siden v0.69 · Offline: test_ext4
+
+1. En pilot med under 10 sorties spawner: læs "ROOKIE: N sortie(s) left …".
+2. Han dør to gange inden for en time.
+3. Server: læs `dcs.log` for "DCC: loss …".
+
+**Forvent:** Ingen grounding og ingen pointtab, så længe han er rookie. Hver død står i dcs.log med hvad der ramte ham
+(eller "no hit"). AI-SAM'er og -jagere føles mindre præcise end før (Veteran i stedet for Ace).
+
+Feedback: v0.68, 15. nov: mange nye spillere med højt tab.
 
 ## P-200 · F10-menuer og missioner
 

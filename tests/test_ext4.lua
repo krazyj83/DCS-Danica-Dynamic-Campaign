@@ -946,6 +946,40 @@ do
 end
 net, MOCK.forceWorks = nil, nil
 
+print(" New pilots (v0.69)")
+-- beta 15 Nov: many new players, high losses - softer AI, and a grace period for a rookie's first sorties
+check("AI skill is High (Veteran), not Excellent (Ace)", DCC.config.aiSkill == "High")
+local texts0 = #MOCK.texts
+local nb = MOCK.spawnPlayer(BLUE, "F-16C_50", kp.x + 1500, kp.z, "Newbie")
+local nbp = B.players[nb:getName()]
+local rookieMsg = false
+for i = texts0 + 1, #MOCK.texts do if MOCK.texts[i]:find("ROOKIE: 10 sortie", 1, true) then rookieMsg = true end end
+check("a new pilot is told his first 10 sorties are free", rookieMsg)
+DCC.pilots:get(nbp.key, "Newbie").sorties = 3
+local s0 = DCC.pilots:score(nbp.key)
+local infoLines, realLog2 = {}, DCC.util.log
+DCC.util.log = function(fmt, ...) infoLines[#infoLines + 1] = string.format(fmt, ...); return realLog2(fmt, ...) end
+local igla = setmetatable({ name = "igla1", type = "SA-18 Igla manpad", x = kp.x, z = kp.z, alive = true, coal = RED }, MOCK.UnitMT)
+MOCK.fire({ id = world.event.S_EVENT_HIT, initiator = igla, target = nb, weapon = { getTypeName = function() return "SA-18" end } })
+MOCK.fire({ id = world.event.S_EVENT_PILOT_DEAD, initiator = nb })
+DCC.util.log = realLog2
+local lossLine = nil
+for _, l in ipairs(infoLines) do if l:find("loss (killed) Newbie", 1, true) then lossLine = l end end
+check("dcs.log: the loss with what hit him", lossLine ~= nil and lossLine:find("hit by SA-18 Igla manpad (SA-18)", 1, true) ~= nil
+  and lossLine:find("[rookie]", 1, true) ~= nil, lossLine)
+local nb2 = MOCK.spawnPlayer(BLUE, "F-16C_50", kp.x + 1600, kp.z, "Newbie")
+MOCK.fire({ id = world.event.S_EVENT_PILOT_DEAD, initiator = nb2 })
+check("rookie: two deaths, no point loss", DCC.pilots:score(nbp.key) == s0, DCC.pilots:score(nbp.key) - s0)
+check("...and not grounded", B.groundedFor(nbp.key) == 0)
+DCC.pilots:get(nbp.key).sorties = 25
+local s1 = DCC.pilots:score(nbp.key)
+local nb3 = MOCK.spawnPlayer(BLUE, "F-16C_50", kp.x + 1700, kp.z, "Newbie")
+MOCK.fire({ id = world.event.S_EVENT_PILOT_DEAD, initiator = nb3 })
+local nb4 = MOCK.spawnPlayer(BLUE, "F-16C_50", kp.x + 1800, kp.z, "Newbie")
+MOCK.fire({ id = world.event.S_EVENT_PILOT_DEAD, initiator = nb4 })
+check("past the grace period: a death costs 10 points again", DCC.pilots:score(nbp.key) == s1 - 20, DCC.pilots:score(nbp.key) - s1)
+check("...and two within the hour ground him", B.groundedFor(nbp.key) > 0)
+
 print(" A day")
 viper.air = false
 for _ = 1, 288 do MOCK.advance(300) end

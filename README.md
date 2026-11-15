@@ -194,6 +194,7 @@ Points in the report are those scored in that war only.
 | **Layered air defence** | A SAM site only lights up at 60 km when its side's early-warning radar or AWACS is tracking you; on its own it waits until 25 km. Every site has point defence (Avenger / Tor) that stays on when the main radar goes dark. Kill the EWRs first. | EWR, SEAD |
 | **Credit on landing** | Mission points are logged when you land at a friendly base or your carrier. Die or eject on the way home and they are lost (the damage to the enemy still counts). | — |
 | **Cooldown** | Two deaths within an hour ground a pilot from fast jets for 15 min. Helicopters are always allowed. | — |
+| **Rookies** (v0.69) | A pilot's first 10 sorties are a grace period: dying neither grounds him nor costs points, and he is told so when he spawns. Every player loss is written to `dcs.log` with what hit him ("DCC: loss … hit by SA-18 Igla manpad …"), so you can see what kills the new players. | — |
 | **Leaving a slot you may not fly** | Spawning at an enemy-held base, while grounded, at a closed runway, or taking off with weapons the base cannot supply sends you back to spectators with the reason in chat, a few seconds later (v0.58: the aircraft was destroyed, which left dynamic-spawn pilots in a "ghost" no one else could see; v0.68: doing it at once crashed the server). A base with a **closed runway shows no planes** in the dynamic spawn list until it reopens — helicopters still spawn there. Ejecting on the ground at your own base just leaves the slot — no CSAR. | — |
 | **Multicrew** | Crew members (C-130J, CH-47F, AH-64D) can change seats without the pilot losing his menus or mission; any player in the aircraft can use its *Supply crate* menu. | — |
 | **HVA hunts** | About every 90 min (players on) enemy fighters go after your tanker or AWACS — your side is warned. A lost tanker or AWACS is not replaced for 2 h. | **HVAESCORT** |
@@ -1050,7 +1051,8 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `public.pilots` / `sorties` / `sortiesPerPilot` | 100, 20, 5 | public.json for the web map: pilots listed, latest sorties, sorties kept per pilot (v0.51) |
 | `srs.*` | 238 / 239 / 240 AM, 15 min | SRS voice: AWACS, Command and airfield-information frequencies, voices, how often airfield information plays (v0.50) |
 | `admin.*` | 30 s, 60 s, 15 s | Self-check delay and time on screen; delay before an admin reload; "Where can I spawn?" list sizes (v0.47) |
-| `aiSkill` | "Excellent" | Skill of every AI unit the engine (or CTLD) spawns — Ace; `make_mission.py` sets the mission's own AI (ships, templates) to Ace too (v0.41) |
+| `aiSkill` | "High" | Skill of every AI unit the engine (or CTLD) spawns and, through `make_mission.py`, of the mission's own AI (ships, templates). v0.69: Veteran (was "Excellent", Ace — too hard for new players) |
+| `rookie.graceSorties` | 10 | A pilot's first sorties: dying does not ground him or cost points (v0.69) |
 | `aiEcm` | "never" | AI aircraft jamming (ECM pods): never / lock / detected / always; nil = DCS default (v0.42) |
 | `runwayClearM` | 60 | Ground units and their waypoints stay this far off runways, taxiways and aprons (v0.37) |
 | `fixedSlotShare` (catalog) | 0.25 | Fixed client slots use at most this share of an airbase's parking; the rest is for dynamic spawn (v0.37) |

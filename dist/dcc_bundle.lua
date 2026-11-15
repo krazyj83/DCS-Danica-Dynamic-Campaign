@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.68.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.69.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.68.0",
+  version         = "0.69.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -283,7 +283,7 @@ DCC.config = {
   liveStallTicks   = 6,     -- a live battle with no progress gets one dice round every 30 min
   captureRadiusKm  = 3,     -- attackers must be this close to take a node
   spawnSpreadM     = 1200,  -- garrison platoons are scattered within this radius
-  aiSkill          = "Excellent", -- v0.41: every AI unit the engine (or CTLD) spawns: "Average" (Rookie), "Good"
+  aiSkill          = "High",  -- v0.69: was "Excellent" (too hard for new players). v0.41: every AI unit the engine (or CTLD) spawns: "Average" (Rookie), "Good"
                                   --   (Trained), "High" (Veteran), "Excellent" (Ace), "Random"; nil = as spawned
   aiEcm            = "never", -- v0.42: AI aircraft jamming (ECM pods): "never", "lock" (only when locked),
                               --   "detected", "always"; nil = DCS default. Jamming strobes swamped the F-16s.
@@ -546,6 +546,13 @@ DCC.config = {
       -- they still arrive and resupply bases), and kept until convoyKm + convoyHysteresisKm
       convoyKm = 20, convoyHysteresisKm = 5,
     },
+  },
+
+  -- v0.69: new pilots (beta: many new players, high losses) -----------------------------
+  rookie = {
+    graceSorties = 10,      -- a pilot's first sorties: dying does not ground him and costs no points
+    logLosses    = true,    -- write every player loss to dcs.log with what hit him ("DCC: loss ...")
+    hitMemorySec = 120,     -- a hit this long before the loss counts as its cause
   },
 
   -- v0.58: player slots (dynamic spawns, multicrew) -------------------------------
@@ -3075,6 +3082,7 @@ Pilots.POINTS = {
   packages = 10, medevacs = 15, pows = 10, team = 5, qra = 10,
   wins_conquest = 150,   -- flew for the side that conquered the whole map
   wins_clock = 50,       -- flew for the side that was ahead when the war clock ran out
+  graceDeaths = 10,      -- v0.69: a rookie's death costs nothing (it is counted in deaths too: this gives it back)
 }
 
 Pilots.RANKS = {
@@ -3090,7 +3098,7 @@ end
 
 local FIELDS = { "sorties", "flightMinutes", "kills_air", "kills_ground", "kills_convoy", "kills_sam",
                  "kills_structure", "missions", "rescues", "deaths", "ejections", "captured", "saved",
-                 "wins_conquest", "wins_clock", "prisoners", "packages", "medevacs", "pows", "team", "qra" }
+                 "wins_conquest", "wins_clock", "prisoners", "packages", "medevacs", "pows", "team", "qra", "graceDeaths" }
 
 -- Squadron tag from a player name: "[VKG] Morten", "VKG | Morten", "-=VKG=- Morten",
 -- "Morten [VKG]". Tags are 2-8 letters/digits; returned upper-case, or nil.
@@ -3158,6 +3166,13 @@ function Pilots:score(key)
   local s = 0
   for f, pts in pairs(Pilots.POINTS) do s = s + (p[f] or 0) * pts end
   return s
+end
+
+-- v0.69: a rookie is a pilot with fewer than graceSorties sorties (DCC.config.rookie): no grounding, no point loss
+-- for dying while he learns.
+function Pilots:isRookie(key, graceSorties)
+  local p = self.data.pilots[key]
+  return (p and p.sorties or 0) <= (graceSorties or 0)   -- the sortie he is flying counts (takeoff adds it)
 end
 
 function Pilots:rank(key)
@@ -9378,7 +9393,10 @@ function B.onOpsEvent(e)
     local name = u and ok(u.getPlayerName, u)
     if name then
       local p = B.players[u:getName()]
-      DCC.pilots:add(p and p.key or playerKey(name), "deaths", 1, name)
+      local key = p and p.key or playerKey(name)
+      local rookie = DCC.config.rookie and DCC.pilots:isRookie(key, DCC.config.rookie.graceSorties)
+      DCC.pilots:add(key, "deaths", 1, name)
+      if rookie then DCC.pilots:add(key, "graceDeaths", 1, name) end   -- v0.69: no point loss for a rookie
     end
   elseif e.id == ev.S_EVENT_CRASH or e.id == ev.S_EVENT_DEAD then
     local un = u and ok(u.getName, u)
@@ -11784,7 +11802,11 @@ function B.onOpsEvent(e)
     local p = u and B.players[ok(u.getName, u) or ""]
     if p then
       p.pendingCredit = nil            -- did not make it home
-      if e.id == ev.S_EVENT_PILOT_DEAD then B.recordDeath(p.key) end
+      -- v0.69: a rookie's deaths do not ground him
+      local rk = DCC.config.rookie
+      if e.id == ev.S_EVENT_PILOT_DEAD and not (rk and DCC.pilots:isRookie(p.key, rk.graceSorties)) then
+        B.recordDeath(p.key)
+      end
     end
   elseif e.id == ev.S_EVENT_LAND and u then
     B.creditLanding(u)
@@ -17853,10 +17875,77 @@ function B.opsPoll()
   if not s then U.log("ERROR runway watch: %s", tostring(err)) end
 end
 
+-- ---------------------------------------------------------------------------
+-- v0.69: new pilots. A rookie is told at spawn that his first sorties are free (no grounding, no point loss), and
+-- every player loss goes to dcs.log with what hit him - so we can see what kills the new players.
+-- ---------------------------------------------------------------------------
+local function RK() return DCC.config.rookie or {} end
+B.lastHit = {}
+
+function B.rookieLeft(key)
+  local p = DCC.pilots and DCC.pilots.data.pilots[key]
+  return math.max(0, (RK().graceSorties or 0) - (p and p.sorties or 0))
+end
+
+local function lossLine(u, how)
+  local uname = ok(u.getName, u) or "?"
+  local p = B.players[uname]
+  local name = (p and p.name) or ok(u.getPlayerName, u)
+  if not name then return end
+  local pos = ok(u.getPoint, u)
+  local near = pos and B.nearestNode and B.nearestNode(pos, 1e9)
+  local h = B.lastHit[uname]
+  local cause
+  if h and timer.getTime() - h.t <= (RK().hitMemorySec or 120) then
+    cause = string.format("hit by %s (%s) %ds before", h.by, h.weapon, math.floor(timer.getTime() - h.t))
+  else
+    cause = "no hit (crash / flying)"
+  end
+  local alt = pos and math.floor((pos.y - (ok(land.getHeight, { x = pos.x, y = pos.z }) or 0)) * 3.28) or -1
+  U.log("loss %s %s (%s) near %s, %d ft AGL: %s%s", how, tostring(name), tostring(p and p.type or ok(u.getTypeName, u)),
+    tostring(near or "?"), alt, cause, (p and DCC.pilots:isRookie(p.key, RK().graceSorties)) and " [rookie]" or "")
+end
+
+local baseOps2 = B.onOpsEvent
+function B.onOpsEvent(e)
+  local ev, u = world.event, e.initiator
+  if RK().logLosses then
+    if e.id == ev.S_EVENT_HIT and e.target then
+      local tn = ok(e.target.getName, e.target)
+      if tn and B.players[tn] then
+        local w = e.weapon and (ok(e.weapon.getTypeName, e.weapon) or "?") or "gun"
+        B.lastHit[tn] = { t = timer.getTime(), weapon = w, by = (u and ok(u.getTypeName, u)) or "?" }
+      end
+    elseif (e.id == ev.S_EVENT_PILOT_DEAD or e.id == ev.S_EVENT_EJECTION or e.id == ev.S_EVENT_CRASH) and u then
+      local un = ok(u.getName, u)
+      if un and B.players[un] and not B.players[un].lossLogged then
+        B.players[un].lossLogged = true
+        local okL, errL = pcall(lossLine, u, e.id == ev.S_EVENT_EJECTION and "(ejected)" or e.id == ev.S_EVENT_CRASH and "(crashed)" or "(killed)")
+        if not okL then U.log("ERROR loss line: %s", tostring(errL)) end
+      end
+    end
+  end
+  return baseOps2(e)
+end
+
+local baseReg2 = B.registerPlayer
+function B.registerPlayer(u)
+  local p = baseReg2(u)
+  if p and p.gid and not p.ground then
+    local left = B.rookieLeft(p.key)
+    if left > 0 then
+      pcall(trigger.action.outTextForGroup, p.gid, string.format(
+        "ROOKIE: %d sortie(s) left in which dying does not ground you or cost points. Learn the ropes!", left), 15)
+    end
+    B.lastHit[p.unit] = nil
+  end
+  return p
+end
+
 local baseInit = B.init
 function B.init(war, theater, catalog)
   baseInit(war, theater, catalog)
-  B.removed, B.slotSweepAt, B.runwayKey = {}, nil, nil
+  B.removed, B.slotSweepAt, B.runwayKey, B.lastHit = {}, nil, nil, {}
 end
 
 end

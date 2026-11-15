@@ -549,7 +549,11 @@ function B.onOpsEvent(e)
     local p = u and B.players[ok(u.getName, u) or ""]
     if p then
       p.pendingCredit = nil            -- did not make it home
-      if e.id == ev.S_EVENT_PILOT_DEAD then B.recordDeath(p.key) end
+      -- v0.69: a rookie's deaths do not ground him
+      local rk = DCC.config.rookie
+      if e.id == ev.S_EVENT_PILOT_DEAD and not (rk and DCC.pilots:isRookie(p.key, rk.graceSorties)) then
+        B.recordDeath(p.key)
+      end
     end
   elseif e.id == ev.S_EVENT_LAND and u then
     B.creditLanding(u)
