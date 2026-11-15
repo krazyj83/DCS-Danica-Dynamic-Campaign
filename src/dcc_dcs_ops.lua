@@ -1130,7 +1130,10 @@ function B.onOpsEvent(e)
     local name = u and ok(u.getPlayerName, u)
     if name then
       local p = B.players[u:getName()]
-      DCC.pilots:add(p and p.key or playerKey(name), "deaths", 1, name)
+      local key = p and p.key or playerKey(name)
+      local rookie = DCC.config.rookie and DCC.pilots:isRookie(key, DCC.config.rookie.graceSorties)
+      DCC.pilots:add(key, "deaths", 1, name)
+      if rookie then DCC.pilots:add(key, "graceDeaths", 1, name) end   -- v0.69: no point loss for a rookie
     end
   elseif e.id == ev.S_EVENT_CRASH or e.id == ev.S_EVENT_DEAD then
     local un = u and ok(u.getName, u)

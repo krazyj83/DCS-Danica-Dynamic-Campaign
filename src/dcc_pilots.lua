@@ -22,6 +22,7 @@ Pilots.POINTS = {
   packages = 10, medevacs = 15, pows = 10, team = 5, qra = 10,
   wins_conquest = 150,   -- flew for the side that conquered the whole map
   wins_clock = 50,       -- flew for the side that was ahead when the war clock ran out
+  graceDeaths = 10,      -- v0.69: a rookie's death costs nothing (it is counted in deaths too: this gives it back)
 }
 
 Pilots.RANKS = {
@@ -37,7 +38,7 @@ end
 
 local FIELDS = { "sorties", "flightMinutes", "kills_air", "kills_ground", "kills_convoy", "kills_sam",
                  "kills_structure", "missions", "rescues", "deaths", "ejections", "captured", "saved",
-                 "wins_conquest", "wins_clock", "prisoners", "packages", "medevacs", "pows", "team", "qra" }
+                 "wins_conquest", "wins_clock", "prisoners", "packages", "medevacs", "pows", "team", "qra", "graceDeaths" }
 
 -- Squadron tag from a player name: "[VKG] Morten", "VKG | Morten", "-=VKG=- Morten",
 -- "Morten [VKG]". Tags are 2-8 letters/digits; returned upper-case, or nil.
@@ -105,6 +106,13 @@ function Pilots:score(key)
   local s = 0
   for f, pts in pairs(Pilots.POINTS) do s = s + (p[f] or 0) * pts end
   return s
+end
+
+-- v0.69: a rookie is a pilot with fewer than graceSorties sorties (DCC.config.rookie): no grounding, no point loss
+-- for dying while he learns.
+function Pilots:isRookie(key, graceSorties)
+  local p = self.data.pilots[key]
+  return (p and p.sorties or 0) <= (graceSorties or 0)   -- the sortie he is flying counts (takeoff adds it)
 end
 
 function Pilots:rank(key)

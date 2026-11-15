@@ -358,7 +358,7 @@ def set_weather(m, theater_name, cfg, rng=None, kind=None):
     return system.name
 
 
-AI_SKILL = dunit.Skill.Excellent   # v0.41: every AI unit in the mission is Ace (the engine's own spawns: config aiSkill)
+AI_SKILL = dunit.Skill.High   # v0.69: the mission's own AI follows config aiSkill (set_ai_skill); High = Veteran
 
 
 def set_winds(m, theater_name, cfg):
@@ -383,7 +383,13 @@ def set_winds(m, theater_name, cfg):
 
 
 def set_ai_skill(m):
-    """Every AI unit in the mission (ships, AI aircraft templates, ground) at AI_SKILL; client slots untouched."""
+    """Every AI unit in the mission (ships, AI aircraft templates, ground) at config aiSkill (v0.69; AI_SKILL if
+    unset); client slots untouched."""
+    global AI_SKILL
+    want = load_config().get("aiSkill")
+    for sk in dunit.Skill:
+        if want and sk.value == want:
+            AI_SKILL = sk
     n = 0
     for coal in m.coalition.values():
         for country in coal.countries.values():

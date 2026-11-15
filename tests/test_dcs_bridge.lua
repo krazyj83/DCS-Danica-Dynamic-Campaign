@@ -234,11 +234,11 @@ for name, g in pairs(MOCK.groups) do
   if name:find("^DCC_") and g.data then
     for _, u in ipairs(g.data.units) do
       nAi = nAi + 1
-      if u.skill ~= "Excellent" then allAce = false end
+      if u.skill ~= DCC.config.aiSkill then allAce = false end
     end
   end
 end
-check("v0.41: every AI unit the engine spawns is Ace (Excellent)", nAi > 0 and allAce and DCC.config.aiSkill == "Excellent", nAi)
+check("v0.41/v0.69: every AI unit the engine spawns at config aiSkill (High)", nAi > 0 and allAce and DCC.config.aiSkill == "High", nAi)
 coalition.addGroup(80, Group.Category.AIRPLANE, { name = "TEST_CLIENT", units = { { name = "TEST_CLIENT_1", type = "F-16C_50",
   x = 0, y = 0, alt = 1000, skill = "Client", payload = { fuel = 3000 } } } })
 check("...player slots are left alone", MOCK.groups.TEST_CLIENT.data.units[1].skill == "Client")

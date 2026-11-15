@@ -250,8 +250,75 @@ function B.opsPoll()
   if not s then U.log("ERROR runway watch: %s", tostring(err)) end
 end
 
+-- ---------------------------------------------------------------------------
+-- v0.69: new pilots. A rookie is told at spawn that his first sorties are free (no grounding, no point loss), and
+-- every player loss goes to dcs.log with what hit him - so we can see what kills the new players.
+-- ---------------------------------------------------------------------------
+local function RK() return DCC.config.rookie or {} end
+B.lastHit = {}
+
+function B.rookieLeft(key)
+  local p = DCC.pilots and DCC.pilots.data.pilots[key]
+  return math.max(0, (RK().graceSorties or 0) - (p and p.sorties or 0))
+end
+
+local function lossLine(u, how)
+  local uname = ok(u.getName, u) or "?"
+  local p = B.players[uname]
+  local name = (p and p.name) or ok(u.getPlayerName, u)
+  if not name then return end
+  local pos = ok(u.getPoint, u)
+  local near = pos and B.nearestNode and B.nearestNode(pos, 1e9)
+  local h = B.lastHit[uname]
+  local cause
+  if h and timer.getTime() - h.t <= (RK().hitMemorySec or 120) then
+    cause = string.format("hit by %s (%s) %ds before", h.by, h.weapon, math.floor(timer.getTime() - h.t))
+  else
+    cause = "no hit (crash / flying)"
+  end
+  local alt = pos and math.floor((pos.y - (ok(land.getHeight, { x = pos.x, y = pos.z }) or 0)) * 3.28) or -1
+  U.log("loss %s %s (%s) near %s, %d ft AGL: %s%s", how, tostring(name), tostring(p and p.type or ok(u.getTypeName, u)),
+    tostring(near or "?"), alt, cause, (p and DCC.pilots:isRookie(p.key, RK().graceSorties)) and " [rookie]" or "")
+end
+
+local baseOps2 = B.onOpsEvent
+function B.onOpsEvent(e)
+  local ev, u = world.event, e.initiator
+  if RK().logLosses then
+    if e.id == ev.S_EVENT_HIT and e.target then
+      local tn = ok(e.target.getName, e.target)
+      if tn and B.players[tn] then
+        local w = e.weapon and (ok(e.weapon.getTypeName, e.weapon) or "?") or "gun"
+        B.lastHit[tn] = { t = timer.getTime(), weapon = w, by = (u and ok(u.getTypeName, u)) or "?" }
+      end
+    elseif (e.id == ev.S_EVENT_PILOT_DEAD or e.id == ev.S_EVENT_EJECTION or e.id == ev.S_EVENT_CRASH) and u then
+      local un = ok(u.getName, u)
+      if un and B.players[un] and not B.players[un].lossLogged then
+        B.players[un].lossLogged = true
+        local okL, errL = pcall(lossLine, u, e.id == ev.S_EVENT_EJECTION and "(ejected)" or e.id == ev.S_EVENT_CRASH and "(crashed)" or "(killed)")
+        if not okL then U.log("ERROR loss line: %s", tostring(errL)) end
+      end
+    end
+  end
+  return baseOps2(e)
+end
+
+local baseReg2 = B.registerPlayer
+function B.registerPlayer(u)
+  local p = baseReg2(u)
+  if p and p.gid and not p.ground then
+    local left = B.rookieLeft(p.key)
+    if left > 0 then
+      pcall(trigger.action.outTextForGroup, p.gid, string.format(
+        "ROOKIE: %d sortie(s) left in which dying does not ground you or cost points. Learn the ropes!", left), 15)
+    end
+    B.lastHit[p.unit] = nil
+  end
+  return p
+end
+
 local baseInit = B.init
 function B.init(war, theater, catalog)
   baseInit(war, theater, catalog)
-  B.removed, B.slotSweepAt, B.runwayKey = {}, nil, nil
+  B.removed, B.slotSweepAt, B.runwayKey, B.lastHit = {}, nil, nil, {}
 end

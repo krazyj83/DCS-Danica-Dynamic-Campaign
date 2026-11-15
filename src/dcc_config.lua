@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.68.0",
+  version         = "0.69.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -279,7 +279,7 @@ DCC.config = {
   liveStallTicks   = 6,     -- a live battle with no progress gets one dice round every 30 min
   captureRadiusKm  = 3,     -- attackers must be this close to take a node
   spawnSpreadM     = 1200,  -- garrison platoons are scattered within this radius
-  aiSkill          = "Excellent", -- v0.41: every AI unit the engine (or CTLD) spawns: "Average" (Rookie), "Good"
+  aiSkill          = "High",  -- v0.69: was "Excellent" (too hard for new players). v0.41: every AI unit the engine (or CTLD) spawns: "Average" (Rookie), "Good"
                                   --   (Trained), "High" (Veteran), "Excellent" (Ace), "Random"; nil = as spawned
   aiEcm            = "never", -- v0.42: AI aircraft jamming (ECM pods): "never", "lock" (only when locked),
                               --   "detected", "always"; nil = DCS default. Jamming strobes swamped the F-16s.
@@ -542,6 +542,13 @@ DCC.config = {
       -- they still arrive and resupply bases), and kept until convoyKm + convoyHysteresisKm
       convoyKm = 20, convoyHysteresisKm = 5,
     },
+  },
+
+  -- v0.69: new pilots (beta: many new players, high losses) -----------------------------
+  rookie = {
+    graceSorties = 10,      -- a pilot's first sorties: dying does not ground him and costs no points
+    logLosses    = true,    -- write every player loss to dcs.log with what hit him ("DCC: loss ...")
+    hitMemorySec = 120,     -- a hit this long before the loss counts as its cause
   },
 
   -- v0.58: player slots (dynamic spawns, multicrew) -------------------------------

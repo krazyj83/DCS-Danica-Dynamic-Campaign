@@ -6,6 +6,22 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.69.0 — 2026-11-15
+
+Many new players, high losses.
+
+**Changed**
+- **Softer AI:** `aiSkill` "High" (Veteran) instead of "Excellent" (Ace) — every AI the campaign spawns and the
+  mission's own AI (`make_mission.py` now reads the setting). SAMs, AAA and fighters react slower and miss more.
+
+**Added**
+- **Rookie grace period:** a pilot's first 10 sorties (`rookie.graceSorties`): dying does not ground him from jets
+  and costs no points (counted as `graceDeaths`, still in his death total). He is told at spawn how many are left.
+- **Loss log:** every player loss goes to `dcs.log` — "DCC: loss (killed) <name> (<type>) near <base>, <ft> AGL:
+  hit by <shooter> (<weapon>) Ns before" or "no hit (crash / flying)", marked `[rookie]` — so the next log shows what
+  kills the new players.
+- DCS test plan: new P-114.
+
 ## 0.68.0 — 2026-11-14
 
 Server crash, 14 November (RHINO, C-130J at Kutaisi with the runway closed).
