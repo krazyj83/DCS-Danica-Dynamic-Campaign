@@ -6,6 +6,17 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.71.0 — 2026-11-15
+
+**Added**
+- **Wind limits for dynamic weather** (`world.dynamicWeather.windLimit`: 7.7 m/s on the ground, 18 m/s at 2000 m).
+  DCS has no wind cap for dynamic weather, so a minute after start the mission measures the wind at every airbase
+  (10 m above the ground and at 2000 m) and writes the maximum to dcs.log ("DCC: wind max 6.2 m/s ground (Senaki) /
+  14.0 m/s at 2000 m (Batumi) …"). A weather version over a limit is noted in `DCC\windy.txt` by the server hook at
+  the next daily restart and skipped from then on (if every version is too windy, the next one is used anyway).
+  Hook version 0.71.
+- DCS test plan: new P-1008.
+
 ## 0.70.0 — 2026-11-15
 
 **Changed**

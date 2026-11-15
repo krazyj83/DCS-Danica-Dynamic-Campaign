@@ -1321,6 +1321,19 @@ v0.69, 15. nov: spillerne syntes vinden var for kraftig.
 v0.70.0: tryksystemerne er halvt så stærke (`pressureScale` 0,5) og vindstødene ved jorden lavere. Notér vind ved jorden
 og i 2000 m på 2-3 baser (ATC / 240.0 airfield information), helst på både højtryks- og lavtryksdage.
 
+### P-1008
+**Vindgrænser: måling og spring over blæsende vejr**
+`Status: IKKE TESTET` · Spillere: 0 (server) · Kort: alle · Siden v0.71 · Offline: test_dcs_world, test_rotation
+
+1. Start missionen og vent 1-2 minutter. Læs `dcs.log`: "DCC: wind max … m/s ground (…) / … m/s at 2000 m (…)".
+2. Hvis linjen siger "TOO WINDY": efter næste daglige genstart står filnavnet i `Saved Games\DCS\DCC\windy.txt`, og
+   den version springes over fremover.
+
+**Forvent:** Målingen passer nogenlunde med ATC / 240.0 airfield information på den nævnte base (husk: SRS siger knob,
+loggen m/s). Blæsende versioner kommer ikke igen. Slet `windy.txt` for at give dem en ny chance.
+
+Feedback:
+
 ### P-1101
 **Bogey dope og debrief**
 `Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.34 · Offline: test_ext4

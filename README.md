@@ -1048,6 +1048,7 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `air.sectorCap` / `sectorCapKm` | BLUE 0, RED 2; 40 km | AI CAPs per side over other sectors of the front, at least this far from every other CAP of that side (v0.67) |
 | `world.dynamicWeather` | on, 4 versions, 2–4 systems | DCS dynamic weather in the missions; `highChance` per map, `campaignTarget` where the campaign weather heads (v0.60); `variants` weather versions per map, one per daily restart (v0.61) |
 | `world.dynamicWeather.pressureScale` / `turbulence` | 0.5; high 0–6, low 5–18 | Strength of the pressure systems (wind grows with it; v0.70 halved it — players found the wind too strong) and ground gusts under a high / a low |
+| `world.dynamicWeather.windLimit` | ground 7.7 m/s, 2000 m 18 m/s | v0.71: a minute after start the wind is measured at every airbase and logged ("DCC: wind max …"); a weather version over a limit is skipped by the daily restart from then on (`Saved Games\DCS\DCC\windy.txt` — delete it to give them another chance). Needs the server hook |
 | `ext5.airAssault` | 3 defenders, 60 km, 60 m, 45 min | AIRASSAULT targets (weakest enemy bases within reach) and the gunship escort's height, stand-off and time (v0.49) |
 | `public.pilots` / `sorties` / `sortiesPerPilot` | 100, 20, 5 | public.json for the web map: pilots listed, latest sorties, sorties kept per pilot (v0.51) |
 | `srs.*` | 238 / 239 / 240 AM, 15 min | SRS voice: AWACS, Command and airfield-information frequencies, voices, how often airfield information plays (v0.50) |
