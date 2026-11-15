@@ -304,6 +304,25 @@ do
   frames(10)
   check("daily restart loads the next weather", SRV.loaded[#SRV.loaded] == missionsDir .. "DCC_Caucasus_wx2.miz"
     and SRV.chat[#SRV.chat]:find("new weather", 1, true), SRV.loaded[#SRV.loaded])
+  -- v0.71: a weather version measured too windy is skipped from then on
+  HK.windyFile = missionsDir .. "windy_test.txt"
+  os.remove(HK.windyFile)
+  DCC = DCC or {}
+  local realVerdict = DCC.windVerdict
+  DCC.windVerdict = function() return "windy" end
+  SRV.file = missionsDir .. "DCC_Caucasus_wx2.miz"
+  fake.day = 18
+  SRV.rt = SRV.rt + 700
+  frames(10)
+  check("v0.71: today's weather was too windy - noted in windy.txt", HK.windySet()["DCC_Caucasus_wx2.miz"] == true)
+  check("...the next restart skips it", HK.nextWeatherFile(base) == missionsDir .. "DCC_Caucasus_wx3.miz",
+    HK.nextWeatherFile(base))
+  HK.markWindy(missionsDir .. "DCC_Caucasus_wx3.miz")
+  HK.markWindy(base)
+  check("...all versions too windy: the next one anyway (never stuck)", HK.nextWeatherFile(base) == missionsDir .. "DCC_Caucasus_wx2.miz",
+    HK.nextWeatherFile(base))
+  DCC.windVerdict = realVerdict
+  os.remove(HK.windyFile)
   for _, v in ipairs({ "_wx2", "_wx3" }) do os.remove(missionsDir .. "DCC_Caucasus" .. v .. ".miz") end
   HK.clock, HK.restart.enabled = realClock, false
 end

@@ -87,6 +87,22 @@ check("a high: heads for clear skies", B.matchDynamicWeather() == "high"
 env.mission.weather = nil
 war.state.weather = { kind = "clear", since = war.state.tick }
 
+print("Wind limits (v0.71)")
+-- players: wind too strong. DCS works the dynamic wind out itself, so the mission measures it.
+MOCK.advance(DCC.config.world.dynamicWeather.windLimit.checkAfterSec + 1)
+check("measured a minute after start: 4 m/s everywhere is ok", DCC.windResult ~= nil and DCC.windVerdict() == "ok"
+  and math.abs(DCC.windResult.ground - 4) < 0.01, DCC.windResult and DCC.windResult.ground)
+local realGetWind = atmosphere.getWind
+atmosphere.getWind = function(p) if p.y >= 1500 then return { x = 0, y = 0, z = 21 } end return { x = -5, y = 0, z = 0 } end
+local r = B.windCheck()
+check("21 m/s at 2000 m is over the 18 m/s limit: too windy", r.windy and DCC.windVerdict() == "windy"
+  and math.abs(r.at2000 - 21) < 0.01 and math.abs(r.ground - 5) < 0.01, r.at2000)
+atmosphere.getWind = function(p) return { x = 8, y = 0, z = 0 } end
+check("8 m/s on the ground is over 7.7: too windy", B.windCheck().windy)
+atmosphere.getWind = realGetWind
+B.windCheck()
+check("back to 4 m/s: ok", DCC.windVerdict() == "ok")
+
 print("Storm grounds AI attack sorties")
 local kp = B.nodePos.kutaisi
 local viper, vg = MOCK.spawnPlayer(BLUE, "F-16C_50", kp.x, kp.z, "[VKG] Morten")

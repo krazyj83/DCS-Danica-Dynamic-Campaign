@@ -44,10 +44,11 @@
 -- ============================================================================
 
 local DCCR = {
-  version      = "0.61",
+  version      = "0.71",
   missionsDir  = lfs.writedir() .. "Missions\\DCC\\",
   stateFile    = lfs.writedir() .. "DCC\\rotation.json",
   adminFile    = lfs.writedir() .. "DCC\\admins.txt",   -- optional UCID list
+  windyFile    = lfs.writedir() .. "DCC\\windy.txt",    -- v0.71: weather versions measured too windy (one per line)
   adminSlot    = "instructor",  -- DCS slot id of a Game Master starts with this
   weatherVariantsMax = 9,       -- v0.61: DCC_<map>_wx2 .. _wx9 are looked for at the daily restart
   reloadDelay  = 15,            -- s between "-dcc restart" / "freshwar" and the reload
@@ -215,7 +216,33 @@ end
 
 -- v0.61: the weather versions of a map (make_mission.py builds DCC_<map>.miz, DCC_<map>_wx2.miz ...): the
 -- daily restart loads the next one that exists, so the sky changes every day. Other files: the same file.
+-- v0.71: weather versions the mission measured over its wind limits (DCC.windVerdict), by file name.
+local function baseName(path) return (tostring(path):match("[^\\/]+$")) end
+
+function DCCR.windySet()
+  local set = {}
+  local f = io.open(DCCR.windyFile, "r")
+  if f then
+    for line in f:lines() do
+      line = line:gsub("^%s+", ""):gsub("%s+$", "")
+      if line ~= "" then set[line] = true end
+    end
+    f:close()
+  end
+  return set
+end
+
+function DCCR.markWindy(file)
+  local set = DCCR.windySet()
+  local name = baseName(file)
+  if not name or set[name] then return false end
+  local f = io.open(DCCR.windyFile, "a")
+  if f then f:write(name .. "\n"); f:close() end
+  return true
+end
+
 function DCCR.nextWeatherFile(file)
+  local windy = DCCR.windySet()
   local base, n = file:match("^(.-DCC_%w+)_wx(%d+)%.miz$")
   n = tonumber(n)
   if not base then
@@ -224,12 +251,17 @@ function DCCR.nextWeatherFile(file)
   end
   if not base then return file end
   local function variant(i) return i == 1 and (base .. ".miz") or string.format("%s_wx%d.miz", base, i) end
+  -- the next version that is not too windy; if every other one is, the next one anyway
+  local first
   for step = 1, DCCR.weatherVariantsMax do
     local i = (n - 1 + step) % DCCR.weatherVariantsMax + 1
     if i == n then break end
-    if fileExists(variant(i)) then return variant(i) end
+    if fileExists(variant(i)) then
+      first = first or variant(i)
+      if not windy[baseName(variant(i))] then return variant(i) end
+    end
   end
-  return file
+  return first or file
 end
 
 function DCCR.dailyRestart(now)
@@ -250,6 +282,11 @@ function DCCR.dailyRestart(now)
     pcall(net.dostring_in, "server", "if DCC and DCC.save then DCC.save() end")
     local okF, file = pcall(DCS.getMissionFilename)
     if okF and file then
+      -- v0.71: was today's weather over the wind limits? Then it is not used again.
+      local okW, verdict = pcall(net.dostring_in, "server", "return (DCC and DCC.windVerdict) and DCC.windVerdict() or ''")
+      if okW and verdict == "windy" and DCCR.markWindy(file) then
+        say("weather version " .. tostring(baseName(file)) .. " was too windy - skipped from now on (DCC\\windy.txt)")
+      end
       local nextFile = DCCR.nextWeatherFile(file)
       say("daily restart: loading " .. nextFile .. (nextFile ~= file and " (next weather)" or ""))
       pcall(net.send_chat, "[DCC] Daily restart now" .. (nextFile ~= file and " - new weather." or "."), true)

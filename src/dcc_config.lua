@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.70.0",
+  version         = "0.71.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -230,6 +230,10 @@ DCC.config = {
       -- ground (DCS turbulence units) under a high and under a low (was 0-12 and 20-50)
       pressureScale = 0.5,
       turbulence = { high = { 0, 6 }, low = { 5, 18 } },
+      -- v0.71: wind limits (m/s). checkAfterSec after mission start the wind is measured at every airbase (10 m
+      -- above the ground and at 2000 m) and written to dcs.log; a weather version over either limit is skipped by
+      -- the server hook's daily restart from then on (Saved Games\DCS\DCC\windy.txt; delete it to try them again)
+      windLimit = { ground = 7.7, at2000 = 18, checkAfterSec = 60 },
     },
   },
   jtac = { laserCode = 1688, searchKm = 6, standoffKm = 4 },

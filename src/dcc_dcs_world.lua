@@ -476,10 +476,60 @@ function B.matchDynamicWeather()
   return high and "high" or "low"
 end
 
+-- v0.71: how windy this mission really is - DCS works the dynamic weather's wind out itself, so it is measured at
+-- every airbase (10 m above the ground and at 2000 m). Over world.dynamicWeather.windLimit = a windy weather
+-- version: DCC.windVerdict() tells the server hook, which skips it at later daily restarts.
+DCC.windResult = nil
+local function windAt(p)
+  local w = atmosphere and atmosphere.getWind and select(2, pcall(atmosphere.getWind, p))
+  if type(w) ~= "table" then return nil end
+  return math.sqrt((w.x or 0) ^ 2 + (w.z or 0) ^ 2)
+end
+
+function B.windCheck()
+  local lim = DCC.config.world.dynamicWeather and DCC.config.world.dynamicWeather.windLimit
+  if not lim then return nil end
+  local war = B.war
+  local r = { ground = 0, at2000 = 0 }
+  for id in pairs(B.airbases or {}) do
+    local p = B.nodePos[id]
+    if p then
+      local h = (land and land.getHeight and select(2, pcall(land.getHeight, { x = p.x, y = p.z }))) or 0
+      if type(h) ~= "number" then h = 0 end
+      local g = windAt({ x = p.x, y = h + 10, z = p.z })
+      local a = windAt({ x = p.x, y = math.max(2000, h + 300), z = p.z })
+      if g and g > r.ground then r.ground, r.groundAt = g, id end
+      if a and a > r.at2000 then r.at2000, r.at2000At = a, id end
+    end
+  end
+  r.windy = r.ground > lim.ground or r.at2000 > lim.at2000
+  DCC.windResult = r
+  U.log("wind max %.1f m/s ground (%s) / %.1f m/s at 2000 m (%s); limits %.1f / %.1f - %s", r.ground,
+    tostring(r.groundAt and war:nodeName(r.groundAt) or "-"), r.at2000,
+    tostring(r.at2000At and war:nodeName(r.at2000At) or "-"), lim.ground, lim.at2000,
+    r.windy and "TOO WINDY: the daily restart skips this weather version from now on" or "ok")
+  return r
+end
+
+-- For the server hook: "windy", "ok", or "" (not measured yet).
+function DCC.windVerdict()
+  local r = DCC.windResult
+  if not r then return "" end
+  return r.windy and "windy" or "ok"
+end
+
 local baseInit = B.init
 function B.init(war, theater, catalog)
   baseInit(war, theater, catalog)
   B.escorts, B.farps, B.naval, B.fogNow = {}, {}, {}, nil
+  DCC.windResult = nil
+  local lim = DCC.config.world.dynamicWeather and DCC.config.world.dynamicWeather.windLimit
+  if lim and timer and timer.scheduleFunction then
+    timer.scheduleFunction(function()
+      local s, err = pcall(B.windCheck)
+      if not s then U.log("ERROR wind check: %s", tostring(err)) end
+    end, nil, timer.getTime() + (lim.checkAfterSec or 60))
+  end
   B.updateNight()
   B.initNaval()
   local s, err = pcall(B.matchDynamicWeather)
