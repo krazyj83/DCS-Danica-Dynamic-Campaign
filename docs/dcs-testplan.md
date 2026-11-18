@@ -1347,16 +1347,15 @@ v0.60: med dynamisk vejr (standard) kommer vinden fra tryksystemerne og ændrer 
 regn (*Campaign status*); et højtryk klart vejr. Alle spillere ser samme vejr (notér, hvis to spillere ser forskellig
 vind eller skyer).
 
-Feedback:
-
-## P-1100 · Nyt i v0.34
-v0.69, 15. nov: spillerne syntes vinden var for kraftig.
+Feedback: v0.69, 15. nov: spillerne syntes vinden var for kraftig.
 v0.70.0: tryksystemerne er halvt så stærke (`pressureScale` 0,5) og vindstødene ved jorden lavere. Notér vind ved jorden
 og i 2000 m på 2-3 baser (ATC / 240.0 airfield information), helst på både højtryks- og lavtryksdage.
+v0.73.0: tryksystemerne er svagere endnu (`pressureScale` 0,3, var 0,5), så vinden er ca. 40 % svagere. Notér igen vind
+ved jorden og i 2000 m.
 
 ### P-1008
 **Vindgrænser: måling og spring over blæsende vejr**
-`Status: IKKE TESTET` · Spillere: 0 (server) · Kort: alle · Siden v0.71 · Offline: test_dcs_world, test_rotation
+`Status: RETEST` · Spillere: 0 (server) · Kort: alle · Siden v0.71 · Offline: test_dcs_world, test_rotation
 
 1. Start missionen og vent 1-2 minutter. Læs `dcs.log`: "DCC: wind max … m/s ground (…) / … m/s at 2000 m (…)".
 2. Hvis linjen siger "TOO WINDY": efter næste daglige genstart står filnavnet i `Saved Games\DCS\DCC\windy.txt`, og
@@ -1365,7 +1364,12 @@ og i 2000 m på 2-3 baser (ATC / 240.0 airfield information), helst på både h�
 **Forvent:** Målingen passer nogenlunde med ATC / 240.0 airfield information på den nævnte base (husk: SRS siger knob,
 loggen m/s). Blæsende versioner kommer ikke igen. Slet `windy.txt` for at give dem en ny chance.
 
-Feedback:
+Feedback: v0.72, 18. nov: spillerne syntes stadig, vinden var lidt for kraftig (loggen 17. nov: 6,2 m/s ved
+jorden / 11,7 m/s i 2000 m, Kutaisi).
+v0.73.0: grænserne er sat 40 % ned til 4,6 m/s ved jorden og 10,8 m/s i 2000 m. Tjek at linjen nu siger "TOO WINDY" ved
+samme slags vejr, og at `windy.txt` fyldes (kræver server-hooket).
+
+## P-1100 · Nyt i v0.34
 
 ### P-1101
 **Bogey dope og debrief**

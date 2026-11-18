@@ -6,6 +6,17 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.73.0 — 2026-11-18
+
+**Changed**
+- **Wind limits 40 % lower** (players: still too windy): `world.dynamicWeather.windLimit` ground 4.6 m/s (was 7.7),
+  2000 m 10.8 m/s (was 18). The 17 Nov evening (6.2 / 11.7 m/s at Kutaisi) now counts as too windy, so the daily
+  restart skips that weather version. Needs the server hook.
+- **Calmer wind in every weather version**: the dynamic weather's pressure systems are weaker
+  (`world.dynamicWeather.pressureScale` 0.3, was 0.5), so the wind is roughly 40 % lighter even without the hook,
+  and fewer versions end up over the limits.
+- DCS test plan: P-1007 and P-1008 to RETEST.
+
 ## 0.72.0 — 2026-11-18
 
 **Changed**
