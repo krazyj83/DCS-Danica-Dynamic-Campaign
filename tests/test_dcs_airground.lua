@@ -29,6 +29,8 @@ for _, f in ipairs({ "dcc_persist", "dcc_dcs", "dcc_dcs_supply", "dcc_dcs_ops", 
 end
 
 local errors = 0
+local pdShareRed = DCC.config.ext.samPdShare.red
+DCC.config.ext.samPdShare.red = 1   -- every site with its point defence here (v0.72: the share has its own test)
 DCC.util.log = function(fmt, ...)
   local msg = string.format(fmt, ...)
   if msg:find("ERROR") then errors = errors + 1; print("    " .. msg) end

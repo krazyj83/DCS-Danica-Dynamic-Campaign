@@ -55,6 +55,23 @@ check("22:00 is night", war:isNight())
 check("night shortens eyes", B.visualFactor(false) == DCC.config.world.nightVisual)
 MOCK.absBase = 43200
 B.updateNight()
+check("v0.72: campaign fog off by default", DCC.config.world.fogMode == "off")
+war.state.weather = { kind = "storm", since = war.state.tick }
+B.applyWeather()
+check("v0.72: fog off - a storm sets no fog", MOCK.fog and MOCK.fog.visibility == 0 and MOCK.fog.thickness == 0)
+DCC.config.world.fogMode = "thin"
+B.fogNow = nil
+local animThin
+world.weather.setFogAnimation = function(a) animThin = a end
+B.applyWeather()
+check("v0.72: thin fog - a storm stays thin and see-through", MOCK.fog.visibility >= DCC.config.world.fogThin.minVis
+  and MOCK.fog.thickness <= DCC.config.world.fogThin.maxThick and MOCK.fog.thickness > 0, MOCK.fog.visibility)
+war.state.weather = { kind = "rain", sev = 0.66 }
+B.applyWeather()
+check("...and is set, not animated", animThin == nil)
+world.weather.setFogAnimation = nil
+DCC.config.world.fogMode = "full"
+B.fogNow = nil
 war.state.weather = { kind = "storm", since = war.state.tick }
 B.applyWeather()
 check("storm shown as fog", MOCK.fog and MOCK.fog.visibility == DCC.config.world.fog.storm[1])
@@ -71,6 +88,7 @@ war.state.weather = { kind = "overcast", sev = 0.3 }
 B.applyWeather()
 check("...and lifts again", anim[1][2] == 0)
 world.weather.setFogAnimation = nil
+DCC.config.world.fogMode = "off"
 war.state.weather = { kind = "clear", since = war.state.tick }
 B.applyWeather()
 check("weather in the status", table.concat(B.opsStatusLines("blue"), " "):find("Weather: clear skies", 1, true) ~= nil)

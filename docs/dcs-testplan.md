@@ -92,6 +92,7 @@ Kør disse efter hver ny version. De rører de vigtigste dele af motoren.
 | [P-110](#p-110) | Dynamic spawn på HQ: synlig og med missioner (v0.58) |
 | [P-113](#p-113) | Våbenlager pr. base (v0.59) |
 | [P-114](#p-114) | Rookie-periode og loss-log (v0.69) |
+| [P-413](#p-413) | SA-11 kan rammes (v0.72) |
 
 ---
 
@@ -825,13 +826,14 @@ Feedback:
 
 ### P-403
 **HARM gør SAM'en mørk**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.4 · Offline: test_dcs_intel
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.4 · Offline: test_dcs_intel
 
 1. Skyd en HARM mod en tændt SAM-radar.
 
 **Forvent:** Radaren slukker i 1–2 minutter.
 
 Feedback:
+v0.72.0: en HARM får ikke længere SAM'en til at køre væk (`ext.samScootOnHarm = false`); den bliver kun mørk.
 
 ### P-404
 **AI-par flyver**
@@ -930,6 +932,35 @@ nærmest BLUE-spillerne. Skydes det ned eller flyver hjem, kommer et nyt (så l�
 Feedback: v0.65, 14. nov: spillerne savnede RED CAP.
 v0.67.0: plus 2 RED jagerpar over andre dele af fronten (mindst 40 km fra al anden RED CAP). Tjek F10/AWACS: RED CAP
 flere steder langs fronten.
+
+### P-413
+**SA-11 kan rammes: Tor kun ved hver tredje, sjældnere shoot and scoot**
+`Status: IKKE TESTET` · Spillere: 1-2 (BLUE SEAD/DEAD) · Kort: alle · Siden v0.72 · Offline: test_ext
+
+1. Find 2-3 RED SA-11-stillinger (F10-kortet / SEAD-missioner). Se med TGP / F10, om der står en Tor (SA-15) ved dem.
+2. Angrib en stilling uden Tor med HARM og derefter bomber / Mavericks.
+3. Lad en stilling skyde 1-2 missiler mod dig, og se om den bliver stående.
+
+**Forvent:** Kun omkring hver tredje SA-11 har en Tor, og det er de samme stillinger efter en genstart. En HARM gør
+radaren mørk, men stillingen kører ikke væk. En stilling flytter sig først efter 3 affyrede missiler, og højst hver
+30. minut (`dcs.log`: "DCC: SAM site at … relocating … km").
+
+Feedback: v0.71, 17. nov: holdet meldte SA-11/15 umulige at ramme (Tor ved hver SA-11, flytning efter hvert skud og
+hver HARM; Gudauta flyttede 7 gange på en aften).
+
+### P-414
+**Kyst-SAM kører ikke i vandet**
+`Status: IKKE TESTET` · Spillere: 1 · Kort: Caucasus (Gudauta, Sukhumi) · Siden v0.72 · Offline: test_ext
+
+1. Få SAM'en ved Gudauta eller en anden kystbase til at flytte sig (3 missiler, se P-413).
+2. Se på F10-kortet / med TGP, hvor den kører hen.
+
+**Forvent:** Den nye plads er altid på land, ikke på en landingsbane. Efter næste genstart skriver `dcs.log` ikke
+"DCC_SAM_gudauta: … units moved out of the water".
+
+Feedback: v0.71, 17. nov: mål stod stadig i vandet. Loggen viste SAM'en ved Gudauta kørt ud i vandet (shoot and scoot
+valgte en tilfældig retning).
+Rettet i v0.72.0: den nye plads vælges altid på tørt land.
 
 ## P-500 · Fog of war og efterretning
 
@@ -1240,13 +1271,15 @@ Rettet i v0.43.0: BLUE-koalitionen havde ikke USA, så DCS gav ingen GPS. USA er
 
 ### P-1001
 **Storm og tåge**
-`Status: IKKE TESTET` · Spillere: 1 · Kort: alle · Siden v0.22 · Offline: test_ops, test_dcs_world
+`Status: RETEST` · Spillere: 1 · Kort: alle · Siden v0.22 · Offline: test_ops, test_dcs_world
 
 1. Når *Campaign status* siger storm: se ud.
 
-**Forvent:** Tågen lukker ind (DCS 2.9.10+). Ingen helikoptermissioner. Varsler fra *"Met office"* før skiftet.
+**Forvent:** Ingen tåge (v0.72: `world.fogMode = "off"`). Ingen helikoptermissioner. Varsler fra *"Met office"* før
+skiftet. Med `fogMode = "thin"`: et tyndt lag (højst 150 m, sigt mindst 4 km), der sættes uden at rulle ind.
 
-Feedback:
+Feedback: v0.71, 17. nov: tågen dræbte FPS for spillerne.
+v0.72.0: kampagnens tåge er slået fra som standard. Notér FPS i regn og storm sammenlignet med før.
 
 ### P-1002
 **Lysgranater over slag om natten**

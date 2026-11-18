@@ -1,4 +1,4 @@
--- Danica Dynamic Campaign bundle 0.71.0 (generated - edit the sources, not this file)
+-- Danica Dynamic Campaign bundle 0.72.0 (generated - edit the sources, not this file)
 
 -- >>> src/dcc_config.lua
 do
@@ -12,7 +12,7 @@ do
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.71.0",
+  version         = "0.72.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -181,6 +181,9 @@ DCC.config = {
     nightStartHour = 20,  nightEndHour = 6,             -- mission clock
     fog            = { rain = { 4000, 400 }, storm = { 1500, 900 } },  -- DCS fog: visibility m, thickness m
     fogFromSev     = 0.45,    -- fog starts this far toward rain (light haze, 10 km), thickens from there
+    fogMode        = "off",   -- v0.72: "off" (no DCS fog; weather still slows columns and shortens eyes), "thin"
+                              --   (fogThin limits, no rolling in/out) or "full" (the fog above) - fog costs players frames
+    fogThin        = { minVis = 4000, maxThick = 150 },  -- "thin": visibility never below, layer never thicker (m)
     escortThreat   = 2,       -- road threat that gets convoys an air-defence escort
     rerouteThreat  = 2,       -- ...and makes the AI prefer another road
     reroutePenalty = 400,     -- (planning cost per threat point; one step nearer the front = 1000)
@@ -352,7 +355,11 @@ DCC.config = {
                { "rbk_500", 1100 }, { "fab_250", 550 }, { "rbk_250", 550 }, { "ofab", 250 }, { "fab_100", 220 },
                { "ls_6", 1100 }, { "gb_6", 1100 }, { "lb_", 500 } },
     bombLbDefault = 500,
-    samMoveKm = { 1.5, 4 }, samMoveCooldown = 900,            -- shoot and scoot (seconds between moves)
+    samMoveKm = { 1.5, 4 }, samMoveCooldown = 1800,           -- shoot and scoot (seconds between moves; v0.72: was 900)
+    samScootShots = 3,           -- v0.72: a site (or its point defence) moves after this many missiles fired, not after each
+    samScootOnHarm = false,      -- v0.72: a HARM at a site makes it go dark (intel.harmDarkSeconds) but no longer drive off
+    samPdShare = { blue = 1, red = 0.34 },  -- v0.72: share of SAM sites with point defence (RED's Tor shoots down HARMs
+                                            --   and bombs: at every SA-11 site it was too much) - spread evenly over the map
     aiCrewChance = 0.7,          -- share of AI crews that eject alive
     support = {
       artySU = 10, artyRangeKm = 35, artyRounds = 6, artyCooldownMin = 10,   -- v0.57: 6 rounds (was 12)
@@ -7464,6 +7471,7 @@ local function isRunway(x, z, m)
   return false
 end
 B.isRunway = isRunway
+B.isWater = isWater
 
 -- The nearest good spot: dry land, and (avoidRunway) clear of runways and aprons.
 -- v0.65: remembered per spot, so a site whose spot is bad (Senaki's SAM on a runway, beta 13 Nov: moved 6 times an
@@ -10484,12 +10492,19 @@ end
 function B.applyWeather()
   local wx = world and world.weather
   if not wx or not wx.setFogVisibilityDistance then return end   -- older DCS: nothing to do
-  local vis, thick = B.fogAt(B.war:weatherSeverity())
+  -- v0.72: fog costs players a lot of frames (beta 17 Nov) - off by default, or thin and without rolling in/out
+  local mode = WC().fogMode or "full"
+  local vis, thick = 0, 0
+  if mode ~= "off" then vis, thick = B.fogAt(B.war:weatherSeverity()) end
+  if mode == "thin" and vis > 0 then
+    local t = WC().fogThin or {}
+    vis, thick = math.max(vis, t.minVis or 4000), math.min(thick, t.maxThick or 150)
+  end
   vis, thick = math.floor(vis + 0.5), math.floor(thick + 0.5)
   local last = B.fogNow
   if last and last.vis == vis and last.thick == thick then return end
   B.fogNow = { vis = vis, thick = thick }
-  if wx.setFogAnimation and last then
+  if wx.setFogAnimation and last and mode == "full" then
     -- one key after the tick: DCS eases from the fog as it is now (0 = no fog)
     local okA = pcall(wx.setFogAnimation, { { DCC.config.tickSeconds, vis, thick } })
     if okA then return end
@@ -11603,12 +11618,28 @@ function B.cued(side, u)
   return false
 end
 
+-- v0.72: does this site get its point defence? Only samPdShare of a side's sites do (RED's Tor shoots down HARMs
+-- and bombs; at every SA-11 site the team found them impossible to hit, beta 17 Nov). The sites are picked evenly
+-- in the map's node order, so the choice is the same on every restart and does not change with the owner.
+function B.samHasPd(id, side)
+  local share = ((DCC.config.ext or {}).samPdShare or {})[side]
+  if share == nil or share >= 1 then return true end
+  if share <= 0 then return false end
+  local i = 0
+  for _, nid in ipairs(B.war.T.order) do
+    if B.war.state.nodes[nid].sam then i = i + 1 end
+    if nid == id then break end
+  end
+  return math.floor(i * share) ~= math.floor((i - 1) * share)
+end
+
 local baseSpawnSam = B.spawnSam
 function B.spawnSam(id)
   baseSpawnSam(id)
   local rec = B.sams[id]
   local spec = B.catalog.sam and B.catalog.sam[rec and rec.side or ""]
   if not rec or not spec or not spec.pointDefence then return end
+  if not B.samHasPd(id, rec.side) then return end
   local c = B.nodePos[id]
   local off = B.war.state.nodes[id].sam and B.war.state.nodes[id].sam.pdOff
   if off then c = { x = c.x + off.dx, z = c.z + off.dz } end
@@ -13402,10 +13433,19 @@ function B.relocateSam(id, which)
   if not g or not ok(g.isExist, g) then return false end
   B.ext.moved[k] = now
   local lo, hi = XC().samMoveKm[1], XC().samMoveKm[2]
-  local ang = war.rng:next() * 2 * math.pi
-  local r = (lo + (hi - lo) * war.rng:next()) * 1000
-  local dx, dz = math.cos(ang) * r, math.sin(ang) * r
   local c = B.nodePos[id]
+  -- v0.72: a spot on dry land, clear of runways. A random direction put coastal sites (Gudauta) in the sea, where
+  -- they sat in the surf, out of reach of bombs aimed at the shore (beta 17 Nov: "targets still spawn in water").
+  local dx, dz
+  for _ = 1, 12 do
+    local ang = war.rng:next() * 2 * math.pi
+    local r = (lo + (hi - lo) * war.rng:next()) * 1000
+    dx, dz = math.cos(ang) * r, math.sin(ang) * r
+    local x, z = c.x + dx, c.z + dz
+    if not B.isWater(x, z) and not B.isRunway(x, z, DCC.config.runwayClearM or 60) then break end
+    local lx, lz = B.landNear(x, z, true)
+    dx, dz = lx - c.x, lz - c.z
+  end
   local u1 = ok(function() return g:getUnits()[1] end)
   local from = u1 and ok(u1.getPoint, u1) or c
   local route = { id = "Mission", params = { route = { points = {
@@ -13414,7 +13454,7 @@ function B.relocateSam(id, which)
   local ctl = ok(g.getController, g)
   if ctl then ok(ctl.setTask, ctl, route) end
   war:samMoved(id, dx, dz, which)
-  U.log("SAM %s at %s relocating %.1f km", which, id, r / 1000)
+  U.log("SAM %s at %s relocating %.1f km", which, id, math.sqrt(dx * dx + dz * dz) / 1000)
   return true
 end
 
@@ -13774,17 +13814,25 @@ function B.onShot(e)
   if sname then
     local pd = sname:match("^DCC_SAMPD_(.-)_%d+$")
     local site = sname:match("^DCC_SAM_(.-)_[rls]%d+$")
+    -- v0.72: only after samScootShots missiles (each shot counted once the cooldown allows a move)
+    local function scoot(id, which, delay)
+      local k = id .. ":" .. which
+      B.ext.shots = B.ext.shots or {}
+      B.ext.shots[k] = (B.ext.shots[k] or 0) + 1
+      if B.ext.shots[k] < (XC().samScootShots or 1) then return end
+      timer.scheduleFunction(function()
+        if ok(B.relocateSam, id, which) then B.ext.shots[k] = 0 end
+      end, nil, timer.getTime() + delay)
+    end
     if pd then
-      timer.scheduleFunction(function() ok(B.relocateSam, pd, "pd") end, nil, timer.getTime() + 20)
+      scoot(pd, "pd", 20)
     elseif site then
       local spec = B.catalog.sam and B.catalog.sam[B.war.state.nodes[site].side]
-      if spec and spec.mobile then
-        timer.scheduleFunction(function() ok(B.relocateSam, site, "site") end, nil, timer.getTime() + 30)
-      end
+      if spec and spec.mobile then scoot(site, "site", 30) end
     end
   end
-  -- a HARM at a site: mobile sites and its point defence scoot
-  if d and d.guidance == G_RADAR_P then
+  -- a HARM at a site: mobile sites and its point defence scoot (v0.72: off by default - the site goes dark instead)
+  if d and d.guidance == G_RADAR_P and XC().samScootOnHarm then
     local tgt = ok(w.getTarget, w)
     local tname = tgt and ok(tgt.getName, tgt)
     tname = tname and tostring(tname)

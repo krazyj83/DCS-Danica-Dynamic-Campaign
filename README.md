@@ -191,7 +191,7 @@ Points in the report are those scored in that war only.
 | **Forward CAP** | The AI covers its own base the enemy is massing against. | — |
 | **Extra CAP** (v0.66) | RED keeps one more fighter pair on CAP over its front-line base nearest the BLUE players (`air.extraCap`, per side; BLUE 0). It draws on RED's fighter pool like every AI sortie. | **CAP** / **SWEEP** |
 | **Sector CAP** (v0.67) | Two more RED fighter pairs on CAP over front-line bases in other sectors — each at least 40 km from every other RED CAP, as far apart as the front allows (`air.sectorCap`, `air.sectorCapKm`). A short front may have room for only one. | **CAP** / **SWEEP** |
-| **Layered air defence** | A SAM site only lights up at 60 km when its side's early-warning radar or AWACS is tracking you; on its own it waits until 25 km. Every site has point defence (Avenger / Tor) that stays on when the main radar goes dark. Kill the EWRs first. | EWR, SEAD |
+| **Layered air defence** | A SAM site only lights up at 60 km when its side's early-warning radar or AWACS is tracking you; on its own it waits until 25 km. Every BLUE site and about a third of RED's have point defence (Avenger / Tor) that stays on when the main radar goes dark (v0.72: the Tor shoots down HARMs and bombs, so not at every SA-11). Kill the EWRs first. | EWR, SEAD |
 | **Credit on landing** | Mission points are logged when you land at a friendly base or your carrier. Die or eject on the way home and they are lost (the damage to the enemy still counts). | — |
 | **Cooldown** | Two deaths within an hour ground a pilot from fast jets for 15 min. Helicopters are always allowed. | — |
 | **Rookies** (v0.69) | A pilot's first 10 sorties are a grace period: dying neither grounds him nor costs points, and he is told so when he spawns. Every player loss is written to `dcs.log` with what hit him ("DCC: loss … hit by SA-18 Igla manpad …"), so you can see what kills the new players. | — |
@@ -375,9 +375,11 @@ trend in Campaign status. Every effect follows the weather smoothly:
 | Rain | 80 % speed | slower | 60 % | yes | yes |
 | Storm | 60 % speed | slower | 40 % | **none offered** | **grounded** |
 
-In DCS the weather shows as **fog** that rolls in and lifts over each 5-minute step (light haze before rain,
-4 km in rain, 1.5 km in a storm; DCS 2.9.10+). Clouds and rain themselves cannot be changed by a script while a
-mission runs.
+**Fog is off by default (v0.72)** — DCS fog costs players a lot of frames. `world.fogMode = "thin"` gives a thin
+layer (never thicker than 150 m, visibility never below 4 km, set without rolling in); `"full"` the old fog that
+rolls in and lifts over each 5-minute step (light haze before rain, 4 km in rain, 1.5 km in a storm; DCS 2.9.10+).
+Weather still slows columns and shortens eyes with the fog off. Clouds and rain themselves cannot be changed by a
+script while a mission runs.
 
 **DCS dynamic weather (v0.60).** Every built mission uses the Mission Editor's *dynamic* weather: 2–4 pressure
 systems over and around the map that move while the mission runs, so wind, QNH, cloud and rain change across the
@@ -522,9 +524,10 @@ at FARPs since v0.46 (`ext.ranks.farp`, was Lieutenant Colonel).
 
 ## More air war
 
-* **Shoot and scoot** — point defence (Avenger, Tor) drives 1.5–4 km to a new spot after it fires or a
-  HARM comes in; the SA-11 site does too (the Hawk is fixed). The enemy's fix on it goes stale by that
-  distance, and the site respawns where it went.
+* **Shoot and scoot** — point defence (Avenger, Tor) drives 1.5–4 km to a new spot after it has fired 3
+  missiles; the SA-11 site does too (the Hawk is fixed). At most once every 30 minutes, always to dry land
+  (v0.72: coastal sites drove into the sea), and a HARM only makes the site go dark, it no longer drives off
+  (`ext.samScootOnHarm`). The enemy's fix on it goes stale by that distance, and the site respawns where it went.
 * **AI aircrews** eject (70 %): CSAR for their side — rescued, the aircraft goes back into the AI pool —
   and **SNATCH** for the other. Enemy player pilots can be snatched too (they get a "captured").
 * **Pop-up threats, SCUDs, HVA hunts and aces** — see the [Air war](#air-war) and [Ground war](#ground-war) tables.
@@ -1047,6 +1050,9 @@ Every number is in `src/dcc_config.lua` with a comment. The ones that matter mos
 | `air.extraCap` | BLUE 0, RED 1 | Extra AI CAPs per side over the front-line base nearest the enemy players (v0.66) |
 | `air.sectorCap` / `sectorCapKm` | BLUE 0, RED 2; 40 km | AI CAPs per side over other sectors of the front, at least this far from every other CAP of that side (v0.67) |
 | `world.dynamicWeather` | on, 4 versions, 2–4 systems | DCS dynamic weather in the missions; `highChance` per map, `campaignTarget` where the campaign weather heads (v0.60); `variants` weather versions per map, one per daily restart (v0.61) |
+| `world.fogMode` / `fogThin` | "off"; 4 km, 150 m | Campaign fog: off, thin (visibility never below / layer never thicker) or full (v0.72: fog cost players frames) |
+| `ext.samScootShots` / `samMoveCooldown` / `samScootOnHarm` | 3, 1800 s, false | Shoot and scoot: missiles fired before a site moves, seconds between moves, whether a HARM makes it move (v0.72) |
+| `ext.samPdShare` | BLUE 1, RED 0.34 | Share of SAM sites with point defence (Tor / Avenger), picked evenly over the map (v0.72) |
 | `world.dynamicWeather.pressureScale` / `turbulence` | 0.5; high 0–6, low 5–18 | Strength of the pressure systems (wind grows with it; v0.70 halved it — players found the wind too strong) and ground gusts under a high / a low |
 | `world.dynamicWeather.windLimit` | ground 7.7 m/s, 2000 m 18 m/s | v0.71: a minute after start the wind is measured at every airbase and logged ("DCC: wind max …"); a weather version over a limit is skipped by the daily restart from then on (`Saved Games\DCS\DCC\windy.txt` — delete it to give them another chance). Needs the server hook |
 | `ext5.airAssault` | 3 defenders, 60 km, 60 m, 45 min | AIRASSAULT targets (weakest enemy bases within reach) and the gunship escort's height, stand-off and time (v0.49) |
