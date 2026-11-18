@@ -113,10 +113,15 @@ check("measured a minute after start: 4 m/s everywhere is ok", DCC.windResult ~=
 local realGetWind = atmosphere.getWind
 atmosphere.getWind = function(p) if p.y >= 1500 then return { x = 0, y = 0, z = 21 } end return { x = -5, y = 0, z = 0 } end
 local r = B.windCheck()
-check("21 m/s at 2000 m is over the 18 m/s limit: too windy", r.windy and DCC.windVerdict() == "windy"
+check("21 m/s at 2000 m is over the limit: too windy", r.windy and DCC.windVerdict() == "windy"
   and math.abs(r.at2000 - 21) < 0.01 and math.abs(r.ground - 5) < 0.01, r.at2000)
 atmosphere.getWind = function(p) return { x = 8, y = 0, z = 0 } end
-check("8 m/s on the ground is over 7.7: too windy", B.windCheck().windy)
+check("8 m/s on the ground is over the limit: too windy", B.windCheck().windy)
+-- v0.73: limits 40 % lower; the 17 Nov evening (6.2 m/s ground / 11.7 m/s at 2000 m at Kutaisi) now counts as windy
+check("v0.73: limits 4.6 / 10.8 m/s", DCC.config.world.dynamicWeather.windLimit.ground == 4.6
+  and DCC.config.world.dynamicWeather.windLimit.at2000 == 10.8)
+atmosphere.getWind = function(p) if p.y >= 1500 then return { x = 11.7, y = 0, z = 0 } end return { x = 6.2, y = 0, z = 0 } end
+check("v0.73: 6.2 / 11.7 m/s (players found it too windy) is over the limits", B.windCheck().windy)
 atmosphere.getWind = realGetWind
 B.windCheck()
 check("back to 4 m/s: ok", DCC.windVerdict() == "ok")
