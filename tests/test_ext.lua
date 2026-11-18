@@ -198,6 +198,8 @@ for _, f in ipairs({ "dcc_persist", "dcc_dcs", "dcc_dcs_supply", "dcc_dcs_ops", 
   dofile(DCC_ROOT .. "/src/" .. f .. ".lua")
 end
 local errors = 0
+local pdShareRed = DCC.config.ext.samPdShare.red
+DCC.config.ext.samPdShare.red = 1   -- every site with its point defence here (v0.72: the share has its own test)
 DCC.util.log = function(fmt, ...)
   local msg = string.format(fmt, ...)
   if msg:find("ERROR") then errors = errors + 1; print("    " .. msg) end
@@ -294,14 +296,66 @@ B.scanSams()
 local rec = B.sams[samNode2]
 check("SAM site and its point defence on the map", rec and rec.pd and MOCK.groups[rec.pd] ~= nil)
 local pdUnit = MOCK.groups[rec.pd].units[1]
-MOCK.fire({ id = world.event.S_EVENT_SHOT, initiator = pdUnit, weapon = MOCK.weapon(2, hog) })
+local function shots(unit, n, wtype)
+  for _ = 1, n do MOCK.fire({ id = world.event.S_EVENT_SHOT, initiator = unit, weapon = MOCK.weapon(wtype, hog) }) end
+end
+shots(pdUnit, DCC.config.ext.samScootShots - 1, 2)
 MOCK.advance(25)
-check("point defence drives off after firing", MOCK.groups[rec.pd].lastTask and MOCK.groups[rec.pd].lastTask.id == "Mission"
-  and war.state.nodes[samNode2].sam.pdOff ~= nil)
+check("v0.72: point defence stays put after one or two missiles", war.state.nodes[samNode2].sam.pdOff == nil)
+shots(pdUnit, 1, 2)
+MOCK.advance(25)
+check("point defence drives off after samScootShots missiles", MOCK.groups[rec.pd].lastTask
+  and MOCK.groups[rec.pd].lastTask.id == "Mission" and war.state.nodes[samNode2].sam.pdOff ~= nil)
 local siteUnit = MOCK.groups[rec.group].units[1]
-MOCK.fire({ id = world.event.S_EVENT_SHOT, initiator = siteUnit, weapon = MOCK.weapon(4, hog) })
+shots(siteUnit, DCC.config.ext.samScootShots, 4)
 MOCK.advance(35)
 check("the SA-11 (mobile) moves too", war.state.nodes[samNode2].sam.off ~= nil)
+local offBefore = war.state.nodes[samNode2].sam.off
+shots(siteUnit, DCC.config.ext.samScootShots, 4)
+MOCK.advance(35)
+check("v0.72: not again within samMoveCooldown (30 min)", war.state.nodes[samNode2].sam.off == offBefore
+  and DCC.config.ext.samMoveCooldown >= 1800)
+
+-- v0.72: a HARM at the site makes it go dark, it no longer drives off (Gudauta moved 7 times in an evening)
+B.ext.moved = {}
+war.state.nodes[samNode2].sam.off = nil
+local harm = MOCK.weapon(5, siteUnit)
+MOCK.fire({ id = world.event.S_EVENT_SHOT, initiator = hog, weapon = harm })
+check("v0.72: a HARM at the site: dark, but no scoot", war.state.nodes[samNode2].sam.off == nil
+  and B.samDark[samNode2] ~= nil)
+
+-- v0.72: a coastal site never drives into the sea (beta 17 Nov: Gudauta's SA-11 in the water)
+local cpos = B.nodePos[samNode2]
+local realSurface = land.getSurfaceType
+land.getSurfaceType = function(p) return (p.x > cpos.x) and land.SurfaceType.WATER or land.SurfaceType.LAND end
+local wet = 0
+for i = 1, 20 do
+  B.ext.moved = {}
+  B.relocateSam(samNode2, "site")
+  local o = war.state.nodes[samNode2].sam.off
+  if not o or cpos.x + o.dx > cpos.x then wet = wet + 1 end
+end
+land.getSurfaceType = realSurface
+check("v0.72: 20 moves next to the sea: all on dry land", wet == 0, wet)
+
+-- v0.72: only samPdShare of RED's sites get a Tor, spread evenly, the same on every restart
+DCC.config.ext.samPdShare.red = pdShareRed
+local nSam, nPd = 0, 0
+for _, id in ipairs(war.T.order) do
+  if war.state.nodes[id].sam then
+    nSam = nSam + 1
+    if B.samHasPd(id, "red") then nPd = nPd + 1 end
+  end
+end
+check("v0.72: about a third of the SAM sites have point defence", nPd >= 1 and math.abs(nPd - nSam * pdShareRed) <= 1,
+  nPd .. "/" .. nSam)
+check("...BLUE's (Avengers, no missile killers) at every site", B.samHasPd(samNode2, "blue"))
+local again = 0
+for _, id in ipairs(war.T.order) do
+  if war.state.nodes[id].sam and B.samHasPd(id, "red") then again = again + 1 end
+end
+check("...the same sites every time", again == nPd)
+DCC.config.ext.samPdShare.red = 1
 
 print("Aircrews")
 war.state.airPool.red.attack = 8

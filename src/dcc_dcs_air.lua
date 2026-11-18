@@ -290,12 +290,28 @@ function B.cued(side, u)
   return false
 end
 
+-- v0.72: does this site get its point defence? Only samPdShare of a side's sites do (RED's Tor shoots down HARMs
+-- and bombs; at every SA-11 site the team found them impossible to hit, beta 17 Nov). The sites are picked evenly
+-- in the map's node order, so the choice is the same on every restart and does not change with the owner.
+function B.samHasPd(id, side)
+  local share = ((DCC.config.ext or {}).samPdShare or {})[side]
+  if share == nil or share >= 1 then return true end
+  if share <= 0 then return false end
+  local i = 0
+  for _, nid in ipairs(B.war.T.order) do
+    if B.war.state.nodes[nid].sam then i = i + 1 end
+    if nid == id then break end
+  end
+  return math.floor(i * share) ~= math.floor((i - 1) * share)
+end
+
 local baseSpawnSam = B.spawnSam
 function B.spawnSam(id)
   baseSpawnSam(id)
   local rec = B.sams[id]
   local spec = B.catalog.sam and B.catalog.sam[rec and rec.side or ""]
   if not rec or not spec or not spec.pointDefence then return end
+  if not B.samHasPd(id, rec.side) then return end
   local c = B.nodePos[id]
   local off = B.war.state.nodes[id].sam and B.war.state.nodes[id].sam.pdOff
   if off then c = { x = c.x + off.dx, z = c.z + off.dz } end

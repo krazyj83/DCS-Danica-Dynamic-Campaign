@@ -152,6 +152,7 @@ local function isRunway(x, z, m)
   return false
 end
 B.isRunway = isRunway
+B.isWater = isWater
 
 -- The nearest good spot: dry land, and (avoidRunway) clear of runways and aprons.
 -- v0.65: remembered per spot, so a site whose spot is bad (Senaki's SAM on a runway, beta 13 Nov: moved 6 times an

@@ -8,7 +8,7 @@
 DCC = DCC or {}
 
 DCC.config = {
-  version         = "0.71.0",
+  version         = "0.72.0",
 
   -- Which theater pack and era catalog to run. "auto" picks the theater from
   -- env.mission.theatre (the map the mission was built on).
@@ -177,6 +177,9 @@ DCC.config = {
     nightStartHour = 20,  nightEndHour = 6,             -- mission clock
     fog            = { rain = { 4000, 400 }, storm = { 1500, 900 } },  -- DCS fog: visibility m, thickness m
     fogFromSev     = 0.45,    -- fog starts this far toward rain (light haze, 10 km), thickens from there
+    fogMode        = "off",   -- v0.72: "off" (no DCS fog; weather still slows columns and shortens eyes), "thin"
+                              --   (fogThin limits, no rolling in/out) or "full" (the fog above) - fog costs players frames
+    fogThin        = { minVis = 4000, maxThick = 150 },  -- "thin": visibility never below, layer never thicker (m)
     escortThreat   = 2,       -- road threat that gets convoys an air-defence escort
     rerouteThreat  = 2,       -- ...and makes the AI prefer another road
     reroutePenalty = 400,     -- (planning cost per threat point; one step nearer the front = 1000)
@@ -348,7 +351,11 @@ DCC.config = {
                { "rbk_500", 1100 }, { "fab_250", 550 }, { "rbk_250", 550 }, { "ofab", 250 }, { "fab_100", 220 },
                { "ls_6", 1100 }, { "gb_6", 1100 }, { "lb_", 500 } },
     bombLbDefault = 500,
-    samMoveKm = { 1.5, 4 }, samMoveCooldown = 900,            -- shoot and scoot (seconds between moves)
+    samMoveKm = { 1.5, 4 }, samMoveCooldown = 1800,           -- shoot and scoot (seconds between moves; v0.72: was 900)
+    samScootShots = 3,           -- v0.72: a site (or its point defence) moves after this many missiles fired, not after each
+    samScootOnHarm = false,      -- v0.72: a HARM at a site makes it go dark (intel.harmDarkSeconds) but no longer drive off
+    samPdShare = { blue = 1, red = 0.34 },  -- v0.72: share of SAM sites with point defence (RED's Tor shoots down HARMs
+                                            --   and bombs: at every SA-11 site it was too much) - spread evenly over the map
     aiCrewChance = 0.7,          -- share of AI crews that eject alive
     support = {
       artySU = 10, artyRangeKm = 35, artyRounds = 6, artyCooldownMin = 10,   -- v0.57: 6 rounds (was 12)

@@ -226,10 +226,19 @@ function B.relocateSam(id, which)
   if not g or not ok(g.isExist, g) then return false end
   B.ext.moved[k] = now
   local lo, hi = XC().samMoveKm[1], XC().samMoveKm[2]
-  local ang = war.rng:next() * 2 * math.pi
-  local r = (lo + (hi - lo) * war.rng:next()) * 1000
-  local dx, dz = math.cos(ang) * r, math.sin(ang) * r
   local c = B.nodePos[id]
+  -- v0.72: a spot on dry land, clear of runways. A random direction put coastal sites (Gudauta) in the sea, where
+  -- they sat in the surf, out of reach of bombs aimed at the shore (beta 17 Nov: "targets still spawn in water").
+  local dx, dz
+  for _ = 1, 12 do
+    local ang = war.rng:next() * 2 * math.pi
+    local r = (lo + (hi - lo) * war.rng:next()) * 1000
+    dx, dz = math.cos(ang) * r, math.sin(ang) * r
+    local x, z = c.x + dx, c.z + dz
+    if not B.isWater(x, z) and not B.isRunway(x, z, DCC.config.runwayClearM or 60) then break end
+    local lx, lz = B.landNear(x, z, true)
+    dx, dz = lx - c.x, lz - c.z
+  end
   local u1 = ok(function() return g:getUnits()[1] end)
   local from = u1 and ok(u1.getPoint, u1) or c
   local route = { id = "Mission", params = { route = { points = {
@@ -238,7 +247,7 @@ function B.relocateSam(id, which)
   local ctl = ok(g.getController, g)
   if ctl then ok(ctl.setTask, ctl, route) end
   war:samMoved(id, dx, dz, which)
-  U.log("SAM %s at %s relocating %.1f km", which, id, r / 1000)
+  U.log("SAM %s at %s relocating %.1f km", which, id, math.sqrt(dx * dx + dz * dz) / 1000)
   return true
 end
 
@@ -598,17 +607,25 @@ function B.onShot(e)
   if sname then
     local pd = sname:match("^DCC_SAMPD_(.-)_%d+$")
     local site = sname:match("^DCC_SAM_(.-)_[rls]%d+$")
+    -- v0.72: only after samScootShots missiles (each shot counted once the cooldown allows a move)
+    local function scoot(id, which, delay)
+      local k = id .. ":" .. which
+      B.ext.shots = B.ext.shots or {}
+      B.ext.shots[k] = (B.ext.shots[k] or 0) + 1
+      if B.ext.shots[k] < (XC().samScootShots or 1) then return end
+      timer.scheduleFunction(function()
+        if ok(B.relocateSam, id, which) then B.ext.shots[k] = 0 end
+      end, nil, timer.getTime() + delay)
+    end
     if pd then
-      timer.scheduleFunction(function() ok(B.relocateSam, pd, "pd") end, nil, timer.getTime() + 20)
+      scoot(pd, "pd", 20)
     elseif site then
       local spec = B.catalog.sam and B.catalog.sam[B.war.state.nodes[site].side]
-      if spec and spec.mobile then
-        timer.scheduleFunction(function() ok(B.relocateSam, site, "site") end, nil, timer.getTime() + 30)
-      end
+      if spec and spec.mobile then scoot(site, "site", 30) end
     end
   end
-  -- a HARM at a site: mobile sites and its point defence scoot
-  if d and d.guidance == G_RADAR_P then
+  -- a HARM at a site: mobile sites and its point defence scoot (v0.72: off by default - the site goes dark instead)
+  if d and d.guidance == G_RADAR_P and XC().samScootOnHarm then
     local tgt = ok(w.getTarget, w)
     local tname = tgt and ok(tgt.getName, tgt)
     tname = tname and tostring(tname)

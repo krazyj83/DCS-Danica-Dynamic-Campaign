@@ -6,6 +6,28 @@ Each entry: **Added** (new), **Changed** (works differently), **Fixed** (was bro
 
 ---
 
+## 0.72.0 — 2026-11-18
+
+**Changed**
+- **SA-11 sites are beatable again** (team: "SA-11/15s impossible to hit"). Every RED SA-11 had a Tor (SA-15),
+  which shoots down HARMs, Mavericks and guided bombs, and the whole site drove off after every missile or HARM.
+  Now:
+  - only about a third of RED's sites have a Tor, spread evenly over the map and the same on every restart
+    (`ext.samPdShare`; BLUE's Avengers stay at every Hawk);
+  - a site moves after 3 missiles fired (`ext.samScootShots`), at most every 30 minutes (`samMoveCooldown` 1800,
+    was 900);
+  - a HARM makes the site go dark for 1–2 minutes as before, but no longer makes it drive off
+    (`ext.samScootOnHarm = false`). Gudauta moved 7 times in one evening.
+- **Campaign fog off by default** (`world.fogMode = "off"`; players: fog kills frame rates). `"thin"`: never
+  thicker than 150 m and never below 4 km visibility, set without rolling in (`world.fogThin`); `"full"`: as
+  before. Weather still slows columns and shortens eyes.
+- DCS test plan: new P-413, P-414; P-403 and P-1001 to RETEST.
+
+**Fixed**
+- **SAM sites drove into the sea.** Shoot and scoot picked a random direction, so a coastal site (Gudauta) drove
+  into the water half the time and sat in the surf, out of reach of bombs (dcs.log 17 Nov: "DCC_SAM_gudauta: 3 units
+  moved out of the water" at the next restart). A new spot is now always on dry land and clear of runways.
+
 ## 0.71.0 — 2026-11-15
 
 **Added**

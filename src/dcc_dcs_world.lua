@@ -83,12 +83,19 @@ end
 function B.applyWeather()
   local wx = world and world.weather
   if not wx or not wx.setFogVisibilityDistance then return end   -- older DCS: nothing to do
-  local vis, thick = B.fogAt(B.war:weatherSeverity())
+  -- v0.72: fog costs players a lot of frames (beta 17 Nov) - off by default, or thin and without rolling in/out
+  local mode = WC().fogMode or "full"
+  local vis, thick = 0, 0
+  if mode ~= "off" then vis, thick = B.fogAt(B.war:weatherSeverity()) end
+  if mode == "thin" and vis > 0 then
+    local t = WC().fogThin or {}
+    vis, thick = math.max(vis, t.minVis or 4000), math.min(thick, t.maxThick or 150)
+  end
   vis, thick = math.floor(vis + 0.5), math.floor(thick + 0.5)
   local last = B.fogNow
   if last and last.vis == vis and last.thick == thick then return end
   B.fogNow = { vis = vis, thick = thick }
-  if wx.setFogAnimation and last then
+  if wx.setFogAnimation and last and mode == "full" then
     -- one key after the tick: DCS eases from the fog as it is now (0 = no fog)
     local okA = pcall(wx.setFogAnimation, { { DCC.config.tickSeconds, vis, thick } })
     if okA then return end
